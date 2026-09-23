@@ -11,7 +11,7 @@ from pathlib import Path
 from hardboiled.toolchain import BuildOptions, build, select_compiler
 
 HERE = Path(__file__).resolve().parent
-PROGRAMS = ("basic", "mmio", "traps", "types")
+PROGRAMS = ("basic", "mmio", "traps", "types", "hwloop")
 
 # Rutas DWARF relativas al directorio del ELF: los fixtures funcionan desde
 # cualquier clon del repositorio.

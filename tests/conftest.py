@@ -11,6 +11,7 @@ from hardboiled.config import BoardConfig, BoardInfo
 from hardboiled.core.events import CmdShutdown, Command, Event
 from hardboiled.core.machine import Machine
 from hardboiled.core.runner import RunnerThread
+from tests.hwloop import HardwareLoop
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RUNNER_TIMEOUT = 10
@@ -89,3 +90,14 @@ def harness() -> Iterator[HarnessFactory]:
         h.cmd.put(CmdShutdown())
         h.runner.join(RUNNER_TIMEOUT)
         assert not h.runner.is_alive()
+
+
+@pytest.fixture
+def hardware_loop() -> Callable[..., HardwareLoop]:
+    """Placa por defecto con un firmware de fixtures, lista para estimular en lazo."""
+
+    def factory(name: str = "hwloop", *, max_instructions: int = 5_000_000) -> HardwareLoop:
+        board = BoardConfig(board=BoardInfo(max_instructions=max_instructions))
+        return HardwareLoop(Machine.from_elf(FIXTURES / f"{name}.elf", board))
+
+    return factory
