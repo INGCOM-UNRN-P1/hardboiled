@@ -27,7 +27,8 @@ def test_fish_and_zsh_scripts_mention_commands() -> None:
 @pytest.mark.parametrize(
     ("words", "expected"),
     [
-        (["hardboiled", "ex"], "examples"),
+        (["hardboiled", "exa"], "examples"),
+        (["hardboiled", "ex"], "examples explain"),
         (["hardboiled", "board", ""], "init show"),
         (["hardboiled", "demo", "inter"], "interrupciones"),
         (["hardboiled", "run", "--headl"], "--headless"),

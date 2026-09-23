@@ -98,6 +98,7 @@ class StopInfo:
     fault_address: int | None = None
     exit_code: int | None = None
     watch: WatchHit | None = None
+    kind: str | None = None  # tipo de trampa ("null-pointer", "stack-overflow"…)
 
 
 class _Halt(Enum):
@@ -542,14 +543,16 @@ class Cpu:
             )
         if halt is _Halt.STACK:
             return self._stack_overflow(pc)
-        return self._trap(pc, f"la ejecución se detuvo en 0x{pc:08x} sin motivo conocido")
+        return self._trap(
+            pc, f"la ejecución se detuvo en 0x{pc:08x} sin motivo conocido", kind="exception"
+        )
 
     def _terminate(self, info: StopInfo) -> StopInfo:
         self.halted = info
         return info
 
-    def _trap(self, pc: int, message: str, address: int | None = None) -> StopInfo:
-        return StopInfo(StopReason.TRAP, pc, message, address)
+    def _trap(self, pc: int, message: str, address: int | None = None, *, kind: str) -> StopInfo:
+        return StopInfo(StopReason.TRAP, pc, message, address, kind=kind)
 
     def _stack_overflow(self, pc: int) -> StopInfo:
         sp = self.sp
@@ -569,6 +572,7 @@ class Cpu:
             f"stack overflow: sp = 0x{sp:08x} {where}. "
             "¿Recursión sin caso base o arreglos locales enormes?",
             sp,
+            kind="stack-overflow",
         )
 
     def _pace_and_poll(self, max_sleep: float = 0.02) -> bool:
@@ -709,12 +713,16 @@ class Cpu:
             f"acceso desalineado: {kind} de una {unit} en 0x{address:08x}, que no es "
             f"múltiplo de {size}. ¿Un puntero a int que apunta dentro de un char[]?",
             address,
+            kind="misaligned",
         )
         return True
 
     def _mmio_fault(self, uc: Uc, fault: MmioFault, offset: int) -> None:
         self._fault = self._trap(
-            self._current_pc, f"acceso MMIO inválido: {fault}", self.memory.mmio_base + offset
+            self._current_pc,
+            f"acceso MMIO inválido: {fault}",
+            self.memory.mmio_base + offset,
+            kind="mmio",
         )
         self._halt(uc, _Halt.FAULT)
 
@@ -740,11 +748,15 @@ class Cpu:
         if line is None:
             return None
         if self._vector_table is None:
-            return self._trap(pc, f"llegó la IRQ {line} pero el binario no define __vector_table")
+            return self._trap(
+                pc, f"llegó la IRQ {line} pero el binario no define __vector_table", kind="vector"
+            )
         raw = self.read_memory(self._vector_table + 4 * line, 4)
         handler = int.from_bytes(raw, "little") if raw is not None else 0
         if self._region_of(handler, 4) != "flash":
-            return self._trap(pc, f"IRQ {line}: el vector apunta a 0x{handler:08x}, fuera de Flash")
+            return self._trap(
+                pc, f"IRQ {line}: el vector apunta a 0x{handler:08x}, fuera de Flash", kind="vector"
+            )
         frame = self.sp - ISR_FRAME_SIZE
         if frame < self.stack_floor:
             return self._stack_overflow(pc)
@@ -759,7 +771,9 @@ class Cpu:
 
     def _return_from_isr(self, pc: int) -> StopInfo | None:
         if not self.pic.in_isr or not self._isr_frames:
-            return self._trap(pc, "mret ejecutado fuera de una rutina de interrupción")
+            return self._trap(
+                pc, "mret ejecutado fuera de una rutina de interrupción", kind="isr-stack"
+            )
         frame = self.sp
         expected = self._isr_frames[-1]
         if frame != expected:
@@ -767,6 +781,7 @@ class Cpu:
                 pc,
                 f"la ISR dejó la pila desbalanceada: sp = 0x{frame:08x}, "
                 f"se esperaba 0x{expected:08x}",
+                kind="isr-stack",
             )
         raw = bytes(self._uc.mem_read(frame, ISR_FRAME_SIZE))
         saved_pc, *regs = struct.unpack(f"<{ISR_FRAME_SIZE // 4}I", raw)
@@ -799,6 +814,7 @@ class Cpu:
                 pc,
                 "wfi: la CPU se durmió sin ninguna interrupción habilitada que pueda "
                 "despertarla (deadlock)",
+                kind="wfi-deadlock",
             )
         self._refresh_deadline()
         self.instructions += 1
@@ -818,6 +834,7 @@ class Cpu:
                 pc,
                 f"excepción de la CPU en 0x{pc:08x}: {exc} "
                 "(¿instrucción ilegal o acceso a memoria desalineado?)",
+                kind="exception",
             )
         access, address = self._invalid_access
         kind = _ACCESS_KIND.get(access, "acceso")
@@ -825,13 +842,17 @@ class Cpu:
         sram = self.memory.sram_base
         if region == "null":
             message = f"desreferencia de puntero nulo: {kind} en 0x{address:08x}"
+            trap_kind = "null-pointer"
         elif access in (UC_MEM_FETCH_PROT, UC_MEM_FETCH_UNMAPPED):
             where = "la SRAM (no es ejecutable)" if region == "sram" else "una zona sin código"
             message = f"salto a 0x{address:08x}, en {where}"
+            trap_kind = "bad-jump"
         elif access == UC_MEM_WRITE_PROT and region == "flash":
             message = f"escritura en Flash (memoria de sólo lectura) en 0x{address:08x}"
+            trap_kind = "flash-write"
         elif sram - 0x1_0000 <= address < sram and self.sp < sram:
             return self._stack_overflow(pc)
         else:
             message = f"{kind} en memoria no mapeada: 0x{address:08x}"
-        return self._trap(pc, message, address)
+            trap_kind = "unmapped"
+        return self._trap(pc, message, address, kind=trap_kind)

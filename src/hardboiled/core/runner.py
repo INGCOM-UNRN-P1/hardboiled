@@ -58,6 +58,7 @@ from hardboiled.core.events import (
     FrameInfo,
     WatchInfo,
 )
+from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine, MachineSnapshot
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
@@ -472,6 +473,7 @@ def warning_events(machine: Machine) -> list[EvtWarning]:
                 machine.debugger.function(diagnostic.pc),
                 location.file if location else None,
                 location.line if location else None,
+                hint_for(diagnostic.kind),
             )
         )
     return events
@@ -489,6 +491,8 @@ def trap_event(machine: Machine, stop: StopInfo) -> EvtTrap:
         debugger.function(stop.pc) or machine.image.describe(stop.pc),
         location.file if location else None,
         location.line if location else None,
+        stop.kind,
+        hint_for(stop.kind),
     )
 
 

@@ -316,6 +316,8 @@ class EvtTrap:
     function: str | None = None
     source_file: str | None = None
     source_line: int | None = None
+    kind: str | None = None  # para `hardboiled explain <kind>`
+    hint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -366,6 +368,7 @@ class EvtWarning:
     function: str | None = None
     source_file: str | None = None
     source_line: int | None = None
+    hint: str | None = None
 
 
 @dataclass(frozen=True)

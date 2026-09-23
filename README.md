@@ -331,6 +331,11 @@ acceso desalineado (un `lw`/`sw` a una dirección no múltiplo de 4, o `lh`/`sh`
 no múltiplo de 2; con `misaligned = "allow"` en `[board]` se resuelve en
 silencio como hace el hardware que lo soporta) e instrucción ilegal.
 
+Cada trampa trae una pista ("¿El puntero se inicializó?") y un tipo;
+`hardboiled explain <tipo>` muestra la explicación completa (causas típicas y
+cómo encontrarlas con el depurador) y `hardboiled explain` lista los tipos. La
+guía completa está en `src/hardboiled/data/docs/trampas.md`.
+
 ### Avisos
 
 Al cargar un programa se revisa cómo se compiló: sin `-g` no hay depuración a

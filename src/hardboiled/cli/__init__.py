@@ -14,6 +14,7 @@ from hardboiled.cli import (
     config,
     doctor,
     examples,
+    explain,
     info,
     new,
     run,
@@ -38,6 +39,7 @@ SUBCOMMANDS = (
     sdk,
     config,
     doctor,
+    explain,
     completion,
 )
 

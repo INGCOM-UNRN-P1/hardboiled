@@ -340,7 +340,13 @@ class HardboiledApp(App[None]):
                     if event.source_file
                     else f"0x{event.pc:08x}"
                 )
-                self.notify(f"{event.text}\n{where}", title="Aviso", severity="warning", timeout=8)
+                hint = f"\n{event.hint}" if event.hint else ""
+                self.notify(
+                    f"{event.text}\n{where}{hint}\n(hardboiled explain {event.kind})",
+                    title="Aviso",
+                    severity="warning",
+                    timeout=10,
+                )
             case EvtClockChanged():
                 if event.hz is not None:
                     self._last_clock_hz = event.hz

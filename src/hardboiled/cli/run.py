@@ -20,6 +20,7 @@ from hardboiled.cli.common import (
 )
 from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput, collapse_frames
+from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine
 from hardboiled.core.runner import frame_infos, warning_events
 from hardboiled.core.session import BreakpointStore
@@ -171,6 +172,8 @@ def run_headless(machine: Machine) -> int:
     for warning in warning_events(machine):
         where = f" ({warning.source_file}:{warning.source_line})" if warning.source_file else ""
         print(f"\naviso: {warning.text}{where}", file=sys.stderr)
+        if warning.hint:
+            print(f"  pista: {warning.hint} (hardboiled explain {warning.kind})", file=sys.stderr)
     if stop.reason is StopReason.LIMIT:
         print(
             f"\nLÍMITE: {stop.message}. Con --max-instructions se puede dar más margen.",
@@ -190,6 +193,9 @@ def format_trap(machine: Machine, stop: StopInfo) -> str:
     where = f"{location.file}:{location.line}" if location else "sin información de línea"
     function = debugger.function(stop.pc) or machine.image.describe(stop.pc)
     lines = [f"TRAP: {stop.message}", f"  en {function}() pc=0x{stop.pc:08x} ({where})"]
+    hint = hint_for(stop.kind)
+    if hint:
+        lines.append(f"  pista: {hint} (hardboiled explain {stop.kind})")
     instruction = debugger.instruction_at(stop.pc)
     if instruction is not None:
         lines.append(f"  instrucción: {instruction.text}")

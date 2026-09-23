@@ -52,6 +52,11 @@ class TrapScreen(ModalScreen[None]):
             if trap.instruction:
                 yield Label("Instrucción que falló", classes="section")
                 yield Static(Text(trap.instruction, style="bold yellow"))
+            if trap.hint:
+                yield Label("Pista", classes="section")
+                yield Static(Text(trap.hint, style="italic"))
+            if trap.kind:
+                yield Static(Text(f"Más detalles: hardboiled explain {trap.kind}", style="dim"))
             if trap.fault_address is not None:
                 yield Static(
                     Text(f"dirección involucrada: 0x{trap.fault_address:08x}", style="dim")
