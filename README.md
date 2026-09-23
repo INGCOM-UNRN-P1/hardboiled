@@ -124,6 +124,17 @@ hardboiled examples show errores     # imprime un ejemplo
 elegidas con los switches) y `demo`. `hardboiled demo` es además una buena
 prueba de humo después de instalar.
 
+### Autocompletado
+
+```bash
+hardboiled completion bash > ~/.local/share/bash-completion/completions/hardboiled
+hardboiled completion fish > ~/.config/fish/completions/hardboiled.fish
+hardboiled completion zsh  > ~/.zfunc/_hardboiled.zsh   # y `source` desde ~/.zshrc
+```
+
+Completa subcomandos, opciones, nombres de ejemplos y archivos `.c`, `.s`,
+`.h`, `.elf` y `.toml`.
+
 ### Preferencias del usuario
 
 `hardboiled config init` crea un `config.toml` con todas las opciones

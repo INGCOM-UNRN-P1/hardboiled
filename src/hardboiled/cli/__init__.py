@@ -10,6 +10,7 @@ from hardboiled import __version__
 from hardboiled.cli import (
     board,
     build,
+    completion,
     config,
     doctor,
     examples,
@@ -24,7 +25,19 @@ from hardboiled.userconfig import ConfigError, load_user_config
 
 __all__ = ["EXIT_INTERRUPTED", "EXIT_TRAP", "EXIT_USAGE", "build_parser", "main"]
 
-SUBCOMMANDS = (new, build, run, examples, info, validate, board, runtime, config, doctor)
+SUBCOMMANDS = (
+    new,
+    build,
+    run,
+    examples,
+    info,
+    validate,
+    board,
+    runtime,
+    config,
+    doctor,
+    completion,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
