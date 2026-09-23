@@ -20,6 +20,7 @@ from hardboiled.core.debugger import DebuggerError
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
+    CmdPressButton,
     CmdReadMemory,
     CmdReset,
     CmdRunToLine,
@@ -57,7 +58,7 @@ from hardboiled.core.events import (
 from hardboiled.core.machine import Machine, MachineSnapshot
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
-from hardboiled.hardware import LedBar, SwitchBank
+from hardboiled.hardware import ButtonBank, LedBar, SwitchBank
 
 PROGRESS_INTERVAL = 0.2  # segundos entre EvtCpuProgress
 DEFAULT_HISTORY = 200  # 200 instantáneas de 64 KB de SRAM: ~13 MB
@@ -135,6 +136,8 @@ class RunnerThread(threading.Thread):
         for dev in self.machine.peripherals:
             if isinstance(dev, LedBar | SwitchBank):
                 self._emit(EvtHardwareUpdated(dev.name, 0, dev.value))
+            elif isinstance(dev, ButtonBank):
+                self._emit(EvtHardwareUpdated(dev.name, 0, dev.state))
         if self.stop_at_main:
             self._emit(EvtCpuRunning())
             stop = self.machine.debugger.run_to_main()
@@ -203,6 +206,13 @@ class RunnerThread(threading.Thread):
                     line_number=line, source_file=source, condition=condition, hit_count=hits
                 ):
                     debugger.set_condition(line, source, condition, hits)
+                case CmdPressButton(pin_index=pin):
+                    buttons = self.machine.buttons()
+                    if buttons is None:
+                        raise DebuggerError("la placa no tiene botones")
+                    buttons.press(pin)
+                    self.machine.cpu.refresh_deadline()  # el botón se suelta solo
+                    return
                 case CmdUartInput(data=data):
                     uart = self.machine.uart()
                     if uart is None:

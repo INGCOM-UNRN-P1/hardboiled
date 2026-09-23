@@ -10,6 +10,7 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from hardboiled.core.pic import IRQ_LINES, InterruptController
+from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
@@ -17,14 +18,15 @@ from hardboiled.hardware.uart import Uart
 PAGE = 0x1000
 NULL_GUARD_END = 0x1_0000
 
-PeripheralType = Literal["gpio_out", "gpio_in", "uart", "timer"]
+PeripheralType = Literal["gpio_out", "gpio_in", "gpio_irq", "uart", "timer"]
 
 # Tipos de periférico que pueden pedir una interrupción.
-IRQ_CAPABLE = frozenset({"timer", "uart"})
+IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq"})
 
 PERIPHERAL_SIZES: dict[str, int] = {
     "gpio_out": LedBar.size,
     "gpio_in": SwitchBank.size,
+    "gpio_irq": ButtonBank.size,
     "uart": Uart.size,
     "timer": Timer.size,
 }
@@ -137,6 +139,7 @@ def _default_peripherals() -> tuple[PeripheralConfig, ...]:
         PeripheralConfig(name="switches", type="gpio_in", offset=0x04, width_bits=4),
         PeripheralConfig(name="uart0", type="uart", offset=0x10, irq_line=1),
         PeripheralConfig(name="timer0", type="timer", offset=0x20, irq_line=0),
+        PeripheralConfig(name="buttons", type="gpio_irq", offset=0x30, width_bits=4, irq_line=2),
     )
 
 

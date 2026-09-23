@@ -6,19 +6,23 @@
  * funciones simples para los periféricos y las interrupciones.
  *
  * Mapa MMIO (base 0x4000_0000):
- *   0x000  LEDS         escritura/lectura: un bit por LED (8)
- *   0x004  SWITCHES     sólo lectura: un bit por interruptor (4)
- *   0x010  UART_TX      escritura: byte a transmitir
- *   0x014  UART_STATUS  bit 0 = listo para transmitir, bit 1 = hay dato
- *   0x018  UART_RX      lectura: siguiente byte recibido
- *   0x01C  UART_CTRL    bit 0 = IRQ mientras haya bytes recibidos
- *   0x020  TIMER_CTRL   bit 0 = habilitado, bit 1 = genera IRQ
- *   0x024  TIMER_RELOAD período en ciclos (divisor)
- *   0x028  TIMER_COUNT  ciclos restantes hasta el próximo vencimiento
- *   0x02C  TIMER_STATUS bit 0 = venció (escribir 1 para limpiar)
- *   0xF00  PIC_ENABLE   máscara de IRQs habilitadas
- *   0xF04  PIC_PENDING  IRQs pendientes (escribir 1 para limpiar)
- *   0xF08  PIC_GLOBAL   bit 0 = interrupciones habilitadas globalmente
+ *   0x000  LEDS            escritura/lectura: un bit por LED (8)
+ *   0x004  SWITCHES        sólo lectura: un bit por interruptor (4)
+ *   0x010  UART_TX         escritura: byte a transmitir
+ *   0x014  UART_STATUS     bit 0 = listo para transmitir, bit 1 = hay dato
+ *   0x018  UART_RX         lectura: siguiente byte recibido
+ *   0x01C  UART_CTRL       bit 0 = IRQ mientras haya bytes recibidos
+ *   0x020  TIMER_CTRL      bit 0 = habilitado, bit 1 = genera IRQ
+ *   0x024  TIMER_RELOAD    período en ciclos (divisor)
+ *   0x028  TIMER_COUNT     ciclos restantes hasta el próximo vencimiento
+ *   0x02C  TIMER_STATUS    bit 0 = venció (escribir 1 para limpiar)
+ *   0x030  BUTTONS_STATE   sólo lectura: botones presionados (4)
+ *   0x034  BUTTONS_IRQ_EN  máscara de botones que piden la IRQ
+ *   0x038  BUTTONS_EDGE    por botón: 0 = al presionar, 1 = al soltar
+ *   0x03C  BUTTONS_PENDING flancos detectados (escribir 1 limpia)
+ *   0xF00  PIC_ENABLE      máscara de IRQs habilitadas
+ *   0xF04  PIC_PENDING     IRQs pendientes (escribir 1 para limpiar)
+ *   0xF08  PIC_GLOBAL      bit 0 = interrupciones habilitadas globalmente
  */
 #ifndef HARDBOILED_H
 #define HARDBOILED_H
@@ -28,19 +32,23 @@
 #define HB_MMIO_BASE 0x40000000u
 #define HB_REG(offset) (*(volatile uint32_t *)(HB_MMIO_BASE + (offset)))
 
-#define LEDS         HB_REG(0x000)
-#define SWITCHES     HB_REG(0x004)
-#define UART_TX      HB_REG(0x010)
-#define UART_STATUS  HB_REG(0x014)
-#define UART_RX      HB_REG(0x018)
-#define UART_CTRL    HB_REG(0x01C)
-#define TIMER_CTRL   HB_REG(0x020)
-#define TIMER_RELOAD HB_REG(0x024)
-#define TIMER_COUNT  HB_REG(0x028)
-#define TIMER_STATUS HB_REG(0x02C)
-#define PIC_ENABLE   HB_REG(0xF00)
-#define PIC_PENDING  HB_REG(0xF04)
-#define PIC_GLOBAL   HB_REG(0xF08)
+#define LEDS            HB_REG(0x000)
+#define SWITCHES        HB_REG(0x004)
+#define UART_TX         HB_REG(0x010)
+#define UART_STATUS     HB_REG(0x014)
+#define UART_RX         HB_REG(0x018)
+#define UART_CTRL       HB_REG(0x01C)
+#define TIMER_CTRL      HB_REG(0x020)
+#define TIMER_RELOAD    HB_REG(0x024)
+#define TIMER_COUNT     HB_REG(0x028)
+#define TIMER_STATUS    HB_REG(0x02C)
+#define BUTTONS_STATE   HB_REG(0x030)
+#define BUTTONS_IRQ_EN  HB_REG(0x034)
+#define BUTTONS_EDGE    HB_REG(0x038)
+#define BUTTONS_PENDING HB_REG(0x03C)
+#define PIC_ENABLE      HB_REG(0xF00)
+#define PIC_PENDING     HB_REG(0xF04)
+#define PIC_GLOBAL      HB_REG(0xF08)
 
 #define TIMER_CTRL_ENABLE (1u << 0)
 #define TIMER_CTRL_IRQ    (1u << 1)
@@ -50,6 +58,7 @@
 #define HB_IRQ_LINES 8
 #define IRQ_UART0 1
 #define IRQ_TIMER0 0
+#define IRQ_BUTTONS 2
 
 typedef void (*irq_handler_t)(void);
 
@@ -136,6 +145,19 @@ static inline void timer_start(uint32_t period_cycles, int with_irq)
 static inline void timer_stop(void) { TIMER_CTRL = 0; }
 static inline int timer_expired(void) { return (int)(TIMER_STATUS & 1u); }
 static inline void timer_clear(void) { TIMER_STATUS = 1u; }
+
+/* --------------------------------------------------------------- Botones --- */
+
+static inline uint32_t buttons_get(void) { return BUTTONS_STATE; }
+static inline int button_read(unsigned int index) { return (int)((BUTTONS_STATE >> index) & 1u); }
+
+/* Pide la IRQ cuando se presionan los botones de `mask` (flanco de subida). */
+static inline void button_irq_enable(uint32_t mask) { BUTTONS_IRQ_EN = BUTTONS_IRQ_EN | mask; }
+static inline void button_irq_disable(uint32_t mask) { BUTTONS_IRQ_EN = BUTTONS_IRQ_EN & ~mask; }
+
+/* Flancos detectados desde la última limpieza (un bit por botón). */
+static inline uint32_t buttons_pending(void) { return BUTTONS_PENDING; }
+static inline void buttons_clear(uint32_t mask) { BUTTONS_PENDING = mask; }
 
 /* -------------------------------------------------------- Interrupciones --- */
 

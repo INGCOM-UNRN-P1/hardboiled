@@ -43,7 +43,8 @@ def test_runner_boot_and_step(harness: HarnessFactory) -> None:
     h = harness("basic")
     loaded = h.wait_for(EvtProgramLoaded)
     assert any(f.endswith("basic.c") for f in loaded.source_files)
-    assert {p.name for p in loaded.peripherals} == {"leds", "switches", "uart0", "timer0"}
+    names = {p.name for p in loaded.peripherals}
+    assert names == {"leds", "switches", "uart0", "timer0", "buttons"}
     first = h.wait_for(EvtCpuSuspended)
     assert first.source_line == line_of("basic.c", "main_first")
     assert first.function == "main"

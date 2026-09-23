@@ -5,11 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from hardboiled.hardware.bus import Clock, MmioBus, MmioFault, Peripheral
+from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
 
 __all__ = [
+    "ButtonBank",
     "Clock",
     "LedBar",
     "MmioBus",
@@ -39,4 +41,6 @@ def build_peripheral(
         return Uart(name, offset, irq_line=irq_line, raise_irq=raise_irq, lower_irq=lower_irq)
     if kind == "timer":
         return Timer(name, offset, irq_line, raise_irq)
+    if kind == "gpio_irq":
+        return ButtonBank(name, offset, width_bits, irq_line, raise_irq, lower_irq)
     raise ValueError(f"tipo de periférico desconocido: {kind}")

@@ -22,6 +22,7 @@ from textual.widgets import Footer, Header, Input, Log, Static, TabbedContent, T
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
+    CmdPressButton,
     CmdReadMemory,
     CmdReset,
     CmdRunToLine,
@@ -59,7 +60,7 @@ from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.disasm_view import DisassemblyView
 from hardboiled.ui.widgets.file_picker import FilePicker
-from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
+from hardboiled.ui.widgets.hardware_view import ButtonBankView, HardwareView, SwitchBankView
 from hardboiled.ui.widgets.help_screen import HelpScreen
 from hardboiled.ui.widgets.memory_inspector import MemoryInspector
 from hardboiled.ui.widgets.memory_view import MemoryView
@@ -573,6 +574,9 @@ class HardboiledApp(App[None]):
 
     def on_code_view_breakpoint_requested(self, message: CodeView.BreakpointRequested) -> None:
         self.send(CmdToggleBreakpoint(message.line, message.file))
+
+    def on_button_bank_view_pressed(self, message: ButtonBankView.Pressed) -> None:
+        self.send(CmdPressButton(message.pin_index))
 
     def on_switch_bank_view_toggled(self, message: SwitchBankView.Toggled) -> None:
         self.send(CmdToggleSwitch(message.pin_index))

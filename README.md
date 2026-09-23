@@ -258,9 +258,21 @@ click) muestra su línea marcada con `▷` y sus variables locales.
 | `0x024` | `TIMER_RELOAD` | Período en ciclos (divisor). |
 | `0x028` | `TIMER_COUNT` | Ciclos restantes (sólo lectura). |
 | `0x02C` | `TIMER_STATUS` | Bit 0: venció (escribir 1 para limpiar). |
+| `0x030` | `BUTTONS_STATE` | 4 botones: bit en 1 mientras está presionado (sólo lectura). |
+| `0x034` | `BUTTONS_IRQ_EN` | Botones que piden la IRQ 2. |
+| `0x038` | `BUTTONS_EDGE` | Por botón: 0 avisa al presionar, 1 al soltar. |
+| `0x03C` | `BUTTONS_PENDING` | Flancos detectados (escribir 1 limpia y retira la IRQ). |
 | `0xF00` | `PIC_ENABLE` | Máscara de IRQs habilitadas. |
 | `0xF04` | `PIC_PENDING` | IRQs pendientes (escribir 1 para limpiar). |
 | `0xF08` | `PIC_GLOBAL` | Bit 0: interrupciones habilitadas globalmente. |
+
+### Botones
+
+En la TUI, un click en un botón `▣` lo presiona y lo suelta solo unos ciclos
+después (20 000), así un programa que encuesta alcanza a verlo. Con
+`button_irq_enable()` cada pulsación pide `IRQ_BUTTONS`; la ISR lee
+`buttons_pending()` y los limpia con `buttons_clear()`. Ver el ejemplo
+`botones`.
 
 ### Entrada por la UART
 

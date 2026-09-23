@@ -15,7 +15,14 @@ from hardboiled.core.events import PeripheralInfo
 from hardboiled.core.pic import InterruptController
 from hardboiled.core.unwind import CallFrameTable
 from hardboiled.core.variables import VariableTable
-from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, Uart, build_peripheral
+from hardboiled.hardware import (
+    ButtonBank,
+    MmioBus,
+    Peripheral,
+    SwitchBank,
+    Uart,
+    build_peripheral,
+)
 from hardboiled.hardware.bus import EventSink
 
 
@@ -81,6 +88,12 @@ class Machine:
             PeripheralInfo(dev.name, dev.kind, dev.offset, dev.width_bits)
             for dev in self.peripherals
         )
+
+    def buttons(self) -> ButtonBank | None:
+        for dev in self.peripherals:
+            if isinstance(dev, ButtonBank):
+                return dev
+        return None
 
     def uart(self) -> Uart | None:
         for dev in self.peripherals:

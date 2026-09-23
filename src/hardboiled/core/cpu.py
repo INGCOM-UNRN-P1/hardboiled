@@ -497,6 +497,10 @@ class Cpu:
         origin_time, origin_cycles = self._pace_origin
         return origin_time + (self.clock.cycles - origin_cycles) / self.clock_hz > time.monotonic()
 
+    def refresh_deadline(self) -> None:
+        """Recalcula el próximo evento temporal (tras un estímulo externo)."""
+        self._refresh_deadline()
+
     def _refresh_deadline(self) -> None:
         deadline = self.bus.next_deadline()
         self._deadline = _NO_DEADLINE if deadline is None else deadline

@@ -82,6 +82,44 @@ class SwitchBankView(Horizontal):
             self.post_message(self.Toggled(int(event.button.id.removeprefix("sw-"))))
 
 
+class ButtonBankView(Horizontal):
+    DEFAULT_CSS = """
+    ButtonBankView { height: 1; }
+    ButtonBankView Label { width: 9; text-style: bold; }
+    ButtonBankView Button { min-width: 7; width: 7; margin: 0 1 0 0; }
+    ButtonBankView Button.pressed { background: $warning; }
+    """
+
+    class Pressed(Message):
+        def __init__(self, pin_index: int) -> None:
+            super().__init__()
+            self.pin_index = pin_index
+
+    def __init__(self, info: PeripheralInfo) -> None:
+        super().__init__()
+        self.info = info
+        self.value = 0
+
+    def compose(self) -> ComposeResult:
+        yield Label(self.info.name)
+        for pin in reversed(range(self.info.width_bits)):
+            yield Button(f"▣ {pin}", id=f"btn-{pin}", compact=True)
+
+    def set_value(self, value: int) -> None:
+        self.value = value
+        for pin in range(self.info.width_bits):
+            try:
+                button = self.query_one(f"#btn-{pin}", Button)
+            except NoMatches:
+                return
+            button.set_class(bool(value >> pin & 1), "pressed")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id is not None:
+            self.post_message(self.Pressed(int(event.button.id.removeprefix("btn-"))))
+
+
 class TimerView(Static):
     DEFAULT_CSS = """
     TimerView { height: 1; }
@@ -125,6 +163,8 @@ class HardwareView(Vertical):
                 widgets.append(SwitchBankView(info))
             elif info.kind == "timer":
                 widgets.append(TimerView(info))
+            elif info.kind == "gpio_irq":
+                widgets.append(ButtonBankView(info))
         self.mount_all(widgets)
 
     def update_device(self, name: str, offset: int, value: int) -> None:
@@ -132,7 +172,7 @@ class HardwareView(Vertical):
             info = getattr(widget, "info", None)
             if info is None or info.name != name:
                 continue
-            if isinstance(widget, LedBarView | SwitchBankView):
+            if isinstance(widget, LedBarView | SwitchBankView | ButtonBankView):
                 widget.set_value(value)
             elif isinstance(widget, TimerView):
                 widget.set_register(offset, value)

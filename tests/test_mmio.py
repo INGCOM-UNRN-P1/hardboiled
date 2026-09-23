@@ -211,8 +211,10 @@ def test_default_board_toml_is_valid() -> None:
     assert board.board.name == "lab-rv32-basics"
     assert board.board.max_instructions == 5_000_000
     assert board.memory.mmio_base == 0x4000_0000
-    assert [p.name for p in board.peripherals] == ["leds", "switches", "uart0", "timer0"]
-    assert board.peripherals[3].irq_line == 0
+    names = [p.name for p in board.peripherals]
+    assert names == ["leds", "switches", "uart0", "timer0", "buttons"]
+    irqs = {p.name: p.irq_line for p in board.peripherals}
+    assert irqs == {"leds": None, "switches": None, "uart0": 1, "timer0": 0, "buttons": 2}
 
 
 def test_board_rejects_overlapping_peripherals() -> None:

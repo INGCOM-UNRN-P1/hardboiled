@@ -27,6 +27,7 @@ CLASSIC = {
     "gpio_in": ("SWITCHES", "switch"),
     "uart": ("UART", "uart"),
     "timer": ("TIMER", "timer"),
+    "gpio_irq": ("BUTTONS", "button"),
 }
 
 
@@ -62,6 +63,13 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
         return [(n.macro, p.offset, f"escritura/lectura: un bit por LED ({p.width_bits})")]
     if p.type == "gpio_in":
         return [(n.macro, p.offset, f"sólo lectura: un bit por interruptor ({p.width_bits})")]
+    if p.type == "gpio_irq":
+        return [
+            (f"{n.macro}_STATE", p.offset, f"sólo lectura: botones presionados ({p.width_bits})"),
+            (f"{n.macro}_IRQ_EN", p.offset + 4, "máscara de botones que piden la IRQ"),
+            (f"{n.macro}_EDGE", p.offset + 8, "por botón: 0 = al presionar, 1 = al soltar"),
+            (f"{n.macro}_PENDING", p.offset + 12, "flancos detectados (escribir 1 limpia)"),
+        ]
     if p.type == "uart":
         return [
             (f"{n.macro}_TX", p.offset, "escritura: byte a transmitir"),
@@ -103,6 +111,19 @@ static inline void {f}_toggle(unsigned int index) {{ {m} = {m} ^ (1u << index); 
         return f"""\
 static inline uint32_t {f}_get(void) {{ return {m}; }}
 static inline int {f}_read(unsigned int index) {{ return (int)(({m} >> index) & 1u); }}
+"""
+    if p.type == "gpio_irq":
+        return f"""\
+static inline uint32_t {f}s_get(void) {{ return {m}_STATE; }}
+static inline int {f}_read(unsigned int index) {{ return (int)(({m}_STATE >> index) & 1u); }}
+
+/* Pide la IRQ cuando se presionan los botones de `mask` (flanco de subida). */
+static inline void {f}_irq_enable(uint32_t mask) {{ {m}_IRQ_EN = {m}_IRQ_EN | mask; }}
+static inline void {f}_irq_disable(uint32_t mask) {{ {m}_IRQ_EN = {m}_IRQ_EN & ~mask; }}
+
+/* Flancos detectados desde la última limpieza (un bit por botón). */
+static inline uint32_t {f}s_pending(void) {{ return {m}_PENDING; }}
+static inline void {f}s_clear(uint32_t mask) {{ {m}_PENDING = mask; }}
 """
     if p.type == "uart":
         return f"""\
@@ -174,6 +195,7 @@ static inline void {f}_clear(void) {{ {m}_STATUS = 1u; }}
 
 
 SECTION_TITLES = {
+    "gpio_irq": "Botones",
     "gpio_out": "LEDs",
     "gpio_in": "Switches",
     "uart": "UART",

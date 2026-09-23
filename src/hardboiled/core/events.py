@@ -105,6 +105,13 @@ class CmdUartInput:
 
 
 @dataclass(frozen=True)
+class CmdPressButton:
+    """Presiona (y suelta enseguida) un botón de la placa."""
+
+    pin_index: int
+
+
+@dataclass(frozen=True)
 class CmdToggleSwitch:
     pin_index: int
 
@@ -139,6 +146,7 @@ Command = (
     | CmdSetBreakpointCondition
     | CmdReadMemory
     | CmdUartInput
+    | CmdPressButton
     | CmdToggleSwitch
     | CmdPause
     | CmdReset

@@ -36,3 +36,10 @@ name = "timer0"
 type = "timer"
 offset = "0x20"
 irq_line = 0
+
+[[peripherals]]
+name = "buttons"
+type = "gpio_irq"
+offset = "0x30"
+width_bits = 4
+irq_line = 2
