@@ -8,9 +8,10 @@ bits se traducen a una palabra más una máscara de carril (byte lanes).
 
 from __future__ import annotations
 
+import copy
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from hardboiled.core.events import Event
 
@@ -69,6 +70,21 @@ class Peripheral(ABC):
 
     def service(self, cycle: int) -> None:  # noqa: B027
         """Atiende los eventos temporales vencidos hasta `cycle`."""
+
+    # Atributos que no son estado del dispositivo sino su conexión con el resto.
+    _TRANSIENT: ClassVar[frozenset[str]] = frozenset({"clock", "emit", "_raise_irq"})
+
+    def snapshot(self) -> dict[str, Any]:
+        """Estado del dispositivo (copia) para poder volver atrás en el tiempo."""
+        return {
+            key: copy.copy(value)
+            for key, value in vars(self).items()
+            if key not in self._TRANSIENT and not callable(value)
+        }
+
+    def restore(self, state: dict[str, Any]) -> None:
+        for key, value in state.items():
+            setattr(self, key, copy.copy(value))
 
     def fault(self, reg: int, message: str) -> MmioFault:
         return MmioFault(f"{self.name}+0x{reg:02x}: {message}")

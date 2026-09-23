@@ -34,6 +34,11 @@ class CmdStepOut:
 
 
 @dataclass(frozen=True)
+class CmdStepBack:
+    """Vuelve al estado anterior al último comando de ejecución (paso atrás)."""
+
+
+@dataclass(frozen=True)
 class CmdStepInstruction:
     """Ejecuta una única instrucción de máquina (stepi)."""
 
@@ -110,6 +115,7 @@ Command = (
     | CmdContinue
     | CmdStepInstruction
     | CmdStepOut
+    | CmdStepBack
     | CmdRunToLine
     | CmdSelectFrame
     | CmdToggleBreakpoint

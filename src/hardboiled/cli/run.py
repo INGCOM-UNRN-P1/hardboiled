@@ -128,7 +128,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if prefs.save_breakpoints and not args.no_save_breakpoints:
         # Junto a lo que escribió el alumno: el ELF o el primer fuente (no la caché).
         store = BreakpointStore.for_program(Path(args.program[0]))
-    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main, store)
+    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main, store, prefs.history)
     HardboiledApp(cmd_queue, evt_queue, runner, user_config(args).ui).run()
     return 0
 

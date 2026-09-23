@@ -4,26 +4,21 @@ from __future__ import annotations
 
 import ast
 import os
-import queue
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from hardboiled.config import BoardConfig, BoardInfo
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
-    CmdShutdown,
     CmdStepOver,
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
-    Command,
-    Event,
     EvtBreakpointsChanged,
     EvtCpuRunning,
     EvtCpuSuspended,
@@ -34,49 +29,10 @@ from hardboiled.core.events import (
     EvtProgramLoaded,
     EvtTrap,
 )
-from hardboiled.core.machine import Machine
-from hardboiled.core.runner import RunnerThread
-from tests.conftest import FIXTURES, line_of
+from tests.conftest import Harness, HarnessFactory, line_of
 
 SRC = Path(__file__).parents[1] / "src" / "hardboiled"
 TIMEOUT = 10
-
-
-class Harness:
-    def __init__(self, name: str, max_instructions: int = 1_000_000) -> None:
-        board = BoardConfig(board=BoardInfo(max_instructions=max_instructions))
-        self.machine = Machine.from_elf(FIXTURES / f"{name}.elf", board)
-        self.cmd: queue.Queue[Command] = queue.Queue()
-        self.evt: queue.Queue[Event] = queue.Queue()
-        self.runner = RunnerThread(self.machine, self.cmd, self.evt)
-        self.seen: list[Event] = []
-
-    def wait_for[T](self, kind: type[T]) -> T:
-        while True:
-            event = self.evt.get(timeout=TIMEOUT)
-            self.seen.append(event)
-            if isinstance(event, kind):
-                return event
-
-
-HarnessFactory = Callable[..., Harness]
-
-
-@pytest.fixture
-def harness() -> Iterator[HarnessFactory]:
-    created: list[Harness] = []
-
-    def start(name: str, max_instructions: int = 1_000_000) -> Harness:
-        h = Harness(name, max_instructions)
-        h.runner.start()
-        created.append(h)
-        return h
-
-    yield start
-    for h in created:
-        h.cmd.put(CmdShutdown())
-        h.runner.join(TIMEOUT)
-        assert not h.runner.is_alive()
 
 
 def test_runner_boot_and_step(harness: HarnessFactory) -> None:

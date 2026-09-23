@@ -26,6 +26,7 @@ from hardboiled.core.events import (
     CmdSelectFrame,
     CmdSetBreakpointCondition,
     CmdShutdown,
+    CmdStepBack,
     CmdStepInstruction,
     CmdStepInto,
     CmdStepOut,
@@ -95,6 +96,7 @@ class HardboiledApp(App[None]):
         Binding("f11", "step_into", "Step Into"),
         Binding("shift+f11", "step_out", "Step Out"),
         Binding("f7", "step_instruction", "Stepi"),
+        Binding("f8", "step_back", "Atrás"),
         Binding("f4", "run_to_cursor", "Hasta cursor"),
         Binding("c", "continue", show=False),
         Binding("p", "pause", show=False),
@@ -103,6 +105,7 @@ class HardboiledApp(App[None]):
         Binding("s", "step_into", show=False),
         Binding("i", "step_instruction", show=False),
         Binding("o", "step_out", show=False),
+        Binding("u", "step_back", show=False),
         Binding("g", "run_to_cursor", show=False),
         Binding("w", "watch", "Watch"),
         Binding("B", "conditional_breakpoint", show=False),
@@ -300,6 +303,9 @@ class HardboiledApp(App[None]):
 
     def action_step_into(self) -> None:
         self.send(CmdStepInto())
+
+    def action_step_back(self) -> None:
+        self.send(CmdStepBack())
 
     def action_step_out(self) -> None:
         self.send(CmdStepOut())

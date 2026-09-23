@@ -157,6 +157,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `F11` / `s` | Step Into: siguiente línea, entrando en las funciones llamadas |
 | `Shift+F11` / `o` | Step Out: termina la función actual e informa el valor devuelto |
 | `F7` / `i` | Stepi: una sola instrucción de máquina |
+| `F8` / `u` | Paso atrás: vuelve al estado previo al último comando de ejecución |
 | `F4` / `g` | Run to cursor: ejecuta hasta la línea del cursor sin dejar breakpoint |
 | `0`–`7` | Conmuta un switch (también: click en el botón) |
 | `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
@@ -183,6 +184,11 @@ La pestaña **Puntos** lista breakpoints y watchpoints (Supr los quita).
 Los **breakpoints condicionales** (`B`, marcados `◆`) detienen sólo si una
 expresión C es verdadera en ese punto y/o a partir de la pasada N (`#N`):
 evitan apretar F5 decenas de veces dentro de un bucle.
+
+El **paso atrás** (`F8`) restaura registros, memoria y periféricos al estado
+previo al último step o continue; sirve también para volver al instante
+anterior a una trampa. Se guardan hasta 200 pasos (`history` en
+`config.toml`); la salida ya impresa por la UART no se deshace.
 
 Breakpoints, condiciones y watchpoints de globales se **recuerdan entre
 sesiones** en `.hardboiled/<programa>.breakpoints.json`, junto al ELF o al

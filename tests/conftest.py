@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+import queue
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 
 from hardboiled.config import BoardConfig, BoardInfo
-from hardboiled.core.events import Event
+from hardboiled.core.events import CmdShutdown, Command, Event
 from hardboiled.core.machine import Machine
+from hardboiled.core.runner import RunnerThread
 
 FIXTURES = Path(__file__).parent / "fixtures"
+RUNNER_TIMEOUT = 10
 
 
 def fixture_path(name: str) -> Path:
@@ -43,3 +46,40 @@ def make_machine() -> MachineFactory:
         return machine, events
 
     return factory
+
+
+class Harness:
+    def __init__(self, name: str, max_instructions: int = 1_000_000) -> None:
+        board = BoardConfig(board=BoardInfo(max_instructions=max_instructions))
+        self.machine = Machine.from_elf(FIXTURES / f"{name}.elf", board)
+        self.cmd: queue.Queue[Command] = queue.Queue()
+        self.evt: queue.Queue[Event] = queue.Queue()
+        self.runner = RunnerThread(self.machine, self.cmd, self.evt)
+        self.seen: list[Event] = []
+
+    def wait_for[T](self, kind: type[T]) -> T:
+        while True:
+            event = self.evt.get(timeout=RUNNER_TIMEOUT)
+            self.seen.append(event)
+            if isinstance(event, kind):
+                return event
+
+
+HarnessFactory = Callable[..., Harness]
+
+
+@pytest.fixture
+def harness() -> Iterator[HarnessFactory]:
+    created: list[Harness] = []
+
+    def start(name: str, max_instructions: int = 1_000_000) -> Harness:
+        h = Harness(name, max_instructions)
+        h.runner.start()
+        created.append(h)
+        return h
+
+    yield start
+    for h in created:
+        h.cmd.put(CmdShutdown())
+        h.runner.join(RUNNER_TIMEOUT)
+        assert not h.runner.is_alive()

@@ -24,6 +24,7 @@ from hardboiled.core.events import (
     CmdSelectFrame,
     CmdSetBreakpointCondition,
     CmdShutdown,
+    CmdStepBack,
     CmdStepInstruction,
     CmdStepInto,
     CmdStepOut,
@@ -46,10 +47,12 @@ from hardboiled.core.events import (
     FrameInfo,
     WatchInfo,
 )
-from hardboiled.core.machine import Machine
+from hardboiled.core.machine import Machine, MachineSnapshot
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import LedBar, SwitchBank
+
+DEFAULT_HISTORY = 200  # 200 instantáneas de 64 KB de SRAM: ~13 MB
 
 
 class RunnerThread(threading.Thread):
@@ -60,6 +63,7 @@ class RunnerThread(threading.Thread):
         evt_queue: queue.Queue[Event],
         stop_at_main: bool = True,
         store: BreakpointStore | None = None,
+        history_size: int = DEFAULT_HISTORY,
     ) -> None:
         super().__init__(name="hardboiled-runner", daemon=True)
         self.machine = machine
@@ -69,6 +73,9 @@ class RunnerThread(threading.Thread):
         self.stop_at_main = stop_at_main
         self._deferred: deque[Command] = deque()
         self._known_watches: set[str] = set()
+        # Instantáneas previas a cada comando de ejecución, para el paso atrás.
+        self._history: deque[MachineSnapshot] = deque(maxlen=max(history_size, 0) or None)
+        self._history_enabled = history_size > 0
         self._shutdown = False
         machine.set_event_sink(self._emit)
         machine.cpu.poll = self._poll
@@ -146,7 +153,10 @@ class RunnerThread(threading.Thread):
                     self._emit(EvtMessage(str(exc)))
                 else:
                     self._execute(lambda: debugger.run_to(address))
+            case CmdStepBack():
+                self._step_back()
             case CmdReset():
+                self._history.clear()
                 self.machine.reset()
                 self._emit(EvtMessage("placa reiniciada"))
                 self._boot()
@@ -232,11 +242,29 @@ class RunnerThread(threading.Thread):
 
     # -------------------------------------------------------------- ejecución
 
+    def _step_back(self) -> None:
+        if not self._history:
+            self._emit(EvtMessage("no hay pasos anteriores para deshacer"))
+            return
+        self.machine.restore(self._history.pop())
+        for dev in self.machine.peripherals:
+            if isinstance(dev, LedBar | SwitchBank):
+                self._emit(EvtHardwareUpdated(dev.name, 0, dev.value))
+        remaining = len(self._history)
+        self._suspended(f"paso atrás ({remaining} disponibles; la UART no se deshace)")
+
     def _execute(self, operation: Callable[[], StopInfo]) -> None:
         cpu = self.machine.cpu
         if cpu.halted is not None:
-            self._emit(EvtMessage(f"{cpu.halted.message}. Usá Reset para volver a empezar."))
+            self._emit(
+                EvtMessage(
+                    f"{cpu.halted.message}. Usá Reset para volver a empezar"
+                    + (" o F8 para volver atrás." if self._history else ".")
+                )
+            )
             return
+        if self._history_enabled:
+            self._history.append(self.machine.snapshot())
         self._emit(EvtCpuRunning())
         self._report(operation())
         debugger = self.machine.debugger

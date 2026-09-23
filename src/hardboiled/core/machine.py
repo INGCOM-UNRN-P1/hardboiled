@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from hardboiled.config import BoardConfig
-from hardboiled.core.cpu import Cpu
+from hardboiled.core.cpu import Cpu, CpuSnapshot
 from hardboiled.core.debugger import Debugger
 from hardboiled.core.dwarf import LineTable
 from hardboiled.core.elf import ElfImage
@@ -15,6 +17,12 @@ from hardboiled.core.unwind import CallFrameTable
 from hardboiled.core.variables import VariableTable
 from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, build_peripheral
 from hardboiled.hardware.bus import EventSink
+
+
+@dataclass(frozen=True)
+class MachineSnapshot:
+    cpu: CpuSnapshot
+    devices: dict[str, dict[str, Any]]
 
 
 class Machine:
@@ -79,3 +87,16 @@ class Machine:
 
     def reset(self) -> None:
         self.cpu.reset()
+
+    def snapshot(self) -> MachineSnapshot:
+        """Instantánea completa: CPU, memoria y estado de cada periférico (incluido el PIC)."""
+        return MachineSnapshot(
+            self.cpu.snapshot(), {dev.name: dev.snapshot() for dev in self.bus.devices}
+        )
+
+    def restore(self, snap: MachineSnapshot) -> None:
+        for dev in self.bus.devices:
+            state = snap.devices.get(dev.name)
+            if state is not None:
+                dev.restore(state)
+        self.cpu.restore(snap.cpu)

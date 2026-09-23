@@ -122,6 +122,16 @@ class WatchHit:
     new: bytes
 
 
+@dataclass(frozen=True)
+class CpuSnapshot:
+    context: Any  # UcContext: registros (incluido pc)
+    sram: bytes
+    instructions: int
+    cycles: int
+    halted: StopInfo | None
+    isr_frame: int | None
+
+
 @dataclass
 class _Watch:
     watch_id: int
@@ -234,6 +244,30 @@ class Cpu:
         if bytes(new) != old:
             self._watch_hit = WatchHit(watch.watch_id, self._current_pc, old, bytes(new))
             self._halt(uc, _Halt.WATCH)
+
+    # ------------------------------------------------------------ instantáneas
+
+    def snapshot(self) -> CpuSnapshot:
+        """Registros, SRAM y contadores: lo necesario para volver a este instante."""
+        mem = self.memory
+        return CpuSnapshot(
+            context=self._uc.context_save(),
+            sram=bytes(self._uc.mem_read(mem.sram_base, mem.sram_size)),
+            instructions=self.instructions,
+            cycles=self.clock.cycles,
+            halted=self.halted,
+            isr_frame=self._isr_frame,
+        )
+
+    def restore(self, snap: CpuSnapshot) -> None:
+        self._uc.context_restore(snap.context)
+        self._uc.mem_write(self.memory.sram_base, snap.sram)
+        self.instructions = snap.instructions
+        self.clock.cycles = snap.cycles
+        self.halted = snap.halted
+        self._isr_frame = snap.isr_frame
+        self._sp_dirty = False
+        self._refresh_deadline()
 
     def _reset_run_state(self) -> None:
         self.halted = None
