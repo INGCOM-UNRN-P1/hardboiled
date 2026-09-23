@@ -22,11 +22,6 @@ from hardboiled.core.machine import Machine
 from hardboiled.hardware import LedBar
 from hardboiled.hardware.sevenseg import SevenSegment
 
-# Mismo alfabeto que seg_pattern() del SDK.
-SEG_FONT = (0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
-            0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71)  # fmt: skip
-SEG_CHARS = {pattern: "0123456789ABCDEF"[i] for i, pattern in enumerate(SEG_FONT)} | {0: " "}
-
 Action = Callable[["HardwareLoop"], None]
 Predicate = Callable[["HardwareLoop"], bool]
 
@@ -67,7 +62,7 @@ class HardwareLoop:
     @property
     def display(self) -> str:
         """Texto del display, con el dígito 0 a la derecha ('?' si no es una cifra)."""
-        return "".join(SEG_CHARS.get(s & 0x7F, "?") for s in reversed(self.seg.segments()))
+        return self.seg.text()
 
     @property
     def display_value(self) -> int | None:

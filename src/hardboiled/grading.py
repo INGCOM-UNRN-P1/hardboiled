@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.machine import Machine
+from hardboiled.hardware import LedBar, SevenSegment
 from hardboiled.script import InputScript, ScriptError, ScriptPlayer, Step, load_script
 
 
@@ -53,6 +54,8 @@ class Case(BaseModel):
     expect_uart_contains: list[str] = Field(default_factory=list)
     expect_exit: int | None = None
     expect_trap: str | None = None
+    expect_leds: int | None = Field(default=None, ge=0)  # valor final de los LEDs
+    expect_display: str | None = None  # lo que muestra el display (sin blancos a los lados)
 
     @model_validator(mode="after")
     def _check(self) -> Self:
@@ -118,6 +121,8 @@ class CaseResult:
     trap: str | None = None
     message: str = ""
     uart: str = ""
+    leds: int | None = None
+    display: str | None = None
     instructions: int = 0
     cycles: int = 0
 
@@ -154,11 +159,12 @@ class Grader:
         machine.bus.sources.clear()
         cpu.quota_step = case.max_instructions or self._quota
         machine.reset()
-        if case.switches is not None:
-            bank = machine.switches()
-            if bank is None:
-                raise SuiteError(f"{case.name}: la placa no tiene switches")
-            bank.set_value(case.switches)
+        bank = machine.switches()
+        if case.switches is not None and bank is None:
+            raise SuiteError(f"{case.name}: la placa no tiene switches")
+        if bank is not None:
+            # Reset no mueve las entradas físicas: cada caso arranca con las suyas (o en 0).
+            bank.set_value(case.switches or 0)
         data = case.uart_input
         if case.uart_input_file is not None:
             data = _read(case.uart_input_file, "la entrada")
@@ -183,6 +189,9 @@ class Grader:
         uart = self.machine.uart()
         output = bytes(uart.transmitted).decode("utf-8", "replace") if uart is not None else ""
         cpu = self.machine.cpu
+        peripherals = self.machine.peripherals
+        leds = next((p for p in peripherals if isinstance(p, LedBar)), None)
+        display = next((p for p in peripherals if isinstance(p, SevenSegment)), None)
         result = CaseResult(
             case.name,
             passed=False,
@@ -191,6 +200,8 @@ class Grader:
             trap=stop.kind if stop.reason is StopReason.TRAP else None,
             message=stop.message,
             uart=output,
+            leds=leds.value if leds is not None else None,
+            display=display.text() if display is not None else None,
             instructions=cpu.instructions,
             cycles=cpu.clock.cycles,
         )
@@ -215,5 +226,21 @@ class Grader:
         for fragment in case.expect_uart_contains:
             if fragment not in output:
                 failures.append(f"la salida por la UART no contiene {fragment!r}")
+        if case.expect_leds is not None:
+            if result.leds is None:
+                failures.append("la placa no tiene LEDs")
+            elif result.leds != case.expect_leds:
+                failures.append(
+                    f"los LEDs quedaron en 0b{result.leds:08b}, "
+                    f"se esperaba 0b{case.expect_leds:08b}"
+                )
+        if case.expect_display is not None:
+            shown = (result.display or "").strip()
+            if result.display is None:
+                failures.append("la placa no tiene display")
+            elif shown != case.expect_display.strip():
+                failures.append(
+                    f"el display muestra {shown!r}, se esperaba {case.expect_display.strip()!r}"
+                )
         result.passed = not failures
         return result

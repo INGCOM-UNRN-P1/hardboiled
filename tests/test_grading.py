@@ -127,3 +127,27 @@ def test_suite_excludes_single_case_options(
     path.write_text("[[case]]\nexpect_exit = 0\n")
     assert main(["test", HWLOOP, "--suite", str(path), "--switches", "1"]) == EXIT_USAGE
     assert "en cada caso" in capsys.readouterr().err
+
+
+def test_leds_and_display_expectations(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    suite = tmp_path / "casos.toml"
+    suite.write_text(
+        """
+[[case]]
+name = "bien"
+at = [{ cycle = 100_000, switches = 0b0110 }, { cycle = 200_000, uart = "q" }]
+expect_leds = 0b0000_0110
+expect_display = "9"
+
+[[case]]
+name = "mal"
+uart_input = "q"
+expect_leds = 1
+expect_display = "7"
+"""
+    )
+    assert main(["test", HWLOOP, "--suite", str(suite)]) == 1
+    out = capsys.readouterr().out
+    assert out.startswith("ok    bien")
+    assert "los LEDs quedaron en 0b00000000, se esperaba 0b00000001" in out
+    assert "el display muestra '1', se esperaba '7'" in out

@@ -15,6 +15,11 @@ from hardboiled.hardware.bus import Peripheral, merge
 
 MAX_DIGITS = 8
 
+# Mismo alfabeto que seg_pattern() del SDK: cifras hexadecimales.
+FONT = (0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+        0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71)  # fmt: skip
+CHARS = {pattern: "0123456789ABCDEF"[i] for i, pattern in enumerate(FONT)} | {0: " "}
+
 
 class SevenSegment(Peripheral):
     kind = "sevenseg"
@@ -43,6 +48,14 @@ class SevenSegment(Peripheral):
         if new != self.words[index]:
             self.words[index] = new
             self.emit(EvtHardwareUpdated(self.name, reg, new))
+
+    def text(self) -> str:
+        """Lo que se lee en el display, con el dígito 0 a la derecha.
+
+        Un dígito apagado es un espacio y uno que no forma una cifra, `?`. El
+        punto decimal se ignora.
+        """
+        return "".join(CHARS.get(s & 0x7F, "?") for s in reversed(self.segments()))
 
     def segments(self) -> list[int]:
         """Segmentos de cada dígito, del 0 (derecha) al último."""
