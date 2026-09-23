@@ -239,8 +239,25 @@ class HardwareView(Vertical):
     HardwareView { height: auto; border: round $primary; padding: 0 1; }
     """
 
+    _peripherals: tuple[PeripheralInfo, ...] | None = None
+
     def configure(self, peripherals: tuple[PeripheralInfo, ...]) -> None:
-        self.remove_children()
+        """Arma un widget por periférico. Al recargar el programa, la placa es la misma."""
+        if peripherals == self._peripherals:
+            return
+        widgets = self._widgets_for(peripherals)
+        if self._peripherals is None:
+            self.mount_all(widgets)
+        else:
+            # Quitar es asíncrono: se monta la placa nueva recién cuando se fue la vieja.
+            async def replace() -> None:
+                await self.remove_children()
+                await self.mount_all(widgets)
+
+            self.call_later(replace)
+        self._peripherals = peripherals
+
+    def _widgets_for(self, peripherals: tuple[PeripheralInfo, ...]) -> list[Static | Horizontal]:
         widgets: list[Static | Horizontal] = []
         for info in peripherals:
             if info.kind == "gpio_out":
@@ -253,7 +270,7 @@ class HardwareView(Vertical):
                 widgets.append(ButtonBankView(info))
             elif info.kind == "sevenseg":
                 widgets.append(SevenSegView(info))
-        self.mount_all(widgets)
+        return widgets
 
     def update_states(self, devices: tuple[tuple[str, tuple[tuple[str, int], ...]], ...]) -> None:
         """Estado interno de los periféricos en cada detención (timer, UART, botones)."""

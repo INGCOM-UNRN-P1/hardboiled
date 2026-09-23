@@ -172,6 +172,7 @@ async def test_tui_survives_a_reload() -> None:
             await pilot.pause(0.02)
             if app._suspended is not None:
                 break
-        assert app._suspended is not None and app._suspended.pc == first.pc  # type: ignore[union-attr]
+        assert app._suspended is not None and first is not None
+        assert app._suspended.pc == first.pc
         assert len(app.query_one(HardwareView).children) == rows  # sin duplicar la placa
         await pilot.press("q")
