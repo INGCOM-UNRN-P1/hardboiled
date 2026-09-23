@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from hardboiled.config import BoardConfig
+from hardboiled.core.buildinfo import BuildReport, analyze
 from hardboiled.core.cpu import Cpu, CpuSnapshot
 from hardboiled.core.debugger import Debugger
 from hardboiled.core.dwarf import LineTable
@@ -41,9 +42,11 @@ class Machine:
         board: BoardConfig,
         cfi: CallFrameTable | None = None,
         variables: VariableTable | None = None,
+        build_report: BuildReport | None = None,
     ) -> None:
         self.image = image
         self.lines = lines
+        self.build_report = build_report or BuildReport(has_debug=bool(lines.user_files))
         self.board = board
         self.bus = MmioBus(board.memory.mmio_size)
         self.pic = InterruptController(
@@ -84,6 +87,7 @@ class Machine:
             board or BoardConfig(),
             CallFrameTable.from_elf(elf_path),
             VariableTable.from_elf(elf_path),
+            analyze(elf_path),
         )
 
     @property

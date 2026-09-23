@@ -84,3 +84,37 @@ def test_headless_prints_warnings(capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["run", str(fixture_path("traps.elf")), "--headless", "--switches", str(DIV0)])
     assert code == 0
     assert "aviso: división por cero" in capsys.readouterr().err
+
+
+@needs_zig
+def test_build_report_detects_optimization_and_missing_debug(tmp_path: Path) -> None:
+    from hardboiled.core.buildinfo import analyze
+
+    good = analyze(FIXTURES / "basic.elf")
+    assert good.has_debug and not good.optimized and good.warnings() == []
+    source = FIXTURES / "basic.c"
+    zig = select_compiler("zig")
+    optimized = build([source], tmp_path / "o2.elf", BuildOptions(opt_level="2"), zig).output
+    report = analyze(optimized)
+    assert report.optimized and "-O0" in report.warnings()[0]
+    stripped = build([source], tmp_path / "g0.elf", BuildOptions(debug=False), zig).output
+    report = analyze(stripped)
+    assert not report.has_debug and "-g" in report.warnings()[0]
+
+
+@needs_zig
+def test_info_and_headless_mention_build_problems(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    elf = build(
+        [FIXTURES / "basic.c"],
+        tmp_path / "o2.elf",
+        BuildOptions(opt_level="2"),
+        select_compiler("zig"),
+    ).output
+    assert main(["info", str(elf)]) == 0
+    assert "parece compilado con optimización" in capsys.readouterr().out
+    main(["run", str(elf), "--headless"])
+    assert "aviso: el programa parece compilado con optimización" in capsys.readouterr().err
+    assert main(["info", str(FIXTURES / "basic.elf")]) == 0
+    assert "apto para depurar" in capsys.readouterr().out

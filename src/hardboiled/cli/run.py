@@ -165,6 +165,8 @@ def run_headless(machine: Machine) -> int:
             out.flush()
 
     machine.set_event_sink(sink)
+    for message in machine.build_report.warnings():
+        print(f"aviso: {message}", file=sys.stderr)
     stop = machine.debugger.continue_()
     for warning in warning_events(machine):
         where = f" ({warning.source_file}:{warning.source_line})" if warning.source_file else ""

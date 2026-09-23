@@ -102,6 +102,7 @@ class RunnerThread(threading.Thread):
 
     def run(self) -> None:
         self._announce()
+        self._warn_about_build()
         self._restore_breakpoints()
         self._boot()
         while not self._shutdown:
@@ -124,6 +125,10 @@ class RunnerThread(threading.Thread):
                 ),
             )
         )
+
+    def _warn_about_build(self) -> None:
+        for message in self.machine.build_report.warnings():
+            self._emit(EvtMessage(message))
 
     def _restore_breakpoints(self) -> None:
         if self.store is None:

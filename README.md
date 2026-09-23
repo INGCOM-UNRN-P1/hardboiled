@@ -333,6 +333,11 @@ silencio como hace el hardware que lo soporta) e instrucción ilegal.
 
 ### Avisos
 
+Al cargar un programa se revisa cómo se compiló: sin `-g` no hay depuración a
+nivel de C, y con optimización (`-O1` o más) el paso a paso salta líneas y
+algunas variables figuran como no disponibles. En ambos casos se avisa con la
+explicación y la solución; `hardboiled info` lo informa en "Compilación".
+
 Algunas cosas no son trampas pero casi siempre son errores: el programa sigue
 y se muestra un aviso con la línea (en la TUI como notificación, en
 `--headless` por stderr). La **división o el resto por cero** no generan

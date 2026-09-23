@@ -193,8 +193,8 @@ def compile_command(
         "-fdata-sections",
         "-Wl,--gc-sections",
     ]
-    if options.debug:
-        command.append("-g")
+    # Explícito en ambos sentidos: zig cc genera información de depuración por defecto.
+    command.append("-g" if options.debug else "-g0")
     if options.warnings:
         command += ["-Wall", "-Wextra"]
     command += [f"-D{define}" for define in options.defines]

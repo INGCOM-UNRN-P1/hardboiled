@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from hardboiled.cli.common import CliError, Subparsers, board_from
+from hardboiled.core.buildinfo import analyze
 from hardboiled.core.dwarf import LineTable
 from hardboiled.core.elf import ElfImage, ElfLoadError
 
@@ -59,6 +60,15 @@ def cmd_info(args: argparse.Namespace) -> int:
     print("\nFunciones:")
     for sym in functions:
         print(f"  0x{sym.address:08x} {sym.size:>5} B  {sym.name}")
+
+    report = analyze(args.elf)
+    print("\nCompilación:")
+    for producer in sorted(set(report.producers)):
+        print(f"  compilador: {producer}")
+    if report.has_debug and not report.optimized:
+        print("  apto para depurar: con información de depuración y sin optimización")
+    for message in report.warnings():
+        print(f"  aviso: {message}")
 
     print("\nArchivos fuente con información de depuración:")
     if not lines.user_files:
