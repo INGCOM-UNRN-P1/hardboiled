@@ -313,11 +313,12 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
     pc = cpu.pc
     location = machine.debugger.location(pc)
     frames = machine.debugger.backtrace()
+    registers = cpu.registers()
     return EvtCpuSuspended(
         pc=pc,
         source_file=location.file if location else None,
         source_line=location.line if location else None,
-        registers=cpu.registers(),
+        registers=registers,
         cycle_count=cpu.clock.cycles,
         reason=reason,
         function=machine.debugger.function(pc),
@@ -326,7 +327,20 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         locals=machine.debugger.locals_of(frames[0] if frames else None),
         global_vars=machine.debugger.global_variables(),
         disassembly=disassembly_lines(machine, pc),
+        register_symbols=register_symbols(machine, registers),
     )
+
+
+def register_symbols(machine: Machine, registers: dict[str, int]) -> dict[str, str]:
+    """Nombra los registros que apuntan a código o a variables globales."""
+    names = {}
+    for key, value in registers.items():
+        if key == "x0" or value < 0x1000:
+            continue
+        name = machine.debugger.describe_address(value)
+        if name is not None:
+            names[key] = name
+    return names
 
 
 def disassembly_lines(machine: Machine, pc: int) -> tuple[DisasmLine, ...]:

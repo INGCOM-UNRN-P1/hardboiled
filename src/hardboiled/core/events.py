@@ -218,6 +218,8 @@ class EvtCpuSuspended:
     global_vars: tuple[VariableInfo, ...] = field(default=())
     # Instrucciones de la función en curso (o alrededor del PC si no hay función).
     disassembly: tuple[DisasmLine, ...] = field(default=())
+    # Registros que contienen una dirección con nombre: {"x1": "main+0x2c", ...}.
+    register_symbols: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

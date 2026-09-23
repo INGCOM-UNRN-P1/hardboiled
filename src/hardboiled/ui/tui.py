@@ -116,6 +116,7 @@ class HardboiledApp(App[None]):
         Binding("g", "run_to_cursor", show=False),
         Binding("w", "watch", "Watch"),
         Binding("d", "toggle_disassembly", "ASM"),
+        Binding("x", "register_format", show=False),
         Binding("B", "conditional_breakpoint", show=False),
         Binding("ctrl+f9", "conditional_breakpoint", show=False),
         Binding("r", "reset", "Reset"),
@@ -260,7 +261,7 @@ class HardboiledApp(App[None]):
         self.query_one(MemoryInspector).refresh_request()
         function = event.frames[0].label if event.frames else event.function
         self.query_one(VariablesView).set_variables(event.locals, event.global_vars, function)
-        self.query_one(RegistersView).set_registers(event.registers)
+        self.query_one(RegistersView).set_registers(event.registers, event.register_symbols)
         self.query_one(MemoryView).set_stack(
             event.stack, event.registers.get("x2", 0), event.registers.get("x8", 0)
         )
@@ -381,6 +382,10 @@ class HardboiledApp(App[None]):
 
     def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
         self.send(CmdReadMemory(message.where))
+
+    def action_register_format(self) -> None:
+        mode = self.query_one(RegistersView).cycle_format()
+        self.notify(f"registros en formato: {mode}", timeout=2)
 
     def action_toggle_disassembly(self) -> None:
         self.query_one(DisassemblyView).toggle_class("visible")

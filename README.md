@@ -163,6 +163,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
 | `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
 | `d` | Muestra u oculta el desensamblado mixto (C + RV32I) |
+| `x` | Cambia el formato de los registros: hex, con signo, sin signo, ASCII, símbolo |
 | `r` | Reset de la placa |
 | `q` | Salir |
 
