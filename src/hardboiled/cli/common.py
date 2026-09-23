@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from hardboiled.config import BoardConfig, load_board
 from hardboiled.core.elf import ElfLoadError
 from hardboiled.core.machine import Machine
+from hardboiled.resources import default_board_path
 
 EXIT_USAGE = 2
 EXIT_TRAP = 3
@@ -40,12 +41,16 @@ def load_board_file(path: Path) -> BoardConfig:
         raise CliError(f"{path}: configuración inválida\n{format_errors(exc)}") from exc
 
 
+def board_path(path: str | None) -> Path:
+    """La placa indicada, o `./board.toml` si existe, o la plantilla empaquetada."""
+    if path is not None:
+        return Path(path)
+    local = Path("board.toml")
+    return local if local.exists() else default_board_path()
+
+
 def board_from(path: str | None) -> BoardConfig:
-    """Usa la placa indicada, o `./board.toml` si existe, o la placa por defecto."""
-    if path is None:
-        candidate = Path("board.toml")
-        return load_board_file(candidate) if candidate.exists() else BoardConfig()
-    return load_board_file(Path(path))
+    return load_board_file(board_path(path))
 
 
 def format_errors(exc: ValidationError) -> str:

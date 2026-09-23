@@ -13,7 +13,12 @@ from hardboiled import resources
 
 ROOT = Path(__file__).parents[1]
 
-RUNTIME_FILES = ("runtime/crt0.s", "runtime/hardboiled.ld", "runtime/include/hardboiled.h")
+PACKAGED_FILES = (
+    "runtime/crt0.s",
+    "runtime/hardboiled.ld",
+    "runtime/include/hardboiled.h",
+    "data/board.toml",
+)
 
 
 def test_runtime_resources_exist() -> None:
@@ -23,7 +28,7 @@ def test_runtime_resources_exist() -> None:
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="requiere uv")
-def test_wheel_contains_runtime(tmp_path: Path) -> None:
+def test_wheel_contains_resources(tmp_path: Path) -> None:
     subprocess.run(
         ["uv", "build", "--wheel", "--out-dir", str(tmp_path), str(ROOT)],
         check=True,
@@ -31,5 +36,10 @@ def test_wheel_contains_runtime(tmp_path: Path) -> None:
     )
     (wheel,) = tmp_path.glob("*.whl")
     names = set(zipfile.ZipFile(wheel).namelist())
-    for relative in RUNTIME_FILES:
+    for relative in PACKAGED_FILES:
         assert f"hardboiled/{relative}" in names
+
+
+def test_packaged_board_matches_repository_board() -> None:
+    packaged = resources.default_board_path()
+    assert packaged.read_text() == (ROOT / "board.toml").read_text()

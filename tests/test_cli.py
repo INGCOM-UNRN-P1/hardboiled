@@ -69,3 +69,25 @@ def test_validate_reports_errors(tmp_path: Path, capsys: pytest.CaptureFixture[s
 def test_missing_elf_is_a_clean_error(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["run", "no-existe.elf", "--headless"]) == EXIT_USAGE
     assert "no-existe.elf" in capsys.readouterr().err
+
+
+def test_validate_without_board_uses_packaged_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)  # sin ./board.toml
+    assert main(["validate"]) == 0
+    out = capsys.readouterr().out
+    assert "data/board.toml" in out.replace("\\", "/")
+    assert "lab-rv32-basics" in out
+
+
+def test_board_init_copies_template(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert main(["board", "init"]) == 0
+    assert (tmp_path / "board.toml").read_text() == (ROOT / "board.toml").read_text()
+    assert main(["board", "init"]) == EXIT_USAGE  # no pisa sin --force
+    assert "--force" in capsys.readouterr().err
+    assert main(["board", "init", "--force"]) == 0
+    assert main(["validate"]) == 0

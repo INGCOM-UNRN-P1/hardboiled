@@ -29,6 +29,11 @@ def register(sub: Subparsers) -> None:
     run.add_argument(
         "--no-stop-at-main", action="store_true", help="no detenerse al inicio de main()"
     )
+    run.add_argument(
+        "--realtime",
+        action="store_true",
+        help="con --headless, respetar clock_hz de la placa (por defecto corre sin pausas)",
+    )
     run.set_defaults(func=cmd_run)
 
 
@@ -39,6 +44,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             update={
                 "board": board.board.model_copy(update={"max_instructions": args.max_instructions})
             }
+        )
+    if args.headless and not args.realtime and board.board.clock_hz is not None:
+        # Sin interfaz nadie mira los LEDs: acompasar al reloj real sólo haría esperar.
+        board = board.model_copy(
+            update={"board": board.board.model_copy(update={"clock_hz": None})}
         )
     machine = load_machine(args.elf, board)
     if args.switches is not None:

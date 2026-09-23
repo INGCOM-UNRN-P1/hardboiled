@@ -1,0 +1,37 @@
+[board]
+name = "lab-rv32-basics"
+arch = "riscv32"
+max_instructions = 5_000_000
+# Opcional: frecuencia nominal de la CPU. Acompasa la emulación al reloj real
+# para que el timer (y los LEDs que parpadean con él) tengan una velocidad visible.
+clock_hz = 1_000_000
+
+[memory]
+flash_base = "0x00010000"
+flash_size_kb = 64
+sram_base  = "0x20000000"
+sram_size_kb  = 64
+mmio_base  = "0x40000000"
+
+[[peripherals]]
+name = "leds"
+type = "gpio_out"
+offset = "0x00"
+width_bits = 8
+
+[[peripherals]]
+name = "switches"
+type = "gpio_in"
+offset = "0x04"
+width_bits = 4
+
+[[peripherals]]
+name = "uart0"
+type = "uart"
+offset = "0x10"
+
+[[peripherals]]
+name = "timer0"
+type = "timer"
+offset = "0x20"
+irq_line = 0

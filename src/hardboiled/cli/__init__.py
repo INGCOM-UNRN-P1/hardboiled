@@ -7,12 +7,12 @@ import os
 import sys
 
 from hardboiled import __version__
-from hardboiled.cli import info, run, validate
+from hardboiled.cli import board, info, run, validate
 from hardboiled.cli.common import EXIT_INTERRUPTED, EXIT_TRAP, EXIT_USAGE, CliError
 
 __all__ = ["EXIT_INTERRUPTED", "EXIT_TRAP", "EXIT_USAGE", "build_parser", "main"]
 
-SUBCOMMANDS = (run, info, validate)
+SUBCOMMANDS = (run, info, validate, board)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -62,10 +62,14 @@ hardboiled run programa.elf                 # TUI, detenida al inicio de main()
 hardboiled run programa.elf --headless      # sin TUI: UART a stdout, trampas a stderr
 hardboiled run traps.elf --headless --switches 0b0011 --max-instructions 100000
 hardboiled info programa.elf                # segmentos, uso de memoria, funciones, fuentes
-hardboiled validate board.toml              # valida una placa
+hardboiled validate [board.toml]            # valida una placa
+hardboiled board init                       # copia la placa por defecto a ./board.toml
 ```
 
-Si existe `./board.toml` se usa como placa; si no, la placa por defecto.
+Si existe `./board.toml` se usa como placa; si no, la placa por defecto que
+viene con el paquete. `hardboiled board init` copia esa placa al directorio
+actual para editarla y `hardboiled board show` la imprime. Con `--headless` se
+ignora `clock_hz` (la ejecución no se demora) salvo que se pase `--realtime`.
 Con `--headless`, el código de salida es el valor devuelto por `main()` (módulo
 256), `3` si hubo una trampa y `2` ante errores de uso.
 

@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import argparse
 
-from hardboiled.cli.common import Subparsers, board_from
+from hardboiled.cli.common import Subparsers, board_path, load_board_file
 
 
 def register(sub: Subparsers) -> None:
     validate = sub.add_parser("validate", help="valida un board.toml")
-    validate.add_argument("board", nargs="?", default="board.toml")
+    validate.add_argument(
+        "board", nargs="?", help="por defecto ./board.toml o, si no existe, la placa empaquetada"
+    )
     validate.set_defaults(func=cmd_validate)
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    board = board_from(args.board)
+    path = board_path(args.board)
+    board = load_board_file(path)
     mem = board.memory
-    print(f"{args.board}: placa '{board.board.name}' válida")
+    print(f"{path}: placa '{board.board.name}' válida")
     print(f"  Flash 0x{mem.flash_base:08x} ({mem.flash_size_kb} KB)")
     print(f"  SRAM  0x{mem.sram_base:08x} ({mem.sram_size_kb} KB)")
     print(f"  MMIO  0x{mem.mmio_base:08x} ({mem.mmio_size_kb} KB)")

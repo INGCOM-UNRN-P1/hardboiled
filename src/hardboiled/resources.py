@@ -32,3 +32,8 @@ def linker_script() -> Path:
 
 def crt0_path() -> Path:
     return runtime_dir() / "crt0.s"
+
+
+def default_board_path() -> Path:
+    """Plantilla de la placa por defecto (la misma que `board.toml` del repositorio)."""
+    return package_dir() / "data" / "board.toml"
