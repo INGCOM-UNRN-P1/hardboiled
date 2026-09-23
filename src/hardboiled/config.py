@@ -58,6 +58,9 @@ class BoardInfo(_Model):
     # Frecuencia nominal: si se indica, la emulación se acompasa al reloj real
     # (útil para ver parpadear LEDs). Sin valor, corre tan rápido como puede.
     clock_hz: int | None = Field(default=None, gt=0)
+    # "globals": la pila no puede bajar del fin de .bss (detecta el desborde antes de
+    # que pise variables); "sram": sólo al salir de la SRAM.
+    stack_guard: Literal["globals", "sram"] = "globals"
 
 
 class MemoryConfig(_Model):

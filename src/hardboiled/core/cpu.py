@@ -162,6 +162,7 @@ class Cpu:
         pic: InterruptController,
         max_instructions: int = 1_000_000,
         clock_hz: int | None = None,
+        stack_guard: str = "globals",
     ) -> None:
         self.memory = memory
         self.bus = bus
@@ -169,6 +170,8 @@ class Cpu:
         self.clock = bus.clock
         self.max_instructions = max_instructions
         self.clock_hz = clock_hz
+        self.stack_guard = stack_guard
+        self.stack_floor = memory.sram_base
         # Con interfaz, `wfi` puede esperar estímulos del usuario (UART, botones).
         self.interactive = False
         # Condición del depurador evaluada antes de cada instrucción.
@@ -298,8 +301,24 @@ class Cpu:
             self._uc.mem_write(seg.paddr, seg.data)
         self._image = image
         self._index_code(image)
+        self.stack_floor = self._compute_stack_floor(image)
         self._vector_table = image.symbol_address("__vector_table")
         self._uc.reg_write(_PC, image.entry)
+
+    def _compute_stack_floor(self, image: ElfImage) -> int:
+        """Hasta dónde puede bajar sp: el fin de .bss (o __stack_limit), o la SRAM.
+
+        Con stack_guard = "sram" sólo se detecta al salir de la SRAM (más tarde:
+        para entonces la pila ya pisó las globales).
+        """
+        base, end = self.memory.sram_base, self.memory.sram_end
+        if self.stack_guard == "sram":
+            return base
+        for symbol in ("__stack_limit", "_end", "__bss_end"):
+            address = image.symbol_address(symbol)
+            if address is not None and base <= address < end:
+                return (address + 3) & ~3
+        return base
 
     def reset(self) -> None:
         """Placa recién encendida: memoria limpia, registros en cero, periféricos reseteados."""
@@ -470,10 +489,18 @@ class Cpu:
 
     def _stack_overflow(self, pc: int) -> StopInfo:
         sp = self.sp
+        if self.stack_floor > self.memory.sram_base and sp >= self.memory.sram_base:
+            victim = self._image.object_at(sp) if self._image is not None else None
+            target = f": pisaría la variable `{victim}`" if victim else ""
+            where = (
+                f"invadió las variables globales (el fin de .bss es "
+                f"0x{self.stack_floor:08x}){target}"
+            )
+        else:
+            where = f"quedó por debajo del inicio de la SRAM (0x{self.memory.sram_base:08x})"
         return self._trap(
             pc,
-            f"stack overflow: sp = 0x{sp:08x} quedó por debajo del inicio de la SRAM "
-            f"(0x{self.memory.sram_base:08x}). "
+            f"stack overflow: sp = 0x{sp:08x} {where}. "
             "¿Recursión sin caso base o arreglos locales enormes?",
             sp,
         )
@@ -532,7 +559,7 @@ class Cpu:
         if self.instructions >= self.max_instructions:
             self._halt(uc, _Halt.QUOTA)
             return
-        if self._sp_dirty and uc.reg_read(_SP) < self.memory.sram_base:
+        if self._sp_dirty and uc.reg_read(_SP) < self.stack_floor:
             self._halt(uc, _Halt.STACK)
             return
         if not self.instructions & POLL_INTERVAL_MASK and self._pace_and_poll():
@@ -586,7 +613,7 @@ class Cpu:
         if self._region_of(handler, 4) != "flash":
             return self._trap(pc, f"IRQ {line}: el vector apunta a 0x{handler:08x}, fuera de Flash")
         frame = self.sp - ISR_FRAME_SIZE
-        if frame < self.memory.sram_base:
+        if frame < self.stack_floor:
             return self._stack_overflow(pc)
         words = [pc, *(self.read_register(r) for r in ISR_SAVED_REGS)]
         words += [0] * (ISR_FRAME_SIZE // 4 - len(words))

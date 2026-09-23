@@ -69,6 +69,7 @@ class Machine:
             self.pic,
             board.board.max_instructions,
             board.board.clock_hz,
+            board.board.stack_guard,
         )
         self.cpu.load(image)
         self.debugger = Debugger(self.cpu, image, lines, cfi, variables)

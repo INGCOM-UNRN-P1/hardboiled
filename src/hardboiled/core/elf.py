@@ -92,6 +92,7 @@ class ElfImage:
             (s for s in symbols if s.kind == "func" and s.size > 0), key=lambda s: s.address
         )
         self._function_starts = [s.address for s in self._functions]
+        self._objects = [s for s in symbols if s.kind == "object" and s.size > 0]
         code = [seg for seg in segments if seg.executable]
         self._labels = sorted(
             (
@@ -151,6 +152,13 @@ class ElfImage:
             return None
         func = self._functions[idx]
         return func.name if address < func.address + func.size else None
+
+    def object_at(self, address: int) -> str | None:
+        """Variable (símbolo de datos) que ocupa `address`."""
+        for symbol in self._objects:
+            if symbol.address <= address < symbol.address + max(symbol.size, 1):
+                return symbol.name
+        return None
 
     def nearest_symbol(self, address: int) -> tuple[str, int] | None:
         """Símbolo (incluidas etiquetas de ensamblador) más cercano por debajo: (nombre, offset)."""

@@ -180,12 +180,33 @@ def test_traps(make_machine: MachineFactory, selector: int, expected: str) -> No
     assert machine.debugger.continue_() == stop
 
 
-def test_stack_overflow_is_detected_before_leaving_sram(make_machine: MachineFactory) -> None:
+def test_stack_overflow_is_detected_before_reaching_globals(
+    make_machine: MachineFactory,
+) -> None:
     machine, _ = make_machine("traps", switches=3)
     stop = machine.debugger.continue_()
     assert stop.reason is StopReason.TRAP
     assert machine.debugger.function(stop.pc) == "deep"
-    assert stop.fault_address is not None and stop.fault_address < machine.board.memory.sram_base
+    end = machine.image.symbol_address("_end")
+    assert end is not None and machine.cpu.stack_floor == end
+    assert stop.fault_address is not None and stop.fault_address < end
+    assert stop.fault_address >= machine.board.memory.sram_base  # todavía dentro de la SRAM
+    assert "invadió las variables globales" in stop.message
+    # Ninguna global fue pisada: `not_code` conserva su valor inicial.
+    raw = machine.cpu.read_memory(machine.image.symbol_address("not_code") or 0, 4)
+    assert raw == (0x13).to_bytes(4, "little")
+
+
+def test_stack_guard_sram_mode(make_machine: MachineFactory) -> None:
+    from hardboiled.config import BoardConfig, BoardInfo
+    from hardboiled.core.machine import Machine
+    from tests.conftest import FIXTURES
+
+    board = BoardConfig(board=BoardInfo(stack_guard="sram"))
+    machine = Machine.from_elf(FIXTURES / "traps.elf", board)
+    machine.switches().set_value(3)  # type: ignore[union-attr]
+    stop = machine.debugger.continue_()
+    assert "inicio de la SRAM" in stop.message
 
 
 def test_instruction_quota(make_machine: MachineFactory) -> None:

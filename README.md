@@ -324,7 +324,9 @@ indica la línea en atención y la pila de llamadas muestra cada nivel.
 La ejecución se aborta con un mensaje descriptivo ante: desreferencia de
 puntero nulo, escritura en Flash, acceso a memoria no mapeada, salto a la SRAM,
 registro MMIO inexistente o de sólo lectura, stack overflow (`sp` por debajo
-de `0x2000_0000`), `wfi` sin ninguna interrupción que pueda despertar la CPU,
+del fin de `.bss`: la pila está por invadir las variables globales, y el
+mensaje nombra la que pisaría; con `stack_guard = "sram"` en `[board]` sólo
+se detecta al salir de la SRAM), `wfi` sin ninguna interrupción que pueda despertar la CPU,
 instrucción ilegal y cuota de instrucciones agotada (`max_instructions`).
 
 ### `board.toml`
