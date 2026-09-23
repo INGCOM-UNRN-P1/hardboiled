@@ -165,6 +165,22 @@ async def test_tui_drives_runner() -> None:
         variables = app.query_one(VariablesView)
         await settle(lambda: any(v.name == "ticks" for v in variables._globals))
 
+        # Selector de archivos: `f` abre la lista y Enter abre el elegido.
+        from hardboiled.ui.widgets.file_picker import FilePicker
+
+        await pilot.press("f")
+        await settle(lambda: isinstance(app.screen, FilePicker))
+        picker = app.screen
+        assert isinstance(picker, FilePicker)
+        header = next(f for f in picker.files if f.endswith("hardboiled.h"))
+        picker.dismiss(header)
+        await settle(lambda: code.file == header)
+        await pilot.press("f")
+        await settle(lambda: isinstance(app.screen, FilePicker))
+        mmio_c = next(f for f in app.screen.files if f.endswith("mmio.c"))  # type: ignore[attr-defined]
+        app.screen.dismiss(mmio_c)
+        await settle(lambda: code.file == mmio_c)
+
         # Desensamblado mixto: `d` lo muestra, con la instrucción del PC marcada.
         from hardboiled.ui.widgets.disasm_view import DisassemblyView
 

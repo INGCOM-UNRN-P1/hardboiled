@@ -55,6 +55,7 @@ from hardboiled.ui.widgets.backtrace_view import BacktraceView
 from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.disasm_view import DisassemblyView
+from hardboiled.ui.widgets.file_picker import FilePicker
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_inspector import MemoryInspector
 from hardboiled.ui.widgets.memory_view import MemoryView
@@ -117,6 +118,7 @@ class HardboiledApp(App[None]):
         Binding("g", "run_to_cursor", show=False),
         Binding("w", "watch", "Watch"),
         Binding("d", "toggle_disassembly", "ASM"),
+        Binding("f", "open_file", "Archivos"),
         Binding("x", "register_format", show=False),
         Binding("B", "conditional_breakpoint", show=False),
         Binding("ctrl+f9", "conditional_breakpoint", show=False),
@@ -140,6 +142,7 @@ class HardboiledApp(App[None]):
         self._breakpoints: frozenset[tuple[str, int]] = frozenset()
         self._suspended: EvtCpuSuspended | None = None
         self._pending_trap: EvtTrap | None = None
+        self._source_files: tuple[str, ...] = ()
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -213,6 +216,7 @@ class HardboiledApp(App[None]):
     def handle_event(self, event: Event) -> None:
         match event:
             case EvtProgramLoaded():
+                self._source_files = event.source_files
                 self.sub_title = f"{os.path.basename(event.elf_path)} · {event.board_name}"
                 self.query_one(HardwareView).configure(event.peripherals)
                 c_files = [f for f in event.source_files if f.endswith(".c")]
@@ -394,6 +398,24 @@ class HardboiledApp(App[None]):
 
     def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
         self.send(CmdReadMemory(message.where))
+
+    def action_open_file(self) -> None:
+        if not self._source_files:
+            self.notify("el programa no tiene archivos fuente con información de depuración")
+            return
+        code = self.query_one(CodeView)
+
+        def opened(path: str | None) -> None:
+            if path is None:
+                return
+            code.show_file(path)
+            self._refresh_breakpoints()
+            suspended = self._suspended
+            if suspended is not None and suspended.source_file == path:
+                code.set_active_line(suspended.source_line)
+            code.focus()
+
+        self.push_screen(FilePicker(self._source_files, code.file), opened)
 
     def action_register_format(self) -> None:
         mode = self.query_one(RegistersView).cycle_format()
