@@ -30,20 +30,27 @@ def register(sub: Subparsers) -> None:
         nargs="+",
         help="un ELF, o fuentes .c/.s que se compilan (con caché) antes de ejecutar",
     )
-    run.add_argument("--board", help="board.toml (por defecto ./board.toml si existe)")
-    run.add_argument("--headless", action="store_true", help="ejecutar sin TUI hasta terminar")
-    run.add_argument("--switches", type=parse_int, help="estado inicial de los switches (0b0101)")
-    run.add_argument("--max-instructions", type=parse_int, help="cuota de instrucciones")
-    run.add_argument(
+    add_run_options(run)
+    run.set_defaults(func=cmd_run)
+
+
+def add_run_options(parser: argparse.ArgumentParser) -> None:
+    """Opciones de ejecución compartidas por `run` y `demo`."""
+    parser.add_argument("--board", help="board.toml (por defecto ./board.toml si existe)")
+    parser.add_argument("--headless", action="store_true", help="ejecutar sin TUI hasta terminar")
+    parser.add_argument(
+        "--switches", type=parse_int, help="estado inicial de los switches (0b0101)"
+    )
+    parser.add_argument("--max-instructions", type=parse_int, help="cuota de instrucciones")
+    parser.add_argument(
         "--no-stop-at-main", action="store_true", help="no detenerse al inicio de main()"
     )
-    run.add_argument(
+    parser.add_argument(
         "--realtime",
         action="store_true",
         help="con --headless, respetar clock_hz de la placa (por defecto corre sin pausas)",
     )
-    add_build_options(run)
-    run.set_defaults(func=cmd_run)
+    add_build_options(parser)
 
 
 def resolve_program(args: argparse.Namespace) -> Path:

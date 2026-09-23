@@ -1,6 +1,10 @@
 /*
- * Demo interactiva: el LED 7 parpadea con la interrupción del timer, los
- * LEDs 0-3 copian los switches y la UART informa cada tick.
+ * demo.c — Demo interactiva: LEDs, switches, UART e interrupciones juntos.
+ *
+ * El LED 7 parpadea con la interrupción del timer, los LEDs 0-3 copian los
+ * switches y la UART informa cada tick.
+ *
+ * Probá:  hardboiled demo
  */
 #include "hardboiled.h"
 

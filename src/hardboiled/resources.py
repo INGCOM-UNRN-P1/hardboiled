@@ -37,3 +37,25 @@ def crt0_path() -> Path:
 def default_board_path() -> Path:
     """Plantilla de la placa por defecto (la misma que `board.toml` del repositorio)."""
     return package_dir() / "data" / "board.toml"
+
+
+def examples_dir() -> Path:
+    return package_dir() / "examples"
+
+
+def example_names() -> list[str]:
+    return sorted(p.stem for p in examples_dir().glob("*.c"))
+
+
+def example_path(name: str) -> Path:
+    """Ruta del ejemplo `name` (con o sin `.c`)."""
+    return examples_dir() / f"{name.removesuffix('.c')}.c"
+
+
+def example_summary(name: str) -> str:
+    """Descripción de una línea: el texto tras la raya en la primera línea del comentario."""
+    for line in example_path(name).read_text(encoding="utf-8").splitlines():
+        text = line.strip(" /*")
+        if "—" in text:
+            return text.split("—", 1)[1].strip()
+    return ""

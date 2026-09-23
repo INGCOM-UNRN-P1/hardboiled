@@ -82,7 +82,19 @@ recompilan si cambian ellos, los encabezados de sus directorios, las opciones
 o el compilador. Los mensajes del compilador van a stderr, así que en
 `--headless` stdout contiene sólo la salida de la UART.
 
-Para probar la TUI: `uv run hardboiled run tests/fixtures/demo.elf`.
+### Ejemplos incluidos
+
+```bash
+hardboiled examples                  # lista los ejemplos con su descripción
+hardboiled demo                      # compila y abre la demo interactiva
+hardboiled demo interrupciones       # cualquier ejemplo, con las opciones de run
+hardboiled examples copy hola leds   # copia fuentes al directorio actual
+hardboiled examples show errores     # imprime un ejemplo
+```
+
+`hola`, `leds`, `switches`, `interrupciones`, `errores` (catálogo de trampas
+elegidas con los switches) y `demo`. `hardboiled demo` es además una buena
+prueba de humo después de instalar.
 
 ### Teclas de la TUI
 

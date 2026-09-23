@@ -18,6 +18,8 @@ PACKAGED_FILES = (
     "runtime/hardboiled.ld",
     "runtime/include/hardboiled.h",
     "data/board.toml",
+    "examples/demo.c",
+    "examples/hola.c",
 )
 
 
