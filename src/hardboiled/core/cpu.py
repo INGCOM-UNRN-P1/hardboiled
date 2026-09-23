@@ -87,6 +87,7 @@ class StopReason(Enum):
     PAUSED = "paused"
     TRAP = "trap"
     EXITED = "exited"
+    LIMIT = "limit"  # cuota de instrucciones agotada: se puede seguir (otra cuota más)
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,7 @@ class Cpu:
         self.pic = pic
         self.clock = bus.clock
         self.max_instructions = max_instructions
+        self.quota_step = max_instructions
         self.clock_hz = clock_hz
         self.stack_guard = stack_guard
         self.stack_floor = memory.sram_base
@@ -277,6 +279,7 @@ class Cpu:
     def _reset_run_state(self) -> None:
         self.halted = None
         self.instructions = 0
+        self.max_instructions = getattr(self, "quota_step", self.max_instructions)
         self.clock.cycles = 0
         self._isr_frames = []
         self._sp_dirty = False
@@ -432,6 +435,9 @@ class Cpu:
             return self.halted
         if self._image is None:
             raise RuntimeError("no hay ningún programa cargado")
+        if self.instructions >= self.max_instructions:
+            # Seguir después de agotar la cuota habilita otra cuota igual.
+            self.max_instructions += self.quota_step
         self._refresh_deadline()
         self._pace_origin = (time.monotonic(), self.clock.cycles)
         while True:
@@ -471,7 +477,8 @@ class Cpu:
         if halt is _Halt.WFI:
             return self._wait_for_interrupt(pc)
         if halt is _Halt.QUOTA:
-            return self._trap(
+            return StopInfo(
+                StopReason.LIMIT,
                 pc,
                 f"se alcanzó el límite de {self.max_instructions:,} instrucciones "
                 "(¿un bucle infinito?)",

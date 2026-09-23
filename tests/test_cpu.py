@@ -209,12 +209,17 @@ def test_stack_guard_sram_mode(make_machine: MachineFactory) -> None:
     assert "inicio de la SRAM" in stop.message
 
 
-def test_instruction_quota(make_machine: MachineFactory) -> None:
+def test_instruction_quota_is_not_fatal(make_machine: MachineFactory) -> None:
     machine, _ = make_machine("traps", switches=4, max_instructions=20_000)
     stop = machine.debugger.continue_()
-    assert stop.reason is StopReason.TRAP
+    assert stop.reason is StopReason.LIMIT
     assert "límite de 20,000 instrucciones" in stop.message
-    assert machine.cpu.instructions == 20_000
+    assert machine.cpu.instructions == 20_000 and machine.cpu.halted is None
+    # Continuar da otra cuota igual.
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.LIMIT and machine.cpu.instructions == 40_000
+    machine.reset()
+    assert machine.cpu.max_instructions == 20_000
 
 
 def test_pause_via_poll(make_machine: MachineFactory) -> None:

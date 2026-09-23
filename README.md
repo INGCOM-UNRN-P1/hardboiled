@@ -327,7 +327,12 @@ registro MMIO inexistente o de sólo lectura, stack overflow (`sp` por debajo
 del fin de `.bss`: la pila está por invadir las variables globales, y el
 mensaje nombra la que pisaría; con `stack_guard = "sram"` en `[board]` sólo
 se detecta al salir de la SRAM), `wfi` sin ninguna interrupción que pueda despertar la CPU,
-instrucción ilegal y cuota de instrucciones agotada (`max_instructions`).
+e instrucción ilegal.
+
+Agotar la cuota de instrucciones (`max_instructions`) no es una trampa: la CPU
+se suspende con un aviso y, si se continúa (F5), se habilita otra cuota igual;
+no todo programa largo es un bucle infinito. En `--headless` termina con código
+3 y sugiere `--max-instructions`.
 
 ### `board.toml`
 

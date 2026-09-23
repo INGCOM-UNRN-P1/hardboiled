@@ -166,6 +166,12 @@ def run_headless(machine: Machine) -> int:
 
     machine.set_event_sink(sink)
     stop = machine.debugger.continue_()
+    if stop.reason is StopReason.LIMIT:
+        print(
+            f"\nLÍMITE: {stop.message}. Con --max-instructions se puede dar más margen.",
+            file=sys.stderr,
+        )
+        return EXIT_TRAP
     if stop.reason is StopReason.EXITED:
         return (stop.exit_code or 0) & 0xFF
     print(f"\n{format_trap(machine, stop)}", file=sys.stderr)

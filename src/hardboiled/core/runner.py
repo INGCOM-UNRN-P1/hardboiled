@@ -355,6 +355,13 @@ class RunnerThread(threading.Thread):
             self._emit(trap_event(self.machine, stop))
         elif stop.reason is StopReason.EXITED:
             self._emit(EvtProgramExited(stop.exit_code if stop.exit_code is not None else 0))
+        elif stop.reason is StopReason.LIMIT:
+            self._emit(
+                EvtMessage(
+                    f"{stop.message}. F5 continúa otras "
+                    f"{self.machine.cpu.quota_step:,} instrucciones."
+                )
+            )
         if reason is None:
             reason = stop.message or (
                 "breakpoint" if self.machine.debugger.is_breakpoint() else "step"
