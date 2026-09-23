@@ -307,6 +307,37 @@ class Debugger:
         except ExpressionError as exc:
             raise DebuggerError(str(exc)) from exc
 
+    def resolve_address(self, where: str) -> int:
+        """Dirección a partir de un número, un símbolo o una expresión C.
+
+        `results` o `triangulo.color` dan la dirección de la variable; `&x`, `p` o
+        `0x20000000` dan el valor numérico (un puntero apunta a donde indica).
+        """
+        text = where.strip()
+        symbol = self.image.symbol_address(text)
+        try:
+            evaluator = self.evaluator()
+            value = evaluator.evaluate(text)
+        except ExpressionError as exc:
+            if symbol is not None:
+                return symbol
+            raise DebuggerError(str(exc)) from exc
+        if value.address is not None and value.ctype.kind in ("array", "struct", "union"):
+            return value.address
+        if value.address is not None and value.ctype.kind != "pointer":
+            return value.address
+        return evaluator.load(value) & 0xFFFF_FFFF
+
+    def global_labels(self, start: int, end: int) -> tuple[tuple[int, str], ...]:
+        """Globales que empiezan dentro de [start, end), para rotular un volcado."""
+        labels = []
+        for decl in self.variables.globals:
+            storage = self.variables.storage(decl, None)
+            address = storage.address if storage is not None else None
+            if address is not None and start <= address < end:
+                labels.append((address, decl.name))
+        return tuple(sorted(labels))
+
     def add_watchpoint(self, expression: str) -> Watchpoint:
         expression = expression.strip()
         try:

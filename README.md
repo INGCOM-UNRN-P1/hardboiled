@@ -204,6 +204,13 @@ actual se marca con `▶` y Enter o click sobre una instrucción pone un
 breakpoint en esa dirección. Junto con `F7` (stepi) permite seguir el código
 de máquina paso a paso.
 
+La pestaña **Memoria** muestra un volcado hexadecimal y ASCII de Flash o SRAM
+a partir de una dirección, un símbolo o una expresión (`counter`, `&results`,
+`0x20000000`, `p` para ver a dónde apunta un puntero), rotulado con las
+variables globales y con los bytes que cambiaron desde la detención anterior
+resaltados. PgUp/PgDn recorren la memoria; el espacio MMIO no se lee porque
+leerlo tendría efectos sobre los periféricos.
+
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
 click) muestra su línea marcada con `▷` y sus variables locales.

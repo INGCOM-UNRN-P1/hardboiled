@@ -90,6 +90,14 @@ class CmdToggleWatchpoint:
 
 
 @dataclass(frozen=True)
+class CmdReadMemory:
+    """Pide un volcado de memoria: `where` es una dirección, un símbolo o una expresión C."""
+
+    where: str
+    length: int = 256
+
+
+@dataclass(frozen=True)
 class CmdToggleSwitch:
     pin_index: int
 
@@ -122,6 +130,7 @@ Command = (
     | CmdToggleAddressBreakpoint
     | CmdToggleWatchpoint
     | CmdSetBreakpointCondition
+    | CmdReadMemory
     | CmdToggleSwitch
     | CmdPause
     | CmdReset
@@ -221,6 +230,16 @@ class EvtFrameVariables:
 
 
 @dataclass(frozen=True)
+class EvtMemoryDump:
+    where: str  # lo que pidió el usuario
+    address: int
+    data: bytes  # vacío si no se pudo leer
+    error: str | None = None
+    # (dirección, nombre) de las variables globales que empiezan en el rango.
+    labels: tuple[tuple[int, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class EvtHardwareUpdated:
     device_name: str
     register_offset: int
@@ -293,6 +312,7 @@ Event = (
     | EvtCpuRunning
     | EvtCpuSuspended
     | EvtFrameVariables
+    | EvtMemoryDump
     | EvtHardwareUpdated
     | EvtUartOutput
     | EvtTrap

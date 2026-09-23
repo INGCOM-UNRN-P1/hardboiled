@@ -21,6 +21,7 @@ from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
+    CmdReadMemory,
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
@@ -42,6 +43,7 @@ from hardboiled.core.events import (
     EvtCpuSuspended,
     EvtFrameVariables,
     EvtHardwareUpdated,
+    EvtMemoryDump,
     EvtMessage,
     EvtProgramExited,
     EvtProgramLoaded,
@@ -53,6 +55,7 @@ from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.disasm_view import DisassemblyView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
+from hardboiled.ui.widgets.memory_inspector import MemoryInspector
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.prompt import Prompt
 from hardboiled.ui.widgets.registers_view import RegistersView
@@ -157,6 +160,8 @@ class HardboiledApp(App[None]):
                         yield MemoryView(id="stack")
                     with TabPane("Puntos", id="tab-points"):
                         yield BreakpointsView(id="points")
+                    with TabPane("Memoria", id="tab-memory"):
+                        yield MemoryInspector(id="memory")
         yield Static(id="status")
         yield Footer()
 
@@ -216,6 +221,8 @@ class HardboiledApp(App[None]):
                 self._set_status(Text("▶ ejecutando…  (F6 pausa)", style="bold green"))
             case EvtCpuSuspended():
                 self._on_suspended(event)
+            case EvtMemoryDump():
+                self.query_one(MemoryInspector).show(event)
             case EvtFrameVariables():
                 self.query_one(VariablesView).set_frame_locals(event.locals, event.label)
             case EvtHardwareUpdated():
@@ -250,6 +257,7 @@ class HardboiledApp(App[None]):
             self.push_screen(TrapScreen(trap, event.frames))
         self.query_one(BacktraceView).set_frames(event.frames)
         self.query_one(DisassemblyView).show(event.disassembly, event.pc)
+        self.query_one(MemoryInspector).refresh_request()
         function = event.frames[0].label if event.frames else event.function
         self.query_one(VariablesView).set_variables(event.locals, event.global_vars, function)
         self.query_one(RegistersView).set_registers(event.registers)
@@ -370,6 +378,9 @@ class HardboiledApp(App[None]):
             ),
             submit,
         )
+
+    def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
+        self.send(CmdReadMemory(message.where))
 
     def action_toggle_disassembly(self) -> None:
         self.query_one(DisassemblyView).toggle_class("visible")

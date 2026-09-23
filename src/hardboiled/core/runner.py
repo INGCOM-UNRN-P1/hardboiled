@@ -19,6 +19,7 @@ from hardboiled.core.debugger import DebuggerError
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
+    CmdReadMemory,
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
@@ -42,6 +43,7 @@ from hardboiled.core.events import (
     EvtCpuSuspended,
     EvtFrameVariables,
     EvtHardwareUpdated,
+    EvtMemoryDump,
     EvtMessage,
     EvtProgramExited,
     EvtProgramLoaded,
@@ -164,6 +166,8 @@ class RunnerThread(threading.Thread):
                 self._boot()
             case CmdPause():
                 pass  # la CPU ya está detenida
+            case CmdReadMemory(where=where, length=length):
+                self._emit(memory_dump(self.machine, where, length))
             case CmdSelectFrame(index=index):
                 frames = debugger.backtrace()
                 if 0 <= index < len(frames):
@@ -340,6 +344,25 @@ def disassembly_lines(machine: Machine, pc: int) -> tuple[DisasmLine, ...]:
             )
         )
     return tuple(lines)
+
+
+def memory_dump(machine: Machine, where: str, length: int) -> EvtMemoryDump:
+    debugger = machine.debugger
+    length = max(16, min(length, 4096))
+    try:
+        address = debugger.resolve_address(where) & ~0xF
+    except DebuggerError as exc:
+        return EvtMemoryDump(where, 0, b"", str(exc))
+    data = machine.cpu.read_memory(address, length)
+    if data is None:
+        region = (
+            "el espacio MMIO (leerlo tendría efectos)"
+            if machine.cpu.is_mmio(address)
+            else ("una zona sin memoria")
+        )
+        return EvtMemoryDump(where, address, b"", f"0x{address:08x} está en {region}")
+    labels = debugger.global_labels(address, address + length)
+    return EvtMemoryDump(where, address, data, None, labels)
 
 
 def trap_event(machine: Machine, stop: StopInfo) -> EvtTrap:

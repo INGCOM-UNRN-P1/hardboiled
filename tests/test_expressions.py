@@ -65,3 +65,22 @@ def test_expression_errors(machine: Machine, expression: str, message: str) -> N
 def test_tokenize_operators() -> None:
     kinds = [text for _, text in tokenize("p->x<=3&&!b")]
     assert kinds == ["p", "->", "x", "<=", "3", "&&", "!", "b"]
+
+
+@pytest.mark.parametrize(
+    ("where", "expected"),
+    [
+        ("triangulo", 0x20000020),
+        ("&triangulo", 0x20000020),
+        ("f", 0x20000020),  # un puntero: a donde apunta
+        ("escala", None),  # un int: su dirección en la pila
+        ("0x20000000", 0x20000000),
+        ("main", None),  # símbolo de código
+    ],
+)
+def test_resolve_address(machine: Machine, where: str, expected: int | None) -> None:
+    address = machine.debugger.resolve_address(where)
+    if expected is not None:
+        assert address == expected
+    else:
+        assert address > 0

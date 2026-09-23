@@ -12,6 +12,7 @@ import pytest
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
+    CmdReadMemory,
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
@@ -24,6 +25,7 @@ from hardboiled.core.events import (
     EvtCpuSuspended,
     EvtFrameVariables,
     EvtHardwareUpdated,
+    EvtMemoryDump,
     EvtMessage,
     EvtProgramExited,
     EvtProgramLoaded,
@@ -267,3 +269,19 @@ async def test_tui_shows_trap_post_mortem() -> None:
         await pilot.pause(0.1)
         assert not isinstance(app.screen, TrapScreen)
         await pilot.press("q")
+
+
+def test_runner_memory_dump(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdReadMemory("counter"))
+    dump = h.wait_for(EvtMemoryDump)
+    assert dump.error is None and dump.address == 0x20000000
+    assert dump.data[:4] == (3).to_bytes(4, "little")
+    assert (0x20000000, "counter") in dump.labels
+    h.cmd.put(CmdReadMemory("0x40000000"))
+    assert "MMIO" in (h.wait_for(EvtMemoryDump).error or "")
+    h.cmd.put(CmdReadMemory("no_existe"))
+    assert "no_existe" in (h.wait_for(EvtMemoryDump).error or "")
+    h.cmd.put(CmdReadMemory("main"))  # símbolo de código: la Flash también se puede ver
+    assert h.wait_for(EvtMemoryDump).address >= 0x10000

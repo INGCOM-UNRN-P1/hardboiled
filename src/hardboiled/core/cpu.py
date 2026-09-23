@@ -372,6 +372,10 @@ class Cpu:
             return ()
         return ((self._isr_frame, line),)
 
+    def is_mmio(self, address: int) -> bool:
+        base, size = self.memory.mmio_base, self.memory.mmio_size
+        return base <= address < base + size
+
     def read_word(self, address: int) -> int | None:
         data = self.read_memory(address, 4)
         return int.from_bytes(data, "little") if data is not None else None
