@@ -11,7 +11,7 @@ from __future__ import annotations
 import copy
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from hardboiled.core.events import Event
 
@@ -98,11 +98,23 @@ class Peripheral(ABC):
         return MmioFault(f"{self.name}+0x{reg:02x}: {message}")
 
 
+class TimedSource(Protocol):
+    """Algo que actúa en ciclos dados sin estar mapeado en el bus (p. ej. un guion
+    de estímulos). Participa de los vencimientos igual que un periférico."""
+
+    def next_deadline(self) -> int | None: ...
+    def service(self, cycle: int) -> None: ...
+    def reset(self) -> None: ...
+    def snapshot(self) -> dict[str, Any]: ...
+    def restore(self, state: dict[str, Any]) -> None: ...
+
+
 class MmioBus:
     def __init__(self, size: int, clock: Clock | None = None) -> None:
         self.size = size
         self.clock = clock if clock is not None else Clock()
         self._devices: list[Peripheral] = []
+        self.sources: list[TimedSource] = []
         self._emit: EventSink = _discard
 
     @property
@@ -131,9 +143,14 @@ class MmioBus:
                 return device
         raise KeyError(name)
 
+    def add_source(self, source: TimedSource) -> None:
+        self.sources.append(source)
+
     def reset(self) -> None:
         for device in self._devices:
             device.reset()
+        for source in self.sources:
+            source.reset()
 
     def _decode(self, offset: int, size: int) -> tuple[Peripheral, int, int, int]:
         if size not in (1, 2, 4):
@@ -157,14 +174,16 @@ class MmioBus:
         device.write(reg, (value << shift) & lane, lane)
 
     def next_deadline(self) -> int | None:
-        deadlines = [d for d in (dev.next_deadline() for dev in self._devices) if d is not None]
+        timed = (*self._devices, *self.sources)
+        deadlines = [d for d in (item.next_deadline() for item in timed) if d is not None]
         return min(deadlines) if deadlines else None
 
     def can_wake(self) -> bool:
         return any(device.can_wake() for device in self._devices)
 
     def service(self, cycle: int) -> None:
-        for device in self._devices:
-            deadline = device.next_deadline()
+        # Primero los estímulos externos: lo que inyectan lo ven los periféricos.
+        for item in (*self.sources, *self._devices):
+            deadline = item.next_deadline()
             if deadline is not None and deadline <= cycle:
-                device.service(cycle)
+                item.service(cycle)

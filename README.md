@@ -302,6 +302,29 @@ escriba el usuario en vez de reportar deadlock. Sin interfaz, la entrada se da
 explícitamente: `printf 'hola\nfin\n' | hardboiled demo eco --headless
 --uart-input -` (o `--uart-input archivo.txt`). Ver el ejemplo `eco`.
 
+### Guion de entrada
+
+Para probar firmware interactivo de forma reproducible, `--script guion.toml`
+(en `run` y `demo`, con o sin interfaz) aplica estímulos en ciclos dados:
+
+```toml
+[[at]]
+cycle = 60_000
+switches = 0b1010      # valor de todos los switches
+
+[[at]]
+ms = 5                 # en milisegundos: requiere clock_hz en [board]
+uart = "hola\n"        # bytes que llegan por la UART
+
+[[at]]
+cycle = 120_000
+press = [1, 2]         # botones (se sueltan solos)
+```
+
+Si el programa duerme con `wfi`, el reloj avanza directo hasta el próximo
+estímulo, igual que hasta el próximo tick de un timer. Reset y el paso atrás
+vuelven el guion al punto que corresponde.
+
 ### Interrupciones
 
 `attach_irq(línea, handler)` registra una función C y habilita la línea;

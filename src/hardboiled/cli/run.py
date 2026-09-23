@@ -24,6 +24,7 @@ from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine
 from hardboiled.core.runner import frame_infos, warning_events
 from hardboiled.core.session import BreakpointStore
+from hardboiled.script import ScriptError, attach_script
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
 
@@ -53,6 +54,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--uart-input",
         metavar="ARCHIVO",
         help="bytes que llegan por la UART al empezar (`-` = entrada estándar)",
+    )
+    parser.add_argument(
+        "--script",
+        metavar="ARCHIVO",
+        help="guion TOML de estímulos (switches, UART, botones) en ciclos dados",
     )
     parser.add_argument(
         "--no-save-breakpoints",
@@ -120,6 +126,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         board = board.model_copy(
             update={"board": board.board.model_copy(update={"clock_hz": prefs.clock_hz})}
         )
+    nominal_hz = board.board.clock_hz  # para convertir los `ms` del guion a ciclos
     if args.headless and not args.realtime and board.board.clock_hz is not None:
         # Sin interfaz nadie mira los LEDs: acompasar al reloj real sólo haría esperar.
         board = board.model_copy(
@@ -137,6 +144,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         if uart is None:
             raise CliError("la placa no tiene UART")
         uart.receive(read_uart_input(args.uart_input))
+    if args.script is not None:
+        try:
+            attach_script(machine, args.script, nominal_hz)
+        except ScriptError as exc:
+            raise CliError(str(exc)) from exc
     if args.headless:
         return run_headless(machine)
 

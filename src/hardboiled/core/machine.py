@@ -32,6 +32,7 @@ from hardboiled.hardware.bus import EventSink
 class MachineSnapshot:
     cpu: CpuSnapshot
     devices: dict[str, dict[str, Any]]
+    sources: tuple[dict[str, Any], ...] = ()
 
 
 class Machine:
@@ -133,9 +134,11 @@ class Machine:
         self.cpu.reset()
 
     def snapshot(self) -> MachineSnapshot:
-        """Instantánea completa: CPU, memoria y estado de cada periférico (incluido el PIC)."""
+        """Instantánea completa: CPU, memoria, cada periférico (incluido el PIC) y guiones."""
         return MachineSnapshot(
-            self.cpu.snapshot(), {dev.name: dev.snapshot() for dev in self.bus.devices}
+            self.cpu.snapshot(),
+            {dev.name: dev.snapshot() for dev in self.bus.devices},
+            tuple(source.snapshot() for source in self.bus.sources),
         )
 
     def restore(self, snap: MachineSnapshot) -> None:
@@ -143,4 +146,6 @@ class Machine:
             state = snap.devices.get(dev.name)
             if state is not None:
                 dev.restore(state)
+        for source, source_state in zip(self.bus.sources, snap.sources, strict=False):
+            source.restore(source_state)
         self.cpu.restore(snap.cpu)
