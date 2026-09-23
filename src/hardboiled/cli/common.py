@@ -13,6 +13,7 @@ from hardboiled.config import BoardConfig, load_board
 from hardboiled.core.elf import ElfLoadError
 from hardboiled.core.machine import Machine
 from hardboiled.resources import default_board_path
+from hardboiled.userconfig import UserConfig
 
 EXIT_USAGE = 2
 EXIT_TRAP = 3
@@ -68,3 +69,9 @@ def load_machine(elf: str | Path, board: BoardConfig) -> Machine:
         raise CliError(str(exc)) from exc
     except FileNotFoundError as exc:
         raise CliError(f"no existe {elf}") from exc
+
+
+def user_config(args: argparse.Namespace) -> UserConfig:
+    """Preferencias del usuario (cargadas una vez por main())."""
+    config = getattr(args, "user_config", None)
+    return config if isinstance(config, UserConfig) else UserConfig()

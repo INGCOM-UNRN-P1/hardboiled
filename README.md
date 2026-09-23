@@ -120,6 +120,14 @@ hardboiled examples show errores     # imprime un ejemplo
 elegidas con los switches) y `demo`. `hardboiled demo` es además una buena
 prueba de humo después de instalar.
 
+### Preferencias del usuario
+
+`hardboiled config init` crea un `config.toml` con todas las opciones
+comentadas (`hardboiled config path` muestra dónde; `hardboiled config`, los
+valores efectivos). Permite fijar el compilador, `-O` y `--march` por defecto,
+un `clock_hz` para la TUI, si detenerse en `main()`, el tema (`dark`/`light`)
+y atajos de teclado. La línea de comandos siempre tiene prioridad.
+
 ### Teclas de la TUI
 
 | Tecla | Acción |

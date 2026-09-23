@@ -7,12 +7,13 @@ import os
 import sys
 
 from hardboiled import __version__
-from hardboiled.cli import board, build, examples, info, new, run, runtime, validate
+from hardboiled.cli import board, build, config, examples, info, new, run, runtime, validate
 from hardboiled.cli.common import EXIT_INTERRUPTED, EXIT_TRAP, EXIT_USAGE, CliError
+from hardboiled.userconfig import ConfigError, load_user_config
 
 __all__ = ["EXIT_INTERRUPTED", "EXIT_TRAP", "EXIT_USAGE", "build_parser", "main"]
 
-SUBCOMMANDS = (new, build, run, examples, info, validate, board, runtime)
+SUBCOMMANDS = (new, build, run, examples, info, validate, board, runtime, config)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        try:
+            args.user_config = load_user_config()
+        except ConfigError as exc:
+            raise CliError(f"{exc}\n(corregilo o revisalo con `hardboiled config`)") from exc
         code: int = args.func(args)
     except CliError as exc:
         print(f"hardboiled: error: {exc}", file=sys.stderr)

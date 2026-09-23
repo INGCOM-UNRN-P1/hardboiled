@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import sys
 from pathlib import Path
 
-from hardboiled.cli.common import CliError, Subparsers
+from hardboiled.cli.common import CliError, Subparsers, user_config
 from hardboiled.toolchain import BuildError, BuildOptions, ToolchainError, build, select_compiler
 
 
 def add_build_options(parser: argparse.ArgumentParser) -> None:
     """Opciones de compilación compartidas por `build` y por `run archivo.c`."""
     group = parser.add_argument_group("compilación")
-    group.add_argument("-O", dest="opt_level", default="0", help="nivel de optimización (0)")
-    group.add_argument("--march", default="rv32i", help="rv32i, rv32im, rv32ic o rv32imc")
+    group.add_argument("-O", dest="opt_level", help="nivel de optimización (0)")
+    group.add_argument("--march", help="rv32i, rv32im, rv32ic o rv32imc")
     group.add_argument("--cc", help="compilador: auto, gcc, zig o una ruta (HARDBOILED_CC)")
     group.add_argument("-D", dest="defines", action="append", default=[], help="macro")
     group.add_argument("-I", dest="include_dirs", action="append", default=[], help="includes")
@@ -23,13 +24,19 @@ def add_build_options(parser: argparse.ArgumentParser) -> None:
 
 
 def options_from(args: argparse.Namespace) -> BuildOptions:
+    prefs = user_config(args).build
     return BuildOptions(
-        opt_level=args.opt_level,
-        march=args.march,
+        opt_level=args.opt_level or prefs.opt_level,
+        march=args.march or prefs.march,
         defines=tuple(args.defines),
         include_dirs=tuple(Path(d) for d in args.include_dirs),
         extra_flags=tuple(shlex.split(args.cflags)),
     )
+
+
+def compiler_preference(args: argparse.Namespace) -> str | None:
+    """--cc, luego HARDBOILED_CC, luego la preferencia del usuario (o auto)."""
+    return args.cc or os.environ.get("HARDBOILED_CC") or user_config(args).build.compiler
 
 
 def register(sub: Subparsers) -> None:
@@ -45,7 +52,7 @@ def compile_sources(
     sources: list[str], output: Path | None, args: argparse.Namespace, verbose: bool
 ) -> Path:
     try:
-        compiler = select_compiler(args.cc)
+        compiler = select_compiler(compiler_preference(args))
         result = build(sources, output, options_from(args), compiler)
     except BuildError as exc:
         if verbose:

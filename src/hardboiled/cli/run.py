@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from hardboiled.buildcache import SOURCE_SUFFIXES, build_cached
-from hardboiled.cli.build import add_build_options, options_from
+from hardboiled.cli.build import add_build_options, compiler_preference, options_from
 from hardboiled.cli.common import (
     EXIT_TRAP,
     CliError,
@@ -16,6 +16,7 @@ from hardboiled.cli.common import (
     board_from,
     load_machine,
     parse_int,
+    user_config,
 )
 from hardboiled.core.cpu import StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput
@@ -70,7 +71,7 @@ def resolve_program(args: argparse.Namespace) -> Path:
         if not program.is_file():
             raise CliError(f"no existe {program}")
     try:
-        compiler = select_compiler(args.cc)
+        compiler = select_compiler(compiler_preference(args))
         result = build_cached(programs, options_from(args), compiler)
     except BuildError as exc:
         raise CliError(f"{exc}\n{exc.output}") from exc
@@ -91,6 +92,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                 "board": board.board.model_copy(update={"max_instructions": args.max_instructions})
             }
         )
+    prefs = user_config(args).run
+    if prefs.clock_hz is not None and not args.headless:
+        board = board.model_copy(
+            update={"board": board.board.model_copy(update={"clock_hz": prefs.clock_hz})}
+        )
     if args.headless and not args.realtime and board.board.clock_hz is not None:
         # Sin interfaz nadie mira los LEDs: acompasar al reloj real sólo haría esperar.
         board = board.model_copy(
@@ -110,8 +116,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     cmd_queue: queue.Queue[Command] = queue.Queue()
     evt_queue: queue.Queue[Event] = queue.Queue()
-    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main=not args.no_stop_at_main)
-    HardboiledApp(cmd_queue, evt_queue, runner).run()
+    stop_at_main = prefs.stop_at_main and not args.no_stop_at_main
+    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main=stop_at_main)
+    HardboiledApp(cmd_queue, evt_queue, runner, user_config(args).ui).run()
     return 0
 
 

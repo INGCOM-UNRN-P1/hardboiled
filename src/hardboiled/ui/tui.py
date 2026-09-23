@@ -43,6 +43,7 @@ from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.registers_view import RegistersView
+from hardboiled.userconfig import UiPrefs
 
 MAX_EVENTS_PER_FRAME = 5000
 
@@ -81,8 +82,10 @@ class HardboiledApp(App[None]):
         cmd_queue: queue.Queue[Command],
         evt_queue: queue.Queue[Event],
         worker: threading.Thread | None = None,
+        prefs: UiPrefs | None = None,
     ) -> None:
         super().__init__()
+        self.prefs = prefs or UiPrefs()
         self.cmd_queue = cmd_queue
         self.evt_queue = evt_queue
         self.worker = worker
@@ -103,6 +106,7 @@ class HardboiledApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.theme = "textual-light" if self.prefs.theme == "light" else "textual-dark"
         self.query_one("#code").border_title = "Código"
         self.query_one("#uart").border_title = "Consola UART"
         self.query_one("#hardware").border_title = "Placa"
