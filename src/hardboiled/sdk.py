@@ -65,7 +65,9 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
     if p.type == "uart":
         return [
             (f"{n.macro}_TX", p.offset, "escritura: byte a transmitir"),
-            (f"{n.macro}_STATUS", p.offset + 4, "lectura: bit 0 = listo para transmitir"),
+            (f"{n.macro}_STATUS", p.offset + 4, "bit 0 = listo para transmitir, bit 1 = hay dato"),
+            (f"{n.macro}_RX", p.offset + 8, "lectura: siguiente byte recibido"),
+            (f"{n.macro}_CTRL", p.offset + 12, "bit 0 = IRQ mientras haya bytes recibidos"),
         ]
     return [
         (f"{n.macro}_CTRL", p.offset, "bit 0 = habilitado, bit 1 = genera IRQ"),
@@ -118,6 +120,35 @@ static inline void {f}_puts(const char *text)
         text++;
     }}
 }}
+
+/* ¿Llegó algún byte por la UART? */
+static inline int {f}_available(void) {{ return ({m}_STATUS & UART_STATUS_RX) != 0; }}
+
+/* Espera (activamente) el siguiente byte recibido. */
+static inline char {f}_getc(void)
+{{
+    while (!{f}_available()) {{
+    }}
+    return (char){m}_RX;
+}}
+
+/* Lee hasta fin de línea o `size - 1` bytes; devuelve la cantidad leída. */
+static inline int {f}_gets(char *buffer, int size)
+{{
+    int count = 0;
+    while (count < size - 1) {{
+        char c = {f}_getc();
+        if (c == '\\n' || c == '\\r') {{
+            break;
+        }}
+        buffer[count++] = c;
+    }}
+    buffer[count] = '\\0';
+    return count;
+}}
+
+/* Pide (o deja de pedir) la IRQ de la UART mientras haya bytes recibidos. */
+static inline void {f}_rx_irq(int enabled) {{ {m}_CTRL = enabled ? 1u : 0u; }}
 
 /* Imprime un entero sin signo en hexadecimal (sin usar división). */
 static inline void {f}_puthex(uint32_t value)
@@ -195,7 +226,7 @@ def generate_header(board: BoardConfig) -> str:
     if "timer" in kinds:
         out += ["#define TIMER_CTRL_ENABLE (1u << 0)", "#define TIMER_CTRL_IRQ    (1u << 1)"]
     if "uart" in kinds:
-        out.append("#define UART_STATUS_READY (1u << 0)")
+        out += ["#define UART_STATUS_READY (1u << 0)", "#define UART_STATUS_RX    (1u << 1)"]
     out += ["", f"#define HB_IRQ_LINES {IRQ_LINES}"]
     for peripheral in board.peripherals:
         if peripheral.irq_line is not None:

@@ -49,6 +49,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--no-stop-at-main", action="store_true", help="no detenerse al inicio de main()"
     )
     parser.add_argument(
+        "--uart-input",
+        metavar="ARCHIVO",
+        help="bytes que llegan por la UART al empezar (`-` = entrada estándar)",
+    )
+    parser.add_argument(
         "--no-save-breakpoints",
         action="store_true",
         help="no recordar breakpoints en .hardboiled/ junto al programa",
@@ -59,6 +64,16 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         help="con --headless, respetar clock_hz de la placa (por defecto corre sin pausas)",
     )
     add_build_options(parser)
+
+
+def read_uart_input(source: str) -> bytes:
+    """Contenido de un archivo, o de la entrada estándar si es `-`."""
+    if source == "-":
+        return sys.stdin.buffer.read()
+    try:
+        return Path(source).read_bytes()
+    except OSError as exc:
+        raise CliError(f"no se pudo leer {source}: {exc}") from exc
 
 
 def resolve_program(args: argparse.Namespace) -> Path:
@@ -116,6 +131,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         if switches is None:
             raise CliError("la placa no tiene switches")
         switches.set_value(args.switches)
+    if args.uart_input is not None:
+        uart = machine.uart()
+        if uart is None:
+            raise CliError("la placa no tiene UART")
+        uart.receive(read_uart_input(args.uart_input))
     if args.headless:
         return run_headless(machine)
 

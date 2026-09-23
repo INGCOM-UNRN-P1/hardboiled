@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -58,8 +59,13 @@ class Harness:
         self.seen: list[Event] = []
 
     def wait_for[T](self, kind: type[T]) -> T:
+        # Plazo total: los EvtCpuProgress periódicos no deben alargar la espera.
+        deadline = time.monotonic() + RUNNER_TIMEOUT
         while True:
-            event = self.evt.get(timeout=RUNNER_TIMEOUT)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"no llegó {kind.__name__} en {RUNNER_TIMEOUT} s")
+            event = self.evt.get(timeout=remaining)
             self.seen.append(event)
             if isinstance(event, kind):
                 return event

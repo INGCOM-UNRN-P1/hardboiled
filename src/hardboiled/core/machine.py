@@ -15,7 +15,7 @@ from hardboiled.core.events import PeripheralInfo
 from hardboiled.core.pic import InterruptController
 from hardboiled.core.unwind import CallFrameTable
 from hardboiled.core.variables import VariableTable
-from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, build_peripheral
+from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, Uart, build_peripheral
 from hardboiled.hardware.bus import EventSink
 
 
@@ -43,7 +43,13 @@ class Machine:
         for cfg in board.peripherals:
             self.bus.attach(
                 build_peripheral(
-                    cfg.type, cfg.name, cfg.offset, cfg.width_bits, cfg.irq_line, self.pic.raise_irq
+                    cfg.type,
+                    cfg.name,
+                    cfg.offset,
+                    cfg.width_bits,
+                    cfg.irq_line,
+                    self.pic.raise_irq,
+                    self.pic.lower_irq,
                 )
             )
         self.cpu = Cpu(
@@ -75,6 +81,12 @@ class Machine:
             PeripheralInfo(dev.name, dev.kind, dev.offset, dev.width_bits)
             for dev in self.peripherals
         )
+
+    def uart(self) -> Uart | None:
+        for dev in self.peripherals:
+            if isinstance(dev, Uart):
+                return dev
+        return None
 
     def switches(self) -> SwitchBank | None:
         for dev in self.peripherals:

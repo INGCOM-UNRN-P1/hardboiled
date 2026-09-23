@@ -71,8 +71,12 @@ class Peripheral(ABC):
     def service(self, cycle: int) -> None:  # noqa: B027
         """Atiende los eventos temporales vencidos hasta `cycle`."""
 
+    def can_wake(self) -> bool:
+        """¿Puede pedir una interrupción por un estímulo externo (teclado, botón)?"""
+        return False
+
     # Atributos que no son estado del dispositivo sino su conexión con el resto.
-    _TRANSIENT: ClassVar[frozenset[str]] = frozenset({"clock", "emit", "_raise_irq"})
+    _TRANSIENT: ClassVar[frozenset[str]] = frozenset({"clock", "emit", "_raise_irq", "_lower_irq"})
 
     def snapshot(self) -> dict[str, Any]:
         """Estado del dispositivo (copia) para poder volver atrás en el tiempo."""
@@ -151,6 +155,9 @@ class MmioBus:
     def next_deadline(self) -> int | None:
         deadlines = [d for d in (dev.next_deadline() for dev in self._devices) if d is not None]
         return min(deadlines) if deadlines else None
+
+    def can_wake(self) -> bool:
+        return any(device.can_wake() for device in self._devices)
 
     def service(self, cycle: int) -> None:
         for device in self._devices:

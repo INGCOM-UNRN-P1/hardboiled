@@ -56,6 +56,13 @@ class InterruptController(Peripheral):
         self.irq_pending |= 1 << line
         self._update()
 
+    def lower_irq(self, line: int) -> None:
+        """Retira el pedido de una línea (periféricos que piden por nivel)."""
+        if not 0 <= line < IRQ_LINES:
+            raise ValueError(f"línea de IRQ inválida: {line}")
+        self.irq_pending &= ~(1 << line)
+        self._update()
+
     def wake_pending(self) -> bool:
         """¿Hay alguna IRQ habilitada pendiente? (condición de salida de `wfi`)."""
         return bool(self.irq_pending & self.irq_enable)

@@ -98,6 +98,13 @@ class CmdReadMemory:
 
 
 @dataclass(frozen=True)
+class CmdUartInput:
+    """Bytes que el usuario envía a la UART (lo que escribió en la consola)."""
+
+    data: bytes
+
+
+@dataclass(frozen=True)
 class CmdToggleSwitch:
     pin_index: int
 
@@ -131,6 +138,7 @@ Command = (
     | CmdToggleWatchpoint
     | CmdSetBreakpointCondition
     | CmdReadMemory
+    | CmdUartInput
     | CmdToggleSwitch
     | CmdPause
     | CmdReset

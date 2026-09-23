@@ -169,6 +169,8 @@ class Cpu:
         self.clock = bus.clock
         self.max_instructions = max_instructions
         self.clock_hz = clock_hz
+        # Con interfaz, `wfi` puede esperar estímulos del usuario (UART, botones).
+        self.interactive = False
         # Condición del depurador evaluada antes de cada instrucción.
         self.stop_check: Callable[[int], bool] | None = None
         # Consultado periódicamente durante la ejecución; True = pausar.
@@ -619,6 +621,12 @@ class Cpu:
                 break
             self.clock.cycles = max(self.clock.cycles, deadline)
             self.bus.service(self.clock.cycles)
+        if not self.pic.wake_pending() and self.interactive and self.bus.can_wake():
+            # Nada programado, pero el usuario puede escribir o apretar algo: se espera.
+            while not self.pic.wake_pending():
+                if self._pace_and_poll(max_sleep=0.02):
+                    return StopInfo(StopReason.PAUSED, pc, "ejecución pausada (esperando datos)")
+                time.sleep(0.02)
         if not self.pic.wake_pending():
             return self._trap(
                 pc,

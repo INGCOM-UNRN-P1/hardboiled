@@ -9,7 +9,9 @@
  *   0x000  LEDS         escritura/lectura: un bit por LED (8)
  *   0x004  SWITCHES     sólo lectura: un bit por interruptor (4)
  *   0x010  UART_TX      escritura: byte a transmitir
- *   0x014  UART_STATUS  lectura: bit 0 = listo para transmitir
+ *   0x014  UART_STATUS  bit 0 = listo para transmitir, bit 1 = hay dato
+ *   0x018  UART_RX      lectura: siguiente byte recibido
+ *   0x01C  UART_CTRL    bit 0 = IRQ mientras haya bytes recibidos
  *   0x020  TIMER_CTRL   bit 0 = habilitado, bit 1 = genera IRQ
  *   0x024  TIMER_RELOAD período en ciclos (divisor)
  *   0x028  TIMER_COUNT  ciclos restantes hasta el próximo vencimiento
@@ -30,6 +32,8 @@
 #define SWITCHES     HB_REG(0x004)
 #define UART_TX      HB_REG(0x010)
 #define UART_STATUS  HB_REG(0x014)
+#define UART_RX      HB_REG(0x018)
+#define UART_CTRL    HB_REG(0x01C)
 #define TIMER_CTRL   HB_REG(0x020)
 #define TIMER_RELOAD HB_REG(0x024)
 #define TIMER_COUNT  HB_REG(0x028)
@@ -41,8 +45,10 @@
 #define TIMER_CTRL_ENABLE (1u << 0)
 #define TIMER_CTRL_IRQ    (1u << 1)
 #define UART_STATUS_READY (1u << 0)
+#define UART_STATUS_RX    (1u << 1)
 
 #define HB_IRQ_LINES 8
+#define IRQ_UART0 1
 #define IRQ_TIMER0 0
 
 typedef void (*irq_handler_t)(void);
@@ -79,6 +85,35 @@ static inline void uart_puts(const char *text)
         text++;
     }
 }
+
+/* ¿Llegó algún byte por la UART? */
+static inline int uart_available(void) { return (UART_STATUS & UART_STATUS_RX) != 0; }
+
+/* Espera (activamente) el siguiente byte recibido. */
+static inline char uart_getc(void)
+{
+    while (!uart_available()) {
+    }
+    return (char)UART_RX;
+}
+
+/* Lee hasta fin de línea o `size - 1` bytes; devuelve la cantidad leída. */
+static inline int uart_gets(char *buffer, int size)
+{
+    int count = 0;
+    while (count < size - 1) {
+        char c = uart_getc();
+        if (c == '\n' || c == '\r') {
+            break;
+        }
+        buffer[count++] = c;
+    }
+    buffer[count] = '\0';
+    return count;
+}
+
+/* Pide (o deja de pedir) la IRQ de la UART mientras haya bytes recibidos. */
+static inline void uart_rx_irq(int enabled) { UART_CTRL = enabled ? 1u : 0u; }
 
 /* Imprime un entero sin signo en hexadecimal (sin usar división). */
 static inline void uart_puthex(uint32_t value)

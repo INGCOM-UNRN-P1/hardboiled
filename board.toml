@@ -29,6 +29,7 @@ width_bits = 4
 name = "uart0"
 type = "uart"
 offset = "0x10"
+irq_line = 1
 
 [[peripherals]]
 name = "timer0"

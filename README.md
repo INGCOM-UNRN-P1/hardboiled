@@ -251,7 +251,9 @@ click) muestra su línea marcada con `▷` y sus variables locales.
 | `0x000` | `LEDS` | 8 LEDs. Admite accesos de 8/16/32 bits; cada cambio se ve en la TUI. |
 | `0x004` | `SWITCHES` | 4 DIP switches, sólo lectura. Escribirlos es una trampa. |
 | `0x010` | `UART_TX` | Byte a transmitir a la consola. |
-| `0x014` | `UART_STATUS` | Bit 0: listo para transmitir. |
+| `0x014` | `UART_STATUS` | Bit 0: listo para transmitir; bit 1: hay un byte recibido. |
+| `0x018` | `UART_RX` | Siguiente byte recibido (0 si no hay). |
+| `0x01C` | `UART_CTRL` | Bit 0: pedir la IRQ 1 mientras haya bytes recibidos. |
 | `0x020` | `TIMER_CTRL` | Bit 0 habilita, bit 1 genera IRQ. |
 | `0x024` | `TIMER_RELOAD` | Período en ciclos (divisor). |
 | `0x028` | `TIMER_COUNT` | Ciclos restantes (sólo lectura). |
@@ -259,6 +261,16 @@ click) muestra su línea marcada con `▷` y sus variables locales.
 | `0xF00` | `PIC_ENABLE` | Máscara de IRQs habilitadas. |
 | `0xF04` | `PIC_PENDING` | IRQs pendientes (escribir 1 para limpiar). |
 | `0xF08` | `PIC_GLOBAL` | Bit 0: interrupciones habilitadas globalmente. |
+
+### Entrada por la UART
+
+En la TUI, el campo debajo de la consola envía lo escrito (más `\n`) a la UART;
+Esc vuelve al código. El firmware lo lee con `uart_available()`, `uart_getc()`
+o `uart_gets()`, o con la interrupción `IRQ_UART0` (`uart_rx_irq(1)`), que
+queda pedida mientras haya bytes sin leer. Con la interfaz, `wfi` espera lo que
+escriba el usuario en vez de reportar deadlock. Sin interfaz, la entrada se da
+explícitamente: `printf 'hola\nfin\n' | hardboiled demo eco --headless
+--uart-input -` (o `--uart-input archivo.txt`). Ver el ejemplo `eco`.
 
 ### Interrupciones
 

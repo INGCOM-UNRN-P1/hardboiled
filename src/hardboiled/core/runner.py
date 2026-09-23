@@ -35,6 +35,7 @@ from hardboiled.core.events import (
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
+    CmdUartInput,
     Command,
     ConditionInfo,
     DisasmLine,
@@ -88,6 +89,7 @@ class RunnerThread(threading.Thread):
         self._shutdown = False
         machine.set_event_sink(self._emit)
         machine.cpu.poll = self._poll
+        machine.cpu.interactive = True  # wfi puede esperar lo que escriba el usuario
 
     def _emit(self, event: Event) -> None:
         self.evt_queue.put(event)
@@ -201,6 +203,12 @@ class RunnerThread(threading.Thread):
                     line_number=line, source_file=source, condition=condition, hit_count=hits
                 ):
                     debugger.set_condition(line, source, condition, hits)
+                case CmdUartInput(data=data):
+                    uart = self.machine.uart()
+                    if uart is None:
+                        raise DebuggerError("la placa no tiene UART")
+                    uart.receive(data)
+                    return
                 case CmdToggleSwitch(pin_index=pin):
                     switches = self.machine.switches()
                     if switches is None:

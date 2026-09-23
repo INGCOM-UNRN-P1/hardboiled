@@ -13,10 +13,11 @@ import queue
 import threading
 
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Header, Input, Log, Static, TabbedContent, TabPane
 
 from hardboiled.core.events import (
     CmdContinue,
@@ -36,6 +37,7 @@ from hardboiled.core.events import (
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
+    CmdUartInput,
     Command,
     Event,
     EvtBreakpointsChanged,
@@ -134,6 +136,7 @@ class HardboiledApp(App[None]):
     #code { height: 1fr; border: round $primary; }
     #code:focus { border: round $accent; }
     #uart { height: 9; border: round $primary; }
+    #uart-input { height: 3; }
     #disasm { display: none; }
     #disasm.visible { display: block; }
     #status { height: 1; padding: 0 1; background: $panel; }
@@ -179,6 +182,10 @@ class HardboiledApp(App[None]):
                 yield CodeView(id="code")
                 yield DisassemblyView(id="disasm")
                 yield Log(id="uart", highlight=False)
+                yield Input(
+                    placeholder="escribí y Enter para enviar por la UART (Esc vuelve al código)",
+                    id="uart-input",
+                )
             with VerticalScroll(id="right"):
                 yield HardwareView(id="hardware")
                 yield BacktraceView(id="backtrace")
@@ -440,6 +447,17 @@ class HardboiledApp(App[None]):
             ),
             submit,
         )
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "uart-input":
+            return
+        event.stop()
+        self.send(CmdUartInput(event.value.encode("utf-8") + b"\n"))
+        event.input.value = ""
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "escape" and self.focused is not None and self.focused.id == "uart-input":
+            self.query_one(CodeView).focus()
 
     def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
         self.send(CmdReadMemory(message.where))

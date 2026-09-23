@@ -228,9 +228,9 @@ def test_board_rejects_overlapping_peripherals() -> None:
 
 
 def test_board_rejects_irq_on_non_timer_and_bad_memory() -> None:
-    with pytest.raises(ValidationError, match="sólo los timers"):
+    with pytest.raises(ValidationError, match="sólo generan interrupciones"):
         BoardConfig.model_validate(
-            {"peripherals": [{"name": "u", "type": "uart", "offset": 0, "irq_line": 1}]}
+            {"peripherals": [{"name": "l", "type": "gpio_out", "offset": 0, "irq_line": 1}]}
         )
     with pytest.raises(ValidationError, match="puntero"):
         BoardConfig.model_validate({"memory": {"flash_base": "0x0"}})

@@ -19,6 +19,9 @@ NULL_GUARD_END = 0x1_0000
 
 PeripheralType = Literal["gpio_out", "gpio_in", "uart", "timer"]
 
+# Tipos de periférico que pueden pedir una interrupción.
+IRQ_CAPABLE = frozenset({"timer", "uart"})
+
 PERIPHERAL_SIZES: dict[str, int] = {
     "gpio_out": LedBar.size,
     "gpio_in": SwitchBank.size,
@@ -118,8 +121,9 @@ class PeripheralConfig(_Model):
     def _check(self) -> Self:
         if self.offset % 4:
             raise ValueError(f"{self.name}: el offset debe estar alineado a 4 bytes")
-        if self.irq_line is not None and self.type != "timer":
-            raise ValueError(f"{self.name}: sólo los timers generan interrupciones")
+        if self.irq_line is not None and self.type not in IRQ_CAPABLE:
+            capable = ", ".join(sorted(IRQ_CAPABLE))
+            raise ValueError(f"{self.name}: sólo generan interrupciones: {capable}")
         return self
 
 
@@ -131,7 +135,7 @@ def _default_peripherals() -> tuple[PeripheralConfig, ...]:
     return (
         PeripheralConfig(name="leds", type="gpio_out", offset=0x00, width_bits=8),
         PeripheralConfig(name="switches", type="gpio_in", offset=0x04, width_bits=4),
-        PeripheralConfig(name="uart0", type="uart", offset=0x10),
+        PeripheralConfig(name="uart0", type="uart", offset=0x10, irq_line=1),
         PeripheralConfig(name="timer0", type="timer", offset=0x20, irq_line=0),
     )
 
