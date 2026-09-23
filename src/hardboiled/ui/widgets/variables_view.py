@@ -11,6 +11,7 @@ from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
 from hardboiled.core.events import VariableInfo
+from hardboiled.ui.palette import current_palette
 
 LOCALS = "locals"
 GLOBALS = "globals"
@@ -86,7 +87,7 @@ class VariablesView(Tree[VariableInfo | None]):
             variable.value,
         )
         label.append(" = ")
-        label.append(variable.value, style="bold yellow" if changed else "")
+        label.append(variable.value, style=current_palette(self).changed if changed else "")
         if variable.children:
             node = parent.add(
                 label, data=variable, expand=f"{key}:{variable.path}" in self._expanded

@@ -13,6 +13,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from hardboiled.core.cpu import ABI_NAMES
+from hardboiled.ui.palette import current_palette
 
 FORMATS = ("hex", "con signo", "sin signo", "ascii", "símbolo")
 
@@ -69,7 +70,7 @@ class RegistersView(Static):
         text = Text.assemble((f"{key:>3} ", "dim"))
         text.append(f"{ABI_NAMES[index]:<5}", style="cyan")
         shown = format_value(value, self.mode, self._symbols.get(key))
-        text.append(shown, style="bold yellow" if changed else "")
+        text.append(shown, style=current_palette(self).changed if changed else "")
         return text
 
     def _table(self) -> Table:

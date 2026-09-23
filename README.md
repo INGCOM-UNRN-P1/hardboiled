@@ -146,6 +146,11 @@ valores efectivos). Permite fijar el compilador, `-O` y `--march` por defecto,
 un `clock_hz` para la TUI, si detenerse en `main()`, el tema (`dark`/`light`)
 y atajos de teclado. La línea de comandos siempre tiene prioridad.
 
+`theme = "light"` usa colores claros en toda la interfaz (útil con el
+proyector del aula) y `colorblind = true` cambia a la paleta Okabe-Ito
+(azul/naranja) y agrega forma donde antes sólo había color: LEDs `■`/`□` y
+valores cambiados subrayados.
+
 ### Teclas de la TUI
 
 | Tecla | Acción |

@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.segment import Segment
 from rich.style import Style
 from rich.syntax import Syntax
-from rich.text import Text
+from rich.text import Span, Text
 from textual import events
 from textual.binding import Binding
 from textual.geometry import Size
@@ -15,12 +15,29 @@ from textual.message import Message
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
 
+from hardboiled.ui.palette import current_palette
+
 GUTTER_WIDTH = 10  # "●▶ 1234 │ "
 
-_ACTIVE_BG = Style(bgcolor="#2d3f5f")
-_CURSOR_BG = Style(bgcolor="#262626")
-_FRAME_BG = Style(bgcolor="#3b2f4a")
-_TRAP_BG = Style(bgcolor="#5c1f1f")
+
+def _without_background(text: Text) -> Text:
+    """Quita el fondo del tema de sintaxis (en el texto y en cada token).
+
+    Manda el fondo del widget, que sigue al tema claro u oscuro de la interfaz.
+    """
+    text.style = ""
+    spans = []
+    for span in text.spans:
+        style = span.style if isinstance(span.style, Style) else Style.parse(str(span.style))
+        clean = Style(
+            color=style.color,
+            bold=style.bold,
+            italic=style.italic,
+            underline=style.underline,
+        )
+        spans.append(Span(span.start, span.end, clean))
+    text.spans = spans
+    return text
 
 
 class CodeView(ScrollView, can_focus=True):
@@ -80,7 +97,8 @@ class CodeView(ScrollView, can_focus=True):
                 self._lines = [Text(f"no se pudo abrir {path}: {exc}", style="red")]
             else:
                 lexer = Syntax.guess_lexer(path, code)
-                highlighted = Syntax(code, lexer, theme="monokai").highlight(code)
+                theme = current_palette(self).syntax_theme
+                highlighted = _without_background(Syntax(code, lexer, theme=theme).highlight(code))
                 highlighted.rstrip()
                 self._lines = list(highlighted.split("\n", allow_blank=True))
         longest = max((line.cell_len for line in self._lines), default=0)
@@ -161,19 +179,20 @@ class CodeView(ScrollView, can_focus=True):
         index = scroll_y + y
         width = self.size.width
         if index >= len(self._lines):
-            return Strip.blank(width)
+            return Strip.blank(width, self.rich_style)
         number = index + 1
         active = number == self._active_line
         in_frame = number == self._frame_line and not active
+        palette = current_palette(self)
         trapped = number == self._trap_line
         if trapped:
-            background: Style | None = _TRAP_BG
+            background: Style | None = palette.trap_bg
         elif active:
-            background = _ACTIVE_BG
+            background = palette.active_bg
         elif in_frame:
-            background = _FRAME_BG
+            background = palette.frame_bg
         elif number == self._cursor_line:
-            background = _CURSOR_BG
+            background = palette.cursor_bg
         else:
             background = None
 
@@ -184,7 +203,7 @@ class CodeView(ScrollView, can_focus=True):
             marker = "●"
         else:
             marker = " "
-        gutter.append(marker, style="bold red")
+        gutter.append(marker, style=palette.breakpoint)
         if trapped:
             gutter.append("✖", style="bold bright_red")
         else:
@@ -209,7 +228,8 @@ class CodeView(ScrollView, can_focus=True):
             .crop(scroll_x, scroll_x + code_width)
             .extend_cell_length(code_width, background)
         )
-        return Strip.join([gutter_strip, code_strip])
+        # El estilo del widget (fondo del tema) queda debajo de los colores de sintaxis.
+        return Strip.join([gutter_strip, code_strip]).apply_style(self.rich_style)
 
     # ---------------------------------------------------------------- input
 

@@ -51,6 +51,7 @@ from hardboiled.core.events import (
     EvtTrap,
     EvtUartOutput,
 )
+from hardboiled.ui.palette import palette_for
 from hardboiled.ui.widgets.backtrace_view import BacktraceView
 from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
@@ -157,6 +158,7 @@ class HardboiledApp(App[None]):
     ) -> None:
         super().__init__()
         self.prefs = prefs or UiPrefs()
+        self.palette = palette_for(self.prefs.theme, self.prefs.colorblind)
         self.user_keymap = dict(keymap or {})
         self.cmd_queue = cmd_queue
         self.evt_queue = evt_queue

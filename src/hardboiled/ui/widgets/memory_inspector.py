@@ -16,6 +16,7 @@ from textual.message import Message
 from textual.widgets import Input, Static
 
 from hardboiled.core.events import EvtMemoryDump
+from hardboiled.ui.palette import current_palette
 
 PAGE = 256
 ROW = 8  # bytes por fila: entra en el ancho del panel lateral
@@ -92,7 +93,7 @@ class MemoryInspector(Vertical):
                     break
                 value = dump.data[row + offset]
                 changed = address in self._previous and self._previous[address] != value
-                style = "bold yellow" if changed else ("dim" if value == 0 else "")
+                style = current_palette(self).changed if changed else ("dim" if value == 0 else "")
                 hex_part.append(f"{value:02x}", style=style)
                 hex_part.append(" " if offset != 3 else "  ")
                 ascii_part.append(chr(value) if 32 <= value < 127 else "·", style=style)

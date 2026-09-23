@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Button, Label, Static
 
 from hardboiled.core.events import PeripheralInfo
+from hardboiled.ui.palette import current_palette
 
 
 class LedBarView(Static):
@@ -29,9 +30,11 @@ class LedBarView(Static):
     def render(self) -> Text:
         text = Text.assemble((f"{self.info.name:<9}", "bold"))
         # El bit más significativo a la izquierda, como en un número binario.
+        palette = current_palette(self)
         for bit in reversed(range(self.info.width_bits)):
             on = bool(self.value >> bit & 1)
-            text.append("● " if on else "○ ", style="bold bright_red" if on else "grey35")
+            symbol = palette.led_on if on else palette.led_off
+            text.append(f"{symbol} ", style=palette.led_on_style if on else palette.led_off_style)
         text.append(f" 0x{self.value:0{(self.info.width_bits + 3) // 4}x}", style="dim")
         return text
 
