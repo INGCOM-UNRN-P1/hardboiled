@@ -9,8 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from hardboiled.resources import crt0_path, include_dir, linker_script
+
 HERE = Path(__file__).resolve().parent
-RUNTIME = HERE.parents[1] / "runtime"
 PROGRAMS = ("basic", "mmio", "traps", "demo")
 
 CFLAGS = [
@@ -29,9 +30,9 @@ CFLAGS = [
 def build(name: str) -> None:
     command = [
         sys.executable, "-m", "ziglang", "cc", *CFLAGS,
-        f"-I{RUNTIME / 'include'}",
-        f"-T{RUNTIME / 'hardboiled.ld'}",
-        str(RUNTIME / "crt0.s"), f"{name}.c",
+        f"-I{include_dir()}",
+        f"-T{linker_script()}",
+        str(crt0_path()), f"{name}.c",
         "-o", f"{name}.elf",
     ]  # fmt: skip
     subprocess.run(command, cwd=HERE, check=True)

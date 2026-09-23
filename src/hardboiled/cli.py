@@ -201,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="ejecuta un ELF en la TUI (o sin interfaz con --headless)")
-    run.add_argument("elf", help="binario ELF riscv32 enlazado con runtime/hardboiled.ld")
+    run.add_argument("elf", help="binario ELF riscv32 enlazado con el runtime de hardboiled")
     run.add_argument("--board", help="board.toml (por defecto ./board.toml si existe)")
     run.add_argument("--headless", action="store_true", help="ejecutar sin TUI hasta terminar")
     run.add_argument("--switches", type=_int, help="estado inicial de los switches (ej. 0b0101)")

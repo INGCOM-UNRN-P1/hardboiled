@@ -25,21 +25,21 @@ uv sync                             # entorno de desarrollo (tests, ruff, mypy, 
 ## Compilar un programa
 
 El binario debe ser RV32I puro (sin extensiones M/A/C), enlazado con el
-runtime provisto en `runtime/`:
+runtime incluido en el paquete (`src/hardboiled/runtime/`):
 
 | Archivo | Contenido |
 |---|---|
-| `runtime/crt0.s` | Arranque: inicializa `sp = 0x2001_0000`, copia `.data`, limpia `.bss`, llama a `main()` y define la tabla de vectores. |
-| `runtime/hardboiled.ld` | Linker script alineado con el mapa de memoria de la placa. |
-| `runtime/include/hardboiled.h` | SDK: `led_set()`, `switch_get()`, `uart_puts()`, `timer_start()`, `attach_irq()`, … |
+| `crt0.s` | Arranque: inicializa `sp = 0x2001_0000`, copia `.data`, limpia `.bss`, llama a `main()` y define la tabla de vectores. |
+| `hardboiled.ld` | Linker script alineado con el mapa de memoria de la placa. |
+| `include/hardboiled.h` | SDK: `led_set()`, `switch_get()`, `uart_puts()`, `timer_start()`, `attach_irq()`, … |
 
 Con la toolchain GNU (`riscv64-unknown-elf-gcc` sirve para 32 bits):
 
 ```bash
 riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -g -O0 \
     -ffreestanding -nostdlib -nostartfiles \
-    -I runtime/include -T runtime/hardboiled.ld \
-    runtime/crt0.s programa.c -lgcc -o programa.elf
+    -I src/hardboiled/runtime/include -T src/hardboiled/runtime/hardboiled.ld \
+    src/hardboiled/runtime/crt0.s programa.c -lgcc -o programa.elf
 ```
 
 Sin toolchain instalada, el paquete `ziglang` (incluido en el entorno de
@@ -49,7 +49,8 @@ desarrollo) trae un clang capaz de generar RV32I:
 uv run python -m ziglang cc -target riscv32-freestanding-none -mcpu=generic_rv32 \
     -g -O0 -fno-sanitize=undefined -fno-unwind-tables -fno-asynchronous-unwind-tables \
     -ffunction-sections -Wl,--gc-sections \
-    -I runtime/include -T runtime/hardboiled.ld runtime/crt0.s programa.c -o programa.elf
+    -I src/hardboiled/runtime/include -T src/hardboiled/runtime/hardboiled.ld \
+    src/hardboiled/runtime/crt0.s programa.c -o programa.elf
 ```
 
 `tests/fixtures/build.py` recompila así todos los ejemplos de `tests/fixtures/`.

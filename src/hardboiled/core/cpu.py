@@ -188,7 +188,7 @@ class Cpu:
             if region not in ("flash", "sram"):
                 raise ElfLoadError(
                     f"el segmento en 0x{seg.paddr:08x} ({len(seg.data)} bytes) no entra en "
-                    "Flash ni en SRAM: ¿se enlazó con runtime/hardboiled.ld?"
+                    "Flash ni en SRAM: ¿se enlazó con el hardboiled.ld del runtime?"
                 )
             self._uc.mem_write(seg.paddr, seg.data)
         self._image = image
