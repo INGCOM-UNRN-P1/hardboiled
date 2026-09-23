@@ -26,7 +26,8 @@ from hardboiled.core.cpu import INSN_MRET, ISR_FRAME_SIZE, ISR_SAVED_REGS, Cpu
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
 
-MAX_FRAMES = 64
+# 64 KB de SRAM con marcos de al menos 16 bytes: nunca puede haber más.
+MAX_FRAMES = 4096
 RA, SP, FP = 1, 2, 8
 
 

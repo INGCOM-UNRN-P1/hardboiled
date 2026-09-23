@@ -291,7 +291,7 @@ class RunnerThread(threading.Thread):
 
     def _report(self, stop: StopInfo, reason: str | None = None) -> None:
         if stop.reason is StopReason.TRAP:
-            self._emit(EvtTrap(stop.message, stop.fault_address))
+            self._emit(trap_event(self.machine, stop))
         elif stop.reason is StopReason.EXITED:
             self._emit(EvtProgramExited(stop.exit_code if stop.exit_code is not None else 0))
         if reason is None:
@@ -342,13 +342,28 @@ def disassembly_lines(machine: Machine, pc: int) -> tuple[DisasmLine, ...]:
     return tuple(lines)
 
 
+def trap_event(machine: Machine, stop: StopInfo) -> EvtTrap:
+    debugger = machine.debugger
+    instruction = debugger.instruction_at(stop.pc)
+    location = debugger.location(stop.pc)
+    return EvtTrap(
+        stop.message,
+        stop.fault_address,
+        stop.pc,
+        instruction.text if instruction is not None else None,
+        debugger.function(stop.pc) or machine.image.describe(stop.pc),
+        location.file if location else None,
+        location.line if location else None,
+    )
+
+
 def frame_infos(machine: Machine, frames: list[Frame]) -> tuple[FrameInfo, ...]:
     infos = []
     for frame in frames:
         if frame.irq_line is not None:
             label = f"interrupción IRQ {frame.irq_line}"
         else:
-            label = frame.function or machine.image.describe(frame.site)
+            label = frame.function or machine.image.describe(frame.pc)
         location = frame.location
         infos.append(
             FrameInfo(

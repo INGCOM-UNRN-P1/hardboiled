@@ -9,7 +9,7 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from hardboiled.core.events import FrameInfo
+from hardboiled.core.events import FrameInfo, collapse_frames
 
 
 class BacktraceView(OptionList):
@@ -28,22 +28,27 @@ class BacktraceView(OptionList):
         self.frames: tuple[FrameInfo, ...] = ()
 
     def set_frames(self, frames: tuple[FrameInfo, ...]) -> None:
-        self.frames = frames
+        # Las recursiones profundas se agrupan: cada opción es el primer marco del grupo.
+        groups = collapse_frames(frames)
+        self.frames = tuple(frame for frame, _ in groups)
         self.clear_options()
-        self.add_options([Option(self._prompt(frame)) for frame in frames])
+        self.add_options([Option(self._prompt(frame, count)) for frame, count in groups])
         if frames:
             self.highlighted = 0
 
     @staticmethod
-    def _prompt(frame: FrameInfo) -> Text:
+    def _prompt(frame: FrameInfo, count: int = 1) -> Text:
         if frame.irq_line is not None:
             return Text(f"── {frame.label} ──", style="bold magenta")
-        text = Text.assemble((f"#{frame.index} ", "dim"))
+        span = f"#{frame.index}" if count == 1 else f"#{frame.index}-#{frame.index + count - 1}"
+        text = Text.assemble((f"{span} ", "dim"))
         text.append(frame.label, style="bold")
         if frame.source_file is not None:
             text.append(f"  {os.path.basename(frame.source_file)}:{frame.source_line}")
         else:
             text.append(f"  0x{frame.pc:08x}", style="dim")
+        if count > 1:
+            text.append(f"  x{count} (recursión)", style="bold magenta")
         return text
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:

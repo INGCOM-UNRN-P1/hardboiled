@@ -56,6 +56,7 @@ from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.prompt import Prompt
 from hardboiled.ui.widgets.registers_view import RegistersView
+from hardboiled.ui.widgets.trap_screen import TrapScreen
 from hardboiled.ui.widgets.variables_view import VariablesView
 from hardboiled.userconfig import UiPrefs
 
@@ -133,6 +134,7 @@ class HardboiledApp(App[None]):
         self.worker = worker
         self._breakpoints: frozenset[tuple[str, int]] = frozenset()
         self._suspended: EvtCpuSuspended | None = None
+        self._pending_trap: EvtTrap | None = None
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -229,8 +231,8 @@ class HardboiledApp(App[None]):
                 self.query_one(BreakpointsView).update_points(event)
                 self.query_one(DisassemblyView).set_breakpoints(event.addresses)
             case EvtTrap():
-                where = f" (dirección 0x{event.fault_address:08x})" if event.fault_address else ""
-                self.notify(f"{event.reason}{where}", title="TRAP", severity="error", timeout=10)
+                # Se muestra al llegar la suspensión, que trae la pila de llamadas.
+                self._pending_trap = event
             case EvtProgramExited():
                 self.notify(f"main() devolvió {event.exit_code}", title="Programa terminado")
             case EvtMessage():
@@ -241,6 +243,11 @@ class HardboiledApp(App[None]):
     def _on_suspended(self, event: EvtCpuSuspended) -> None:
         self._suspended = event
         self._show_location(event.source_file, event.source_line)
+        trap, self._pending_trap = self._pending_trap, None
+        code = self.query_one(CodeView)
+        code.set_trap_line(trap.source_line if trap is not None else None)
+        if trap is not None:
+            self.push_screen(TrapScreen(trap, event.frames))
         self.query_one(BacktraceView).set_frames(event.frames)
         self.query_one(DisassemblyView).show(event.disassembly, event.pc)
         function = event.frames[0].label if event.frames else event.function

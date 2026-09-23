@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
-from hardboiled.core.disasm import Instruction, disassemble
+from hardboiled.core.disasm import Instruction, decode, disassemble
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import VariableInfo
@@ -211,6 +211,10 @@ class Debugger:
         return self.unwinder.unwind(self.cpu)
 
     # ---------------------------------------------------------- desensamblado
+
+    def instruction_at(self, pc: int) -> Instruction | None:
+        data = self.cpu.read_memory(pc, 4) or self.cpu.read_memory(pc, 2)
+        return decode(pc, data, self.image.describe) if data else None
 
     def disassemble_around(self, pc: int | None = None, limit: int = 400) -> list[Instruction]:
         """La función que contiene `pc` completa o, sin función, desde la etiqueta previa."""

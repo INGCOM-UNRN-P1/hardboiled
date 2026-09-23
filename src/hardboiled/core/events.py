@@ -236,6 +236,12 @@ class EvtUartOutput:
 class EvtTrap:
     reason: str
     fault_address: int | None
+    # Dónde ocurrió: la instrucción que falló y su ubicación en el código.
+    pc: int | None = None
+    instruction: str | None = None
+    function: str | None = None
+    source_file: str | None = None
+    source_line: int | None = None
 
 
 @dataclass(frozen=True)
@@ -294,3 +300,22 @@ Event = (
     | EvtBreakpointsChanged
     | EvtMessage
 )
+
+
+def collapse_frames(frames: tuple[FrameInfo, ...]) -> list[tuple[FrameInfo, int]]:
+    """Agrupa marcos consecutivos idénticos (recursión): [(primer marco, cantidad)]."""
+    groups: list[tuple[FrameInfo, int]] = []
+    for frame in frames:
+        if groups:
+            first, count = groups[-1]
+            same = (first.label, first.source_file, first.source_line, first.irq_line) == (
+                frame.label,
+                frame.source_file,
+                frame.source_line,
+                frame.irq_line,
+            )
+            if same and frame.irq_line is None:
+                groups[-1] = (first, count + 1)
+                continue
+        groups.append((frame, 1))
+    return groups

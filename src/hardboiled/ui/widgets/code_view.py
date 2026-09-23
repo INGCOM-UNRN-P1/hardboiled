@@ -20,6 +20,7 @@ GUTTER_WIDTH = 10  # "●▶ 1234 │ "
 _ACTIVE_BG = Style(bgcolor="#2d3f5f")
 _CURSOR_BG = Style(bgcolor="#262626")
 _FRAME_BG = Style(bgcolor="#3b2f4a")
+_TRAP_BG = Style(bgcolor="#5c1f1f")
 
 
 class CodeView(ScrollView, can_focus=True):
@@ -50,6 +51,7 @@ class CodeView(ScrollView, can_focus=True):
         self._lines: list[Text] = []
         self._active_line: int | None = None
         self._frame_line: int | None = None  # línea del marco elegido en la pila de llamadas
+        self._trap_line: int | None = None  # línea donde ocurrió una trampa
         self._cursor_line = 1
         self._breakpoints: frozenset[int] = frozenset()
         self._conditional: frozenset[int] = frozenset()
@@ -66,6 +68,7 @@ class CodeView(ScrollView, can_focus=True):
         self.file = path
         self._active_line = None
         self._frame_line = None
+        self._trap_line = None
         self._cursor_line = 1
         if path is None:
             self._lines = [Text("(sin código fuente para la ubicación actual)", style="dim")]
@@ -89,6 +92,10 @@ class CodeView(ScrollView, can_focus=True):
         if line is not None:
             self._cursor_line = line
             self._ensure_visible(line)
+        self.refresh()
+
+    def set_trap_line(self, line: int | None) -> None:
+        self._trap_line = line
         self.refresh()
 
     def set_frame_line(self, line: int | None) -> None:
@@ -124,8 +131,11 @@ class CodeView(ScrollView, can_focus=True):
         number = index + 1
         active = number == self._active_line
         in_frame = number == self._frame_line and not active
-        if active:
-            background: Style | None = _ACTIVE_BG
+        trapped = number == self._trap_line
+        if trapped:
+            background: Style | None = _TRAP_BG
+        elif active:
+            background = _ACTIVE_BG
         elif in_frame:
             background = _FRAME_BG
         elif number == self._cursor_line:
@@ -141,7 +151,10 @@ class CodeView(ScrollView, can_focus=True):
         else:
             marker = " "
         gutter.append(marker, style="bold red")
-        gutter.append("▶" if active else "▷" if in_frame else " ", style="bold yellow")
+        if trapped:
+            gutter.append("✖", style="bold bright_red")
+        else:
+            gutter.append("▶" if active else "▷" if in_frame else " ", style="bold yellow")
         gutter.append(f"{number:>5} ", style="bold" if active else "dim")
         gutter.append("│ ", style="dim")
 

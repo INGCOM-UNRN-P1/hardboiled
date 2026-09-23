@@ -29,6 +29,7 @@ from hardboiled.core.events import (
     EvtProgramLoaded,
     EvtTrap,
 )
+from hardboiled.ui.tui import HardboiledApp
 from tests.conftest import Harness, HarnessFactory, line_of
 
 SRC = Path(__file__).parents[1] / "src" / "hardboiled"
@@ -101,6 +102,8 @@ def test_runner_reports_traps(harness: HarnessFactory) -> None:
     h.cmd.put(CmdContinue())
     trap = h.wait_for(EvtTrap)
     assert "puntero nulo" in trap.reason and trap.fault_address == 0
+    assert trap.instruction is not None and trap.instruction.startswith("lw ")
+    assert trap.function == "main" and trap.source_line is not None
     suspended = h.wait_for(EvtCpuSuspended)
     assert suspended.function == "main"
 
@@ -237,3 +240,30 @@ def test_runner_watchpoints(harness: HarnessFactory) -> None:
     assert "0 → 14" in hit.reason
     h.cmd.put(CmdToggleWatchpoint("nada"))
     assert "nada" in h.wait_for(EvtMessage).text
+
+
+async def test_tui_shows_trap_post_mortem() -> None:
+    from hardboiled.ui.widgets.code_view import CodeView
+    from hardboiled.ui.widgets.trap_screen import TrapScreen
+
+    h = Harness("traps")
+    h.machine.switches().set_value(1)  # type: ignore[union-attr]
+    app = HardboiledApp(h.cmd, h.evt, h.runner)
+    async with app.run_test(size=(140, 45)) as pilot:
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if app._suspended is not None:
+                break
+        await pilot.press("f5")
+        for _ in range(200):
+            await pilot.pause(0.02)
+            if isinstance(app.screen, TrapScreen):
+                break
+        assert isinstance(app.screen, TrapScreen)
+        assert "puntero nulo" in app.screen.trap.reason
+        code = app.query_one(CodeView)
+        assert code._trap_line == app.screen.trap.source_line
+        await pilot.press("escape")
+        await pilot.pause(0.1)
+        assert not isinstance(app.screen, TrapScreen)
+        await pilot.press("q")

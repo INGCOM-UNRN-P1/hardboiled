@@ -28,6 +28,7 @@ def test_run_headless_reports_trap_with_source_location(
     err = capsys.readouterr().err
     assert "puntero nulo" in err
     assert "traps.c:" in err and "main()" in err
+    assert "instrucción: lw " in err
 
 
 def test_run_headless_honours_instruction_quota(capsys: pytest.CaptureFixture[str]) -> None:
@@ -102,3 +103,21 @@ def test_runtime_paths(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["runtime"]) == 0
     out = capsys.readouterr().out
     assert "include" in out and "crt0" in out
+
+
+def test_headless_trap_prints_call_stack(capsys: pytest.CaptureFixture[str]) -> None:
+    code = main(["run", str(fixture_path("traps.elf")), "--headless", "--switches", "3"])
+    assert code == EXIT_TRAP
+    err = capsys.readouterr().err
+    assert "stack overflow" in err
+    assert "pila de llamadas:" in err
+    assert "deep" in err and "(recursión)" in err
+    assert err.count("deep") < 5  # los marcos repetidos se agrupan
+
+
+def test_deep_recursion_reports_real_depth(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["run", str(fixture_path("traps.elf")), "--headless", "--switches", "3"]) == 3
+    err = capsys.readouterr().err
+    # 64 KB de pila / 80 bytes por marco de deep(): cientos de niveles, no 63.
+    depth = int(err.split(" x", 1)[1].split(" ")[0])
+    assert depth > 500

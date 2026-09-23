@@ -18,9 +18,10 @@ from hardboiled.cli.common import (
     parse_int,
     user_config,
 )
-from hardboiled.core.cpu import StopReason
-from hardboiled.core.events import Command, Event, EvtUartOutput
+from hardboiled.core.cpu import StopInfo, StopReason
+from hardboiled.core.events import Command, Event, EvtUartOutput, collapse_frames
 from hardboiled.core.machine import Machine
+from hardboiled.core.runner import frame_infos
 from hardboiled.core.session import BreakpointStore
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
@@ -146,11 +147,29 @@ def run_headless(machine: Machine) -> int:
     stop = machine.debugger.continue_()
     if stop.reason is StopReason.EXITED:
         return (stop.exit_code or 0) & 0xFF
-    location = machine.debugger.location(stop.pc)
-    where = f"{location.file}:{location.line}" if location else "sin información de línea"
-    function = machine.debugger.function(stop.pc) or "??"
-    print(
-        f"\nTRAP: {stop.message}\n  en {function}() pc=0x{stop.pc:08x} ({where})",
-        file=sys.stderr,
-    )
+    print(f"\n{format_trap(machine, stop)}", file=sys.stderr)
     return EXIT_TRAP
+
+
+def format_trap(machine: Machine, stop: StopInfo) -> str:
+    """Informe de una trampa para la terminal: motivo, instrucción y pila de llamadas."""
+    debugger = machine.debugger
+    location = debugger.location(stop.pc)
+    where = f"{location.file}:{location.line}" if location else "sin información de línea"
+    function = debugger.function(stop.pc) or machine.image.describe(stop.pc)
+    lines = [f"TRAP: {stop.message}", f"  en {function}() pc=0x{stop.pc:08x} ({where})"]
+    instruction = debugger.instruction_at(stop.pc)
+    if instruction is not None:
+        lines.append(f"  instrucción: {instruction.text}")
+    frames = frame_infos(machine, debugger.backtrace())
+    if len(frames) > 1:
+        lines.append("  pila de llamadas:")
+        for frame, count in collapse_frames(frames):
+            if frame.irq_line is not None:
+                lines.append(f"    ── {frame.label} ──")
+                continue
+            span = f"#{frame.index}" if count == 1 else f"#{frame.index}-#{frame.index + count - 1}"
+            loc = f"{frame.source_file}:{frame.source_line}" if frame.source_file else ""
+            repeat = f" x{count} (recursión)" if count > 1 else ""
+            lines.append(f"    {span} {frame.label} {loc}{repeat}".rstrip())
+    return "\n".join(lines)
