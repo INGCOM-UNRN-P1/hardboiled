@@ -20,6 +20,7 @@
  *   0x034  BUTTONS_IRQ_EN  máscara de botones que piden la IRQ
  *   0x038  BUTTONS_EDGE    por botón: 0 = al presionar, 1 = al soltar
  *   0x03C  BUTTONS_PENDING flancos detectados (escribir 1 limpia)
+ *   0x040  SEG_DIGITS      segmentos de los dígitos 0-3 (4)
  *   0xF00  PIC_ENABLE      máscara de IRQs habilitadas
  *   0xF04  PIC_PENDING     IRQs pendientes (escribir 1 para limpiar)
  *   0xF08  PIC_GLOBAL      bit 0 = interrupciones habilitadas globalmente
@@ -46,6 +47,7 @@
 #define BUTTONS_IRQ_EN  HB_REG(0x034)
 #define BUTTONS_EDGE    HB_REG(0x038)
 #define BUTTONS_PENDING HB_REG(0x03C)
+#define SEG_DIGITS      HB_REG(0x040)
 #define PIC_ENABLE      HB_REG(0xF00)
 #define PIC_PENDING     HB_REG(0xF04)
 #define PIC_GLOBAL      HB_REG(0xF08)
@@ -158,6 +160,47 @@ static inline void button_irq_disable(uint32_t mask) { BUTTONS_IRQ_EN = BUTTONS_
 /* Flancos detectados desde la última limpieza (un bit por botón). */
 static inline uint32_t buttons_pending(void) { return BUTTONS_PENDING; }
 static inline void buttons_clear(uint32_t mask) { BUTTONS_PENDING = mask; }
+
+/* ------------------------------------------------ Display de 7 segmentos --- */
+
+#define SEG_COUNT 4
+
+/* Segmentos (a-g en los bits 0-6, punto en el 7) que dibujan la cifra hexadecimal `digit`. */
+static inline uint8_t seg_pattern(unsigned int digit)
+{
+    static const uint8_t font[16] = {
+        0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+        0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
+    };
+    return font[digit & 0xFu];
+}
+
+/* Enciende los segmentos `segments` del dígito `index` (0 = el de la derecha). */
+static inline void seg_set_digit(unsigned int index, uint8_t segments)
+{
+    volatile uint8_t *digits = (volatile uint8_t *)&SEG_DIGITS;
+    digits[index] = segments;
+}
+
+/* Muestra `value` en hexadecimal (los dígitos que entren). */
+static inline void seg_show_hex(uint32_t value)
+{
+    for (unsigned int i = 0; i < SEG_COUNT; i++) {
+        seg_set_digit(i, seg_pattern(value >> (4 * i)));
+    }
+}
+
+/* Muestra `value` en decimal, sin ceros a la izquierda. */
+static inline void seg_show_dec(uint32_t value)
+{
+    for (unsigned int i = 0; i < SEG_COUNT; i++) {
+        int blank = value == 0 && i > 0;
+        seg_set_digit(i, blank ? 0 : seg_pattern(value % 10u));
+        value /= 10u;
+    }
+}
+
+static inline void seg_clear(void) { SEG_DIGITS = 0; }
 
 /* -------------------------------------------------------- Interrupciones --- */
 

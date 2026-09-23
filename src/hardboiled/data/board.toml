@@ -43,3 +43,9 @@ type = "gpio_irq"
 offset = "0x30"
 width_bits = 4
 irq_line = 2
+
+[[peripherals]]
+name = "display"
+type = "sevenseg"
+offset = "0x40"
+digits = 4

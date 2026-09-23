@@ -12,13 +12,14 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_valida
 from hardboiled.core.pic import IRQ_LINES, InterruptController
 from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
+from hardboiled.hardware.sevenseg import MAX_DIGITS, SevenSegment
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
 
 PAGE = 0x1000
 NULL_GUARD_END = 0x1_0000
 
-PeripheralType = Literal["gpio_out", "gpio_in", "gpio_irq", "uart", "timer"]
+PeripheralType = Literal["gpio_out", "gpio_in", "gpio_irq", "uart", "timer", "sevenseg"]
 
 # Tipos de periférico que pueden pedir una interrupción.
 IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq"})
@@ -27,6 +28,7 @@ PERIPHERAL_SIZES: dict[str, int] = {
     "gpio_out": LedBar.size,
     "gpio_in": SwitchBank.size,
     "gpio_irq": ButtonBank.size,
+    "sevenseg": SevenSegment.size,
     "uart": Uart.size,
     "timer": Timer.size,
 }
@@ -114,6 +116,7 @@ class PeripheralConfig(_Model):
     offset: HexInt
     width_bits: int = Field(default=32, ge=1, le=32)
     irq_line: int | None = Field(default=None, ge=0, lt=IRQ_LINES)
+    digits: int = Field(default=4, ge=1, le=MAX_DIGITS)  # sólo sevenseg
 
     @property
     def size(self) -> int:
@@ -140,6 +143,7 @@ def _default_peripherals() -> tuple[PeripheralConfig, ...]:
         PeripheralConfig(name="uart0", type="uart", offset=0x10, irq_line=1),
         PeripheralConfig(name="timer0", type="timer", offset=0x20, irq_line=0),
         PeripheralConfig(name="buttons", type="gpio_irq", offset=0x30, width_bits=4, irq_line=2),
+        PeripheralConfig(name="display", type="sevenseg", offset=0x40, digits=4),
     )
 
 

@@ -28,6 +28,7 @@ CLASSIC = {
     "uart": ("UART", "uart"),
     "timer": ("TIMER", "timer"),
     "gpio_irq": ("BUTTONS", "button"),
+    "sevenseg": ("SEG", "seg"),
 }
 
 
@@ -63,6 +64,11 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
         return [(n.macro, p.offset, f"escritura/lectura: un bit por LED ({p.width_bits})")]
     if p.type == "gpio_in":
         return [(n.macro, p.offset, f"sólo lectura: un bit por interruptor ({p.width_bits})")]
+    if p.type == "sevenseg":
+        registers = [(f"{n.macro}_DIGITS", p.offset, f"segmentos de los dígitos 0-3 ({p.digits})")]
+        if p.digits > 4:
+            registers.append((f"{n.macro}_DIGITS_HI", p.offset + 4, "segmentos de los dígitos 4-7"))
+        return registers
     if p.type == "gpio_irq":
         return [
             (f"{n.macro}_STATE", p.offset, f"sólo lectura: botones presionados ({p.width_bits})"),
@@ -111,6 +117,47 @@ static inline void {f}_toggle(unsigned int index) {{ {m} = {m} ^ (1u << index); 
         return f"""\
 static inline uint32_t {f}_get(void) {{ return {m}; }}
 static inline int {f}_read(unsigned int index) {{ return (int)(({m} >> index) & 1u); }}
+"""
+    if p.type == "sevenseg":
+        return f"""\
+#define {m}_COUNT {p.digits}
+
+/* Segmentos (a-g en los bits 0-6, punto en el 7) que dibujan la cifra hexadecimal `digit`. */
+static inline uint8_t {f}_pattern(unsigned int digit)
+{{
+    static const uint8_t font[16] = {{
+        0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+        0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
+    }};
+    return font[digit & 0xFu];
+}}
+
+/* Enciende los segmentos `segments` del dígito `index` (0 = el de la derecha). */
+static inline void {f}_set_digit(unsigned int index, uint8_t segments)
+{{
+    volatile uint8_t *digits = (volatile uint8_t *)&{m}_DIGITS;
+    digits[index] = segments;
+}}
+
+/* Muestra `value` en hexadecimal (los dígitos que entren). */
+static inline void {f}_show_hex(uint32_t value)
+{{
+    for (unsigned int i = 0; i < {m}_COUNT; i++) {{
+        {f}_set_digit(i, {f}_pattern(value >> (4 * i)));
+    }}
+}}
+
+/* Muestra `value` en decimal, sin ceros a la izquierda. */
+static inline void {f}_show_dec(uint32_t value)
+{{
+    for (unsigned int i = 0; i < {m}_COUNT; i++) {{
+        int blank = value == 0 && i > 0;
+        {f}_set_digit(i, blank ? 0 : {f}_pattern(value % 10u));
+        value /= 10u;
+    }}
+}}
+
+static inline void {f}_clear(void) {{ {m}_DIGITS = 0; }}
 """
     if p.type == "gpio_irq":
         return f"""\
@@ -196,6 +243,7 @@ static inline void {f}_clear(void) {{ {m}_STATUS = 1u; }}
 
 SECTION_TITLES = {
     "gpio_irq": "Botones",
+    "sevenseg": "Display de 7 segmentos",
     "gpio_out": "LEDs",
     "gpio_in": "Switches",
     "uart": "UART",

@@ -262,9 +262,17 @@ click) muestra su línea marcada con `▷` y sus variables locales.
 | `0x034` | `BUTTONS_IRQ_EN` | Botones que piden la IRQ 2. |
 | `0x038` | `BUTTONS_EDGE` | Por botón: 0 avisa al presionar, 1 al soltar. |
 | `0x03C` | `BUTTONS_PENDING` | Flancos detectados (escribir 1 limpia y retira la IRQ). |
+| `0x040` | `SEG_DIGITS` | Display de 4 dígitos: un byte por dígito (el 0 a la derecha), segmentos a-g en los bits 0-6 y el punto en el 7. |
 | `0xF00` | `PIC_ENABLE` | Máscara de IRQs habilitadas. |
 | `0xF04` | `PIC_PENDING` | IRQs pendientes (escribir 1 para limpiar). |
 | `0xF08` | `PIC_GLOBAL` | Bit 0: interrupciones habilitadas globalmente. |
+
+### Display de 7 segmentos
+
+`seg_show_dec()`, `seg_show_hex()` y `seg_set_digit(i, segmentos)` (con
+`seg_pattern(cifra)` para obtener el dibujo de una cifra). La cantidad de
+dígitos se configura con `digits` en `board.toml` (hasta 8). Ver el ejemplo
+`display`.
 
 ### Botones
 

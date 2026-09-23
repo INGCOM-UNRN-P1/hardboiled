@@ -164,6 +164,7 @@ class PeripheralInfo:
     kind: str
     offset: int
     width_bits: int
+    digits: int = 0  # sólo displays de 7 segmentos
 
 
 @dataclass(frozen=True)

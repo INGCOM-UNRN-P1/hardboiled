@@ -120,6 +120,64 @@ class ButtonBankView(Horizontal):
             self.post_message(self.Pressed(int(event.button.id.removeprefix("btn-"))))
 
 
+# (fila, columna, carácter) de cada segmento en una celda de 3x3.
+SEGMENT_CELLS = {
+    0: (0, 1, "_"),  # a
+    1: (1, 2, "|"),  # b
+    2: (2, 2, "|"),  # c
+    3: (2, 1, "_"),  # d
+    4: (2, 0, "|"),  # e
+    5: (1, 0, "|"),  # f
+    6: (1, 1, "_"),  # g
+}
+
+
+def render_digits(segments: list[int]) -> list[str]:
+    """Tres renglones de texto con los dígitos (el 0 es el de la derecha)."""
+    rows = ["", "", ""]
+    for pattern in reversed(segments):
+        cell = [[" "] * 3 for _ in range(3)]
+        for bit, (row, col, char) in SEGMENT_CELLS.items():
+            if pattern >> bit & 1:
+                cell[row][col] = char
+        for row in range(3):
+            rows[row] += "".join(cell[row])
+        rows[0] += " "
+        rows[1] += " "
+        rows[2] += "." if pattern & 0x80 else " "
+    return rows
+
+
+class SevenSegView(Static):
+    DEFAULT_CSS = """
+    SevenSegView { height: 3; }
+    """
+
+    def __init__(self, info: PeripheralInfo) -> None:
+        super().__init__()
+        self.info = info
+        self.words = [0, 0]
+
+    def set_register(self, offset: int, value: int) -> None:
+        self.words[offset // 4 & 1] = value
+        self.refresh()
+
+    def render(self) -> Text:
+        data = self.words[0] | self.words[1] << 32
+        digits = self.info.digits or 4
+        segments = [(data >> (8 * i)) & 0xFF for i in range(digits)]
+        rows = render_digits(segments)
+        palette = current_palette(self)
+        text = Text()
+        for index, row in enumerate(rows):
+            label = f"{self.info.name:<9}" if index == 1 else " " * 9
+            text.append(label, style="bold")
+            text.append(row, style=palette.led_on_style)
+            if index < 2:
+                text.append("\n")
+        return text
+
+
 class TimerView(Static):
     DEFAULT_CSS = """
     TimerView { height: 1; }
@@ -165,6 +223,8 @@ class HardwareView(Vertical):
                 widgets.append(TimerView(info))
             elif info.kind == "gpio_irq":
                 widgets.append(ButtonBankView(info))
+            elif info.kind == "sevenseg":
+                widgets.append(SevenSegView(info))
         self.mount_all(widgets)
 
     def update_device(self, name: str, offset: int, value: int) -> None:
@@ -174,5 +234,5 @@ class HardwareView(Vertical):
                 continue
             if isinstance(widget, LedBarView | SwitchBankView | ButtonBankView):
                 widget.set_value(value)
-            elif isinstance(widget, TimerView):
+            elif isinstance(widget, TimerView | SevenSegView):
                 widget.set_register(offset, value)

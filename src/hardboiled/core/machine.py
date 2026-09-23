@@ -19,6 +19,7 @@ from hardboiled.hardware import (
     ButtonBank,
     MmioBus,
     Peripheral,
+    SevenSegment,
     SwitchBank,
     Uart,
     build_peripheral,
@@ -57,6 +58,7 @@ class Machine:
                     cfg.irq_line,
                     self.pic.raise_irq,
                     self.pic.lower_irq,
+                    cfg.digits,
                 )
             )
         self.cpu = Cpu(
@@ -85,7 +87,13 @@ class Machine:
 
     def peripheral_info(self) -> tuple[PeripheralInfo, ...]:
         return tuple(
-            PeripheralInfo(dev.name, dev.kind, dev.offset, dev.width_bits)
+            PeripheralInfo(
+                dev.name,
+                dev.kind,
+                dev.offset,
+                dev.width_bits,
+                dev.digits if isinstance(dev, SevenSegment) else 0,
+            )
             for dev in self.peripherals
         )
 
