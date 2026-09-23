@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar, Protocol
 
 from hardboiled.core.events import Event
+from hardboiled.i18n import _
 
 WORD_MASK = 0xFFFF_FFFF
 
@@ -95,7 +96,8 @@ class Peripheral(ABC):
             setattr(self, key, copy.copy(value))
 
     def fault(self, reg: int, message: str) -> MmioFault:
-        return MmioFault(f"{self.name}+0x{reg:02x}: {message}")
+        """`message` viene marcado con N_() y se traduce acá."""
+        return MmioFault(f"{self.name}+0x{reg:02x}: {_(message)}")
 
 
 class TimedSource(Protocol):
@@ -154,16 +156,30 @@ class MmioBus:
 
     def _decode(self, offset: int, size: int) -> tuple[Peripheral, int, int, int]:
         if size not in (1, 2, 4):
-            raise MmioFault(f"tamaño de acceso no soportado ({size} bytes) en 0x{offset:03x}")
+            raise MmioFault(
+                _(
+                    "tamaño de acceso no soportado ({size} bytes) en {offset}",
+                    size=size,
+                    offset=f"0x{offset:03x}",
+                )
+            )
         if offset % size:
-            raise MmioFault(f"acceso desalineado de {size} bytes en 0x{offset:03x}")
+            raise MmioFault(
+                _(
+                    "acceso desalineado de {size} bytes en {offset}",
+                    size=size,
+                    offset=f"0x{offset:03x}",
+                )
+            )
         for device in self._devices:
             if device.offset <= offset < device.offset + device.size:
                 reg = offset - device.offset
                 shift = (reg & 3) * 8
                 lane = ((1 << (size * 8)) - 1) << shift
                 return device, reg & ~3, shift, lane
-        raise MmioFault(f"no hay ningún periférico en el offset MMIO 0x{offset:03x}")
+        raise MmioFault(
+            _("no hay ningún periférico en el offset MMIO {offset}", offset=f"0x{offset:03x}")
+        )
 
     def read(self, offset: int, size: int) -> int:
         device, reg, shift, lane = self._decode(offset, size)

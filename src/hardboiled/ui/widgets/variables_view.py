@@ -11,6 +11,7 @@ from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 
 from hardboiled.core.events import VariableInfo
+from hardboiled.i18n import _
 from hardboiled.ui.palette import current_palette
 
 LOCALS = "locals"
@@ -31,7 +32,7 @@ class VariablesView(Tree[VariableInfo | None]):
         self._current: dict[str, str] = {}
         self._locals: tuple[VariableInfo, ...] = ()
         self._globals: tuple[VariableInfo, ...] = ()
-        self._locals_label = "Locales"
+        self._locals_label = _("Locales")
         self._section_keys: dict[int, str] = {}
 
     # ----------------------------------------------------------------- datos
@@ -45,7 +46,9 @@ class VariablesView(Tree[VariableInfo | None]):
         """Nueva suspensión: los cambios se comparan contra la anterior."""
         self._previous = self._current
         self._locals, self._globals = locals_, globals_
-        self._locals_label = f"Locales de {function}" if function else "Locales"
+        self._locals_label = (
+            _("Locales de {function}", function=function) if function else _("Locales")
+        )
         self._current = {}
         self._collect(locals_, LOCALS)
         self._collect(globals_, GLOBALS)
@@ -54,7 +57,7 @@ class VariablesView(Tree[VariableInfo | None]):
     def set_frame_locals(self, locals_: tuple[VariableInfo, ...], label: str) -> None:
         """Locales de otro marco: no cuentan como cambios."""
         self._locals = locals_
-        self._locals_label = f"Locales de {label}"
+        self._locals_label = _("Locales de {function}", function=label)
         self._rebuild()
 
     def _collect(self, variables: tuple[VariableInfo, ...], section: str) -> None:
@@ -68,14 +71,14 @@ class VariablesView(Tree[VariableInfo | None]):
         self.clear()
         for key, label, variables in (
             (LOCALS, self._locals_label, self._locals),
-            (GLOBALS, "Globales", self._globals),
+            (GLOBALS, _("Globales"), self._globals),
         ):
             section = self.root.add(
                 Text(label, style="bold"), data=None, expand=key in self._expanded
             )
             self._section_keys[id(section)] = key
             if not variables:
-                section.add_leaf(Text("(ninguna)", style="dim"))
+                section.add_leaf(Text(_("(ninguna)"), style="dim"))
             for variable in variables:
                 self._add(section, variable, key)
 

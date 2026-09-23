@@ -12,6 +12,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from hardboiled.core.events import EvtBreakpointsChanged
+from hardboiled.i18n import _
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class BreakpointsView(OptionList):
     """
 
     BINDINGS = [  # noqa: RUF012
-        Binding("delete", "remove", "Quitar"),
+        Binding("delete", "remove", _("Quitar")),
         Binding("backspace", "remove", show=False),
     ]
 
@@ -72,7 +73,7 @@ class BreakpointsView(OptionList):
             self.add_options([Option(p) for p in prompts])
         else:
             self.add_option(
-                Option(Text("(sin breakpoints ni watchpoints)", style="dim"), disabled=True)
+                Option(Text(_("(sin breakpoints ni watchpoints)"), style="dim"), disabled=True)
             )
 
     def action_remove(self) -> None:

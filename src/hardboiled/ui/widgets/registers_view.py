@@ -13,9 +13,10 @@ from rich.text import Text
 from textual.widgets import Static
 
 from hardboiled.core.cpu import ABI_NAMES
+from hardboiled.i18n import N_, _
 from hardboiled.ui.palette import current_palette
 
-FORMATS = ("hex", "con signo", "sin signo", "ascii", "símbolo")
+FORMATS = ("hex", N_("con signo"), N_("sin signo"), "ascii", N_("símbolo"))
 
 
 def format_value(value: int, mode: str, symbol: str | None = None, width: int = 11) -> str:
@@ -47,7 +48,7 @@ class RegistersView(Static):
         self._update_title()
 
     def _update_title(self) -> None:
-        self.border_title = f"Registros ({self.mode}; x cambia)"
+        self.border_title = _("Registros ({mode}; x cambia)", mode=_(self.mode))
 
     def set_registers(
         self, registers: dict[str, int], symbols: dict[str, str] | None = None

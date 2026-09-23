@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_
 
 IRQ_LINES = 8
 LINES_MASK = (1 << IRQ_LINES) - 1
@@ -128,7 +129,7 @@ class InterruptController(Peripheral):
             return int(self.global_enable)
         if reg == ACTIVE:
             return self.active[-1] if self.active else NO_ACTIVE
-        raise self.fault(reg, "registro inexistente")
+        raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg == ENABLE:
@@ -138,7 +139,7 @@ class InterruptController(Peripheral):
         elif reg == GLOBAL:
             self.global_enable = bool(merge(int(self.global_enable), value, mask) & 1)
         elif reg == ACTIVE:
-            raise self.fault(reg, "ACTIVE es de sólo lectura")
+            raise self.fault(reg, N_("ACTIVE es de sólo lectura"))
         else:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         self._update()

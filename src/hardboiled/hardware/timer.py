@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from hardboiled.core.events import EvtHardwareUpdated
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_
 
 CTRL = 0x0
 RELOAD = 0x4
@@ -60,7 +61,7 @@ class Timer(Peripheral):
             return max(0, self._next_fire - self.clock.cycles)
         if reg == STATUS:
             return self.status
-        raise self.fault(reg, "registro inexistente")
+        raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg == CTRL:
@@ -75,9 +76,9 @@ class Timer(Peripheral):
             self.status &= ~(value & mask)  # write-1-to-clear
             return
         elif reg == COUNT:
-            raise self.fault(reg, "COUNT es de sólo lectura")
+            raise self.fault(reg, N_("COUNT es de sólo lectura"))
         else:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         self.emit(EvtHardwareUpdated(self.name, reg, self.ctrl if reg == CTRL else self.reload))
 
     def inspect(self) -> dict[str, int]:

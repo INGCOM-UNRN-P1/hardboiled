@@ -14,6 +14,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from hardboiled.core.events import DisasmLine
+from hardboiled.i18n import _
 
 
 class DisassemblyView(OptionList):
@@ -28,7 +29,7 @@ class DisassemblyView(OptionList):
 
     def __init__(self, *, id: str | None = None) -> None:
         super().__init__(id=id)
-        self.border_title = "Desensamblado"
+        self.border_title = _("Desensamblado")
         self._rows: list[DisasmLine | None] = []
         self._sources: dict[str, list[str]] = {}
         self._instructions: tuple[DisasmLine, ...] = ()

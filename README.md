@@ -261,6 +261,12 @@ proyector del aula) y `colorblind = true` cambia a la paleta Okabe-Ito
 (azul/naranja) y agrega forma donde antes sólo había color: LEDs `■`/`□` y
 valores cambiados subrayados.
 
+**Idioma**: los mensajes (trampas, avisos, pistas, la TUI y el informe de
+`--headless`) están en español y también en inglés. Se elige con `language =
+"en"` en `[ui]` o con la variable `HARDBOILED_LANG=en`, que tiene prioridad.
+`hardboiled explain` muestra la guía en el idioma elegido. La ayuda de las
+opciones de la línea de comandos queda en español.
+
 ### Teclas de la TUI
 
 | Tecla | Acción |

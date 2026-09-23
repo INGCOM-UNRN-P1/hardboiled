@@ -59,6 +59,7 @@ from hardboiled.config import NULL_GUARD_END, MemoryConfig
 from hardboiled.core.elf import ElfImage, ElfLoadError
 from hardboiled.core.pic import InterruptController
 from hardboiled.hardware.bus import MmioBus, MmioFault
+from hardboiled.i18n import N_, _
 
 ABI_NAMES = (
     "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
@@ -170,11 +171,13 @@ class Diagnostic:
 
 
 # Rutinas de división por software de libgcc/compiler-rt: (divisor en a1, operación).
+DIVISION = N_("división")
+REMAINDER = N_("resto (%)")
 SOFTWARE_DIVISION = {
-    "__divsi3": "división",
-    "__udivsi3": "división",
-    "__modsi3": "resto (%)",
-    "__umodsi3": "resto (%)",
+    "__divsi3": DIVISION,
+    "__udivsi3": DIVISION,
+    "__modsi3": REMAINDER,
+    "__umodsi3": REMAINDER,
 }
 
 
@@ -187,12 +190,12 @@ class _Watch:
 
 
 _ACCESS_KIND = {
-    UC_MEM_READ_UNMAPPED: "lectura",
-    UC_MEM_READ_PROT: "lectura",
-    UC_MEM_WRITE_UNMAPPED: "escritura",
-    UC_MEM_WRITE_PROT: "escritura",
-    UC_MEM_FETCH_UNMAPPED: "ejecución",
-    UC_MEM_FETCH_PROT: "ejecución",
+    UC_MEM_READ_UNMAPPED: N_("lectura"),
+    UC_MEM_READ_PROT: N_("lectura"),
+    UC_MEM_WRITE_UNMAPPED: N_("escritura"),
+    UC_MEM_WRITE_PROT: N_("escritura"),
+    UC_MEM_FETCH_UNMAPPED: N_("ejecución"),
+    UC_MEM_FETCH_PROT: N_("ejecución"),
 }
 
 
@@ -301,7 +304,7 @@ class Cpu:
     def add_watch(self, address: int, size: int) -> int:
         """Vigila escrituras que cambien [address, address + size). Devuelve un id."""
         if self._region_of(address, size) != "sram":
-            raise ValueError("sólo se pueden vigilar variables en la SRAM")
+            raise ValueError(_("sólo se pueden vigilar variables en la SRAM"))
         self._next_watch += 1
         watch = _Watch(self._next_watch, address, size)
         watch.handle = self._install_watch(self._uc, watch)
@@ -406,17 +409,23 @@ class Cpu:
         if not missing:
             return
         names = {
-            "m": "M (multiplicación/división)",
-            "c": "C (comprimidas)",
-            "a": "A (atómicas)",
-            "f": "F (punto flotante)",
-            "d": "D (doble precisión)",
+            "m": N_("M (multiplicación/división)"),
+            "c": N_("C (comprimidas)"),
+            "a": N_("A (atómicas)"),
+            "f": N_("F (punto flotante)"),
+            "d": N_("D (doble precisión)"),
         }
-        listed = ", ".join(names.get(ext, ext.upper()) for ext in missing)
+        listed = ", ".join(_(names[ext]) if ext in names else ext.upper() for ext in missing)
         arch = f" ({image.arch})" if image.arch else ""
         raise ElfLoadError(
-            f"{image.path.name} usa la extensión {listed}{arch}, pero la placa es {self.isa}: "
-            f"compilá con --march {self.isa} o declará isa en [board] de board.toml"
+            _(
+                "{program} usa la extensión {extensions}{arch}, pero la placa es {isa}: "
+                "compilá con --march {isa} o declará isa en [board] de board.toml",
+                program=image.path.name,
+                extensions=listed,
+                arch=arch,
+                isa=self.isa,
+            )
         )
 
     def load(self, image: ElfImage) -> None:
@@ -428,8 +437,12 @@ class Cpu:
             region = self._region_of(seg.paddr, len(seg.data))
             if region not in ("flash", "sram"):
                 raise ElfLoadError(
-                    f"el segmento en 0x{seg.paddr:08x} ({len(seg.data)} bytes) no entra en "
-                    "Flash ni en SRAM: ¿se enlazó con el hardboiled.ld del runtime?"
+                    _(
+                        "el segmento en {address} ({size} bytes) no entra en Flash ni en "
+                        "SRAM: ¿se enlazó con el hardboiled.ld del runtime?",
+                        address=f"0x{seg.paddr:08x}",
+                        size=len(seg.data),
+                    )
                 )
             self._uc.mem_write(seg.paddr, seg.data)
         self._image = image
@@ -508,7 +521,7 @@ class Cpu:
             funct3 = (word >> 12) & 0x7
             rs1 = (word >> 15) & 0x1F
             if opcode == 0x33 and word >> 25 == 1 and funct3 >= 4:  # div, divu, rem, remu
-                operation = "división" if funct3 < 6 else "resto (%)"
+                operation = DIVISION if funct3 < 6 else REMAINDER
                 divisions[address] = ((word >> 20) & 0x1F, operation, False)
             if opcode == 0x03 and funct3 in (1, 2, 5):  # lh, lw, lhu
                 offset = word >> 20
@@ -710,13 +723,18 @@ class Cpu:
             if halt is _Halt.WATCH and self._watch_hit is not None:
                 return StopInfo(StopReason.BREAK, pc, "watchpoint", watch=self._watch_hit)
             if halt is _Halt.PAUSE:
-                return StopInfo(StopReason.PAUSED, pc, "ejecución pausada")
+                return StopInfo(StopReason.PAUSED, pc, _("ejecución pausada"))
             if halt is _Halt.EXIT:
                 if self.tracer is not None:
                     self.tracer.step(pc)
                 code = _signed32(self._uc.reg_read(_A0))
                 return self._terminate(
-                    StopInfo(StopReason.EXITED, pc, f"programa terminado ({code})", exit_code=code)
+                    StopInfo(
+                        StopReason.EXITED,
+                        pc,
+                        _("programa terminado ({code})", code=code),
+                        exit_code=code,
+                    )
                 )
             if halt is _Halt.FAULT and self._fault is not None:
                 return self._terminate(self._fault)
@@ -736,13 +754,17 @@ class Cpu:
             return StopInfo(
                 StopReason.LIMIT,
                 pc,
-                f"se alcanzó el límite de {self.max_instructions:,} instrucciones "
-                "(¿un bucle infinito?)",
+                _(
+                    "se alcanzó el límite de {count} instrucciones (¿un bucle infinito?)",
+                    count=f"{self.max_instructions:,}",
+                ),
             )
         if halt is _Halt.STACK:
             return self._stack_overflow(pc)
         return self._trap(
-            pc, f"la ejecución se detuvo en 0x{pc:08x} sin motivo conocido", kind="exception"
+            pc,
+            _("la ejecución se detuvo en {pc} sin motivo conocido", pc=f"0x{pc:08x}"),
+            kind="exception",
         )
 
     def _terminate(self, info: StopInfo) -> StopInfo:
@@ -756,19 +778,27 @@ class Cpu:
         sp = self.sp
         if self.stack_floor > self.memory.sram_base:
             victim = self._image.object_at(sp) if self._image is not None else None
-            target = f": pisaría la variable `{victim}`" if victim else ""
+            target = _(": pisaría la variable `{name}`", name=victim) if victim else ""
             if sp < self.memory.sram_base:
-                target = " y quedó fuera de la SRAM"
-            where = (
-                f"invadió las variables globales (el fin de .bss es "
-                f"0x{self.stack_floor:08x}){target}"
+                target = _(" y quedó fuera de la SRAM")
+            where = _(
+                "invadió las variables globales (el fin de .bss es {end}){target}",
+                end=f"0x{self.stack_floor:08x}",
+                target=target,
             )
         else:
-            where = f"quedó por debajo del inicio de la SRAM (0x{self.memory.sram_base:08x})"
+            where = _(
+                "quedó por debajo del inicio de la SRAM ({base})",
+                base=f"0x{self.memory.sram_base:08x}",
+            )
         return self._trap(
             pc,
-            f"stack overflow: sp = 0x{sp:08x} {where}. "
-            "¿Recursión sin caso base o arreglos locales enormes?",
+            _(
+                "stack overflow: sp = {sp} {where}. "
+                "¿Recursión sin caso base o arreglos locales enormes?",
+                sp=f"0x{sp:08x}",
+                where=where,
+            ),
             sp,
             kind="stack-overflow",
         )
@@ -1060,17 +1090,23 @@ class Cpu:
             caller = self._image.function_at(site) if self._image is not None else None
             if caller is None or caller.startswith("__"):
                 return False
-            result = "el resultado no está definido (depende de la biblioteca)"
+            result = _("el resultado no está definido (depende de la biblioteca)")
         else:
             site = address
             result = (
-                "el cociente queda en -1" if operation == "división" else "el resto es el dividendo"
+                _("el cociente queda en -1")
+                if operation == DIVISION
+                else _("el resto es el dividendo")
             )
         return self._diagnose(
             "div0",
             site,
-            f"{operation} por cero: RISC-V no genera una excepción; {result} y el "
-            "programa sigue como si nada",
+            _(
+                "{operation} por cero: RISC-V no genera una excepción; {result} y el "
+                "programa sigue como si nada",
+                operation=_(operation),
+                result=result,
+            ),
             self.div_by_zero,
         )
 
@@ -1100,10 +1136,15 @@ class Cpu:
             return
         pc = self._insn_pc(uc)
         name = self.name_address(address) if self.name_address is not None else None
-        what = f"`{name}`" if name else f"memoria de la pila en 0x{address:08x}"
-        message = (
-            f"lectura de {what} sin inicializar: su valor es indefinido "
-            "(suele ser lo que dejó una llamada anterior)"
+        what = (
+            f"`{name}`"
+            if name
+            else _("memoria de la pila en {address}", address=f"0x{address:08x}")
+        )
+        message = _(
+            "lectura de {what} sin inicializar: su valor es indefinido "
+            "(suele ser lo que dejó una llamada anterior)",
+            what=what,
         )
         if self._diagnose("uninit", pc, message, self.uninitialized):
             self._halt(uc, _Halt.DIAGNOSTIC)
@@ -1137,12 +1178,18 @@ class Cpu:
         address = (uc.reg_read(_REG_IDS[base]) + offset) & 0xFFFF_FFFF
         if address % size == 0 or self.is_mmio(address):
             return False  # el bus MMIO ya reporta sus propios desalineados
-        kind = "escritura" if is_store else "lectura"
-        unit = {2: "media palabra (2 bytes)", 4: "palabra (4 bytes)"}[size]
+        kind = _("escritura") if is_store else _("lectura")
+        unit = _("media palabra (2 bytes)") if size == 2 else _("palabra (4 bytes)")
         self._fault = self._trap(
             self._current_pc,
-            f"acceso desalineado: {kind} de una {unit} en 0x{address:08x}, que no es "
-            f"múltiplo de {size}. ¿Un puntero a int que apunta dentro de un char[]?",
+            _(
+                "acceso desalineado: {kind} de una {unit} en {address}, que no es "
+                "múltiplo de {size}. ¿Un puntero a int que apunta dentro de un char[]?",
+                kind=kind,
+                unit=unit,
+                address=f"0x{address:08x}",
+                size=size,
+            ),
             address,
             kind="misaligned",
         )
@@ -1151,7 +1198,7 @@ class Cpu:
     def _mmio_fault(self, uc: Uc, fault: MmioFault, offset: int) -> None:
         self._fault = self._trap(
             self._current_pc,
-            f"acceso MMIO inválido: {fault}",
+            _("acceso MMIO inválido: {fault}", fault=fault),
             self.memory.mmio_base + offset,
             kind="mmio",
         )
@@ -1184,13 +1231,21 @@ class Cpu:
             return None
         if self._vector_table is None:
             return self._trap(
-                pc, f"llegó la IRQ {line} pero el binario no define __vector_table", kind="vector"
+                pc,
+                _("llegó la IRQ {line} pero el binario no define __vector_table", line=line),
+                kind="vector",
             )
         raw = self.read_memory(self._vector_table + 4 * line, 4)
         handler = int.from_bytes(raw, "little") if raw is not None else 0
         if self._region_of(handler, 4) != "flash":
             return self._trap(
-                pc, f"IRQ {line}: el vector apunta a 0x{handler:08x}, fuera de Flash", kind="vector"
+                pc,
+                _(
+                    "IRQ {line}: el vector apunta a {handler}, fuera de Flash",
+                    line=line,
+                    handler=f"0x{handler:08x}",
+                ),
+                kind="vector",
             )
         frame = self.sp - ISR_FRAME_SIZE
         if frame < self.stack_floor:
@@ -1211,15 +1266,18 @@ class Cpu:
     def _return_from_isr(self, pc: int) -> StopInfo | None:
         if not self.pic.in_isr or not self._isr_frames:
             return self._trap(
-                pc, "mret ejecutado fuera de una rutina de interrupción", kind="isr-stack"
+                pc, _("mret ejecutado fuera de una rutina de interrupción"), kind="isr-stack"
             )
         frame = self.sp
         expected = self._isr_frames[-1]
         if frame != expected:
             return self._trap(
                 pc,
-                f"la ISR dejó la pila desbalanceada: sp = 0x{frame:08x}, "
-                f"se esperaba 0x{expected:08x}",
+                _(
+                    "la ISR dejó la pila desbalanceada: sp = {sp}, se esperaba {expected}",
+                    sp=f"0x{frame:08x}",
+                    expected=f"0x{expected:08x}",
+                ),
                 kind="isr-stack",
             )
         if self.tracer is not None:
@@ -1242,7 +1300,7 @@ class Cpu:
         if self.tracer is not None:
             self.tracer.step(pc)
         self._pc_hits[pc] = self._pc_hits.get(pc, 0) + 1
-        for _ in range(1024):
+        for _attempt in range(1024):
             if self.pic.wake_pending():
                 break
             deadline = self.bus.next_deadline()
@@ -1254,13 +1312,15 @@ class Cpu:
             # Nada programado, pero el usuario puede escribir o apretar algo: se espera.
             while not self.pic.wake_pending():
                 if self._pace_and_poll(max_sleep=0.02):
-                    return StopInfo(StopReason.PAUSED, pc, "ejecución pausada (esperando datos)")
+                    return StopInfo(StopReason.PAUSED, pc, _("ejecución pausada (esperando datos)"))
                 time.sleep(0.02)
         if not self.pic.wake_pending():
             return self._trap(
                 pc,
-                "wfi: la CPU se durmió sin ninguna interrupción habilitada que pueda "
-                "despertarla (deadlock)",
+                _(
+                    "wfi: la CPU se durmió sin ninguna interrupción habilitada que pueda "
+                    "despertarla (deadlock)"
+                ),
                 kind="wfi-deadlock",
             )
         self._refresh_deadline()
@@ -1270,7 +1330,7 @@ class Cpu:
         paused = self._pace_and_poll()
         while not paused and self._behind_schedule():
             paused = self._pace_and_poll()
-        return StopInfo(StopReason.PAUSED, self.pc, "ejecución pausada") if paused else None
+        return StopInfo(StopReason.PAUSED, self.pc, _("ejecución pausada")) if paused else None
 
     # ----------------------------------------------------------------- trampas
 
@@ -1279,27 +1339,34 @@ class Cpu:
         if self._invalid_access is None:
             return self._trap(
                 pc,
-                f"excepción de la CPU en 0x{pc:08x}: {exc} "
-                "(¿instrucción ilegal o acceso a memoria desalineado?)",
+                _(
+                    "excepción de la CPU en {pc}: {error} "
+                    "(¿instrucción ilegal o acceso a memoria desalineado?)",
+                    pc=f"0x{pc:08x}",
+                    error=exc,
+                ),
                 kind="exception",
             )
         access, address = self._invalid_access
-        kind = _ACCESS_KIND.get(access, "acceso")
+        kind = _(_ACCESS_KIND.get(access, N_("acceso")))
         region = self._region_of(address)
         sram = self.memory.sram_base
+        at = f"0x{address:08x}"
         if region == "null":
-            message = f"desreferencia de puntero nulo: {kind} en 0x{address:08x}"
+            message = _("desreferencia de puntero nulo: {kind} en {address}", kind=kind, address=at)
             trap_kind = "null-pointer"
         elif access in (UC_MEM_FETCH_PROT, UC_MEM_FETCH_UNMAPPED):
-            where = "la SRAM (no es ejecutable)" if region == "sram" else "una zona sin código"
-            message = f"salto a 0x{address:08x}, en {where}"
+            where = (
+                _("la SRAM (no es ejecutable)") if region == "sram" else _("una zona sin código")
+            )
+            message = _("salto a {address}, en {where}", address=at, where=where)
             trap_kind = "bad-jump"
         elif access == UC_MEM_WRITE_PROT and region == "flash":
-            message = f"escritura en Flash (memoria de sólo lectura) en 0x{address:08x}"
+            message = _("escritura en Flash (memoria de sólo lectura) en {address}", address=at)
             trap_kind = "flash-write"
         elif sram - 0x1_0000 <= address < sram and self.sp < sram:
             return self._stack_overflow(pc)
         else:
-            message = f"{kind} en memoria no mapeada: 0x{address:08x}"
+            message = _("{kind} en memoria no mapeada: {address}", kind=kind, address=at)
             trap_kind = "unmapped"
         return self._trap(pc, message, address, kind=trap_kind)

@@ -12,6 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 
 from hardboiled.core.events import EvtTrap, FrameInfo, collapse_frames
+from hardboiled.i18n import _
 
 
 class TrapScreen(ModalScreen[None]):
@@ -27,7 +28,7 @@ class TrapScreen(ModalScreen[None]):
     """
 
     BINDINGS = [  # noqa: RUF012
-        Binding("escape", "dismiss_trap", "Cerrar"),
+        Binding("escape", "dismiss_trap", _("Cerrar")),
         Binding("enter", "dismiss_trap", show=False),
     ]
 
@@ -39,7 +40,7 @@ class TrapScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         trap = self.trap
         with Vertical():
-            yield Label("✖ TRAMPA: la ejecución se abortó", id="trap-title")
+            yield Label(_("✖ TRAMPA: la ejecución se abortó"), id="trap-title")
             yield Static(Text(trap.reason, style="bold"))
             where = Text()
             where.append(f"{trap.function or '??'}()", style="bold")
@@ -47,26 +48,36 @@ class TrapScreen(ModalScreen[None]):
                 where.append(f"  {os.path.basename(trap.source_file)}:{trap.source_line}")
             if trap.pc is not None:
                 where.append(f"  pc=0x{trap.pc:08x}", style="dim")
-            yield Label("Dónde", classes="section")
+            yield Label(_("Dónde"), classes="section")
             yield Static(where)
             if trap.instruction:
-                yield Label("Instrucción que falló", classes="section")
+                yield Label(_("Instrucción que falló"), classes="section")
                 yield Static(Text(trap.instruction, style="bold yellow"))
             if trap.hint:
-                yield Label("Pista", classes="section")
+                yield Label(_("Pista"), classes="section")
                 yield Static(Text(trap.hint, style="italic"))
             if trap.kind:
-                yield Static(Text(f"Más detalles: hardboiled explain {trap.kind}", style="dim"))
+                yield Static(
+                    Text(_("Más detalles: hardboiled explain {kind}", kind=trap.kind), style="dim")
+                )
             if trap.fault_address is not None:
                 yield Static(
-                    Text(f"dirección involucrada: 0x{trap.fault_address:08x}", style="dim")
+                    Text(
+                        _(
+                            "dirección involucrada: {address}",
+                            address=f"0x{trap.fault_address:08x}",
+                        ),
+                        style="dim",
+                    )
                 )
             if self.frames:
-                yield Label("Pila de llamadas", classes="section")
+                yield Label(_("Pila de llamadas"), classes="section")
                 yield Static(self._frames())
             yield Label(
-                "Esc cierra este panel: variables, registros y memoria quedan como estaban "
-                "al fallar. F8 vuelve al paso anterior; r reinicia la placa.",
+                _(
+                    "Esc cierra este panel: variables, registros y memoria quedan como estaban "
+                    "al fallar. F8 vuelve al paso anterior; r reinicia la placa."
+                ),
                 id="trap-help",
             )
 
@@ -82,7 +93,7 @@ class TrapScreen(ModalScreen[None]):
             if frame.source_file is not None:
                 text.append(f"  {os.path.basename(frame.source_file)}:{frame.source_line}")
             if count > 1:
-                text.append(f"  x{count} (recursión)", style="bold magenta")
+                text.append(_(" x{count} (recursión)", count=count), style="bold magenta")
             text.append("\n")
         text.rstrip()
         return text

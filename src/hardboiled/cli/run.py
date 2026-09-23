@@ -28,6 +28,7 @@ from hardboiled.core.profile import build_profile, format_profile
 from hardboiled.core.runner import frame_infos, trap_event, warning_events
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.trace import TraceError, TraceWriter
+from hardboiled.i18n import _
 from hardboiled.script import ScriptError, attach_script
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 from hardboiled.watch import ProgramWatcher, WatchError
@@ -258,16 +259,24 @@ def run_headless(machine: Machine) -> int:
 
     machine.set_event_sink(sink)
     for message in machine.build_report.warnings():
-        print(f"aviso: {message}", file=sys.stderr)
+        print(_("aviso: {message}", message=message), file=sys.stderr)
     stop = machine.debugger.continue_()
     for warning in warning_events(machine):
         where = f" ({warning.source_file}:{warning.source_line})" if warning.source_file else ""
-        print(f"\naviso: {warning.text}{where}", file=sys.stderr)
+        print("\n" + _("aviso: {message}", message=f"{warning.text}{where}"), file=sys.stderr)
         if warning.hint:
-            print(f"  pista: {warning.hint} (hardboiled explain {warning.kind})", file=sys.stderr)
+            print(
+                "  "
+                + _("pista: {hint}", hint=f"{warning.hint} (hardboiled explain {warning.kind})"),
+                file=sys.stderr,
+            )
     if stop.reason is StopReason.LIMIT:
         print(
-            f"\nLÍMITE: {stop.message}. Con --max-instructions se puede dar más margen.",
+            "\n"
+            + _(
+                "LÍMITE: {message}. Con --max-instructions se puede dar más margen.",
+                message=stop.message,
+            ),
             file=sys.stderr,
         )
         return EXIT_TRAP
@@ -287,8 +296,17 @@ def start_trace(machine: Machine, path: str, limit: int) -> TraceWriter:
 
 
 def trace_summary(tracer: TraceWriter) -> str:
-    cut = f" (se cortó al llegar a --trace-limit {tracer.limit:,})" if tracer.truncated else ""
-    return f"traza: {tracer.rows:,} instrucciones en {tracer.path}{cut}"
+    cut = (
+        _(" (se cortó al llegar a --trace-limit {limit})", limit=f"{tracer.limit:,}")
+        if tracer.truncated
+        else ""
+    )
+    return _(
+        "traza: {rows} instrucciones en {path}{cut}",
+        rows=f"{tracer.rows:,}",
+        path=tracer.path,
+        cut=cut,
+    )
 
 
 def exit_status(stop: StopInfo) -> int:
@@ -340,24 +358,33 @@ def format_trap(machine: Machine, stop: StopInfo) -> str:
     """Informe de una trampa para la terminal: motivo, instrucción y pila de llamadas."""
     debugger = machine.debugger
     location = debugger.location(stop.pc)
-    where = f"{location.file}:{location.line}" if location else "sin información de línea"
+    where = f"{location.file}:{location.line}" if location else _("sin información de línea")
     function = debugger.function(stop.pc) or machine.image.describe(stop.pc)
-    lines = [f"TRAP: {stop.message}", f"  en {function}() pc=0x{stop.pc:08x} ({where})"]
+    lines = [
+        _("TRAP: {message}", message=stop.message),
+        "  "
+        + _(
+            "en {function}() pc={pc} ({where})",
+            function=function,
+            pc=f"0x{stop.pc:08x}",
+            where=where,
+        ),
+    ]
     hint = hint_for(stop.kind)
     if hint:
-        lines.append(f"  pista: {hint} (hardboiled explain {stop.kind})")
+        lines.append("  " + _("pista: {hint}", hint=f"{hint} (hardboiled explain {stop.kind})"))
     instruction = debugger.instruction_at(stop.pc)
     if instruction is not None:
-        lines.append(f"  instrucción: {instruction.text}")
+        lines.append("  " + _("instrucción: {text}", text=instruction.text))
     frames = frame_infos(machine, debugger.backtrace())
     if len(frames) > 1:
-        lines.append("  pila de llamadas:")
+        lines.append("  " + _("pila de llamadas:"))
         for frame, count in collapse_frames(frames):
             if frame.irq_line is not None:
                 lines.append(f"    ── {frame.label} ──")
                 continue
             span = f"#{frame.index}" if count == 1 else f"#{frame.index}-#{frame.index + count - 1}"
             loc = f"{frame.source_file}:{frame.source_line}" if frame.source_file else ""
-            repeat = f" x{count} (recursión)" if count > 1 else ""
+            repeat = _(" x{count} (recursión)", count=count) if count > 1 else ""
             lines.append(f"    {span} {frame.label} {loc}{repeat}".rstrip())
     return "\n".join(lines)

@@ -59,6 +59,7 @@ from hardboiled.core.events import (
     EvtUartOutput,
     EvtWarning,
 )
+from hardboiled.i18n import N_, _
 from hardboiled.ui.palette import palette_for
 from hardboiled.ui.widgets.backtrace_view import BacktraceView
 from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
@@ -80,20 +81,20 @@ MAX_EVENTS_PER_FRAME = 5000
 
 # (acción, teclas por defecto, descripción en el pie o "" para no mostrarla).
 DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
-    ("continue", "f5,c", "Continue"),
-    ("pause", "f6,p", "Pause"),
-    ("toggle_breakpoint", "f9,b", "Breakpoint"),
-    ("step_over", "f10,n", "Step Over"),
-    ("step_into", "f11,s", "Step Into"),
-    ("step_out", "shift+f11,o", "Step Out"),
-    ("step_instruction", "f7,i", "Stepi"),
-    ("step_back", "f8,u", "Atrás"),
-    ("run_to_cursor", "f4,g", "Hasta cursor"),
-    ("watch", "w", "Watch"),
-    ("toggle_disassembly", "d", "ASM"),
-    ("toggle_profile", "h", "Perfil"),
-    ("open_file", "f", "Archivos"),
-    ("search", "slash", "Buscar"),
+    ("continue", "f5,c", N_("Continue")),
+    ("pause", "f6,p", N_("Pause")),
+    ("toggle_breakpoint", "f9,b", N_("Breakpoint")),
+    ("step_over", "f10,n", N_("Step Over")),
+    ("step_into", "f11,s", N_("Step Into")),
+    ("step_out", "shift+f11,o", N_("Step Out")),
+    ("step_instruction", "f7,i", N_("Stepi")),
+    ("step_back", "f8,u", N_("Atrás")),
+    ("run_to_cursor", "f4,g", N_("Hasta cursor")),
+    ("watch", "w", N_("Watch")),
+    ("toggle_disassembly", "d", N_("ASM")),
+    ("toggle_profile", "h", N_("Perfil")),
+    ("open_file", "f", N_("Archivos")),
+    ("search", "slash", N_("Buscar")),
     ("search_next", "f3", ""),
     ("search_previous", "shift+f3", ""),
     ("goto_line", "colon", ""),
@@ -102,9 +103,9 @@ DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
     ("clock_faster", "plus", ""),
     ("clock_slower", "minus", ""),
     ("clock_unlimited", "equals_sign", ""),
-    ("help", "question_mark", "Ayuda"),
-    ("reset", "r", "Reset"),
-    ("quit", "q", "Salir"),
+    ("help", "question_mark", N_("Ayuda")),
+    ("reset", "r", N_("Reset")),
+    ("quit", "q", N_("Salir")),
 )
 KEY_ACTIONS = frozenset(action for action, _, _ in DEFAULT_KEYS) | {
     f"switch_{pin}" for pin in range(8)
@@ -129,7 +130,7 @@ DEFAULT_CLOCK_HZ = 1_000_000
 
 def format_hz(hz: int | None) -> str:
     if hz is None:
-        return "sin límite (+/- para fijarlo, = alterna)"
+        return _("sin límite (+/- para fijarlo, = alterna)")
     for unit, scale in (("MHz", 1_000_000), ("kHz", 1_000)):
         if hz >= scale:
             return f"{hz / scale:g} {unit}"
@@ -141,10 +142,10 @@ def parse_condition(text: str) -> tuple[str | None, int | None]:
     text = text.strip()
     hits = None
     if "#" in text:
-        text, _, count = text.rpartition("#")
+        text, _sep, count = text.rpartition("#")
         text = text.strip()
         if not count.strip().isdigit() or int(count) < 1:
-            raise ValueError(f"cantidad de pasadas inválida: #{count.strip()}")
+            raise ValueError(_("cantidad de pasadas inválida: #{count}", count=count.strip()))
         hits = int(count)
     return (text or None), hits
 
@@ -169,7 +170,7 @@ class HardboiledApp(App[None]):
     BINDINGS = [  # noqa: RUF012 - convención de Textual
         # El id de cada binding es el nombre que se usa en [keys] de config.toml.
         *(
-            Binding(keys, action, description, show=bool(description), id=action)
+            Binding(keys, action, _(description), show=bool(description), id=action)
             for action, keys, description in DEFAULT_KEYS
         ),
         *(Binding(str(pin), f"switch({pin})", show=False, id=f"switch_{pin}") for pin in range(8)),
@@ -211,22 +212,22 @@ class HardboiledApp(App[None]):
                 yield DisassemblyView(id="disasm")
                 yield Log(id="uart", highlight=False)
                 yield Input(
-                    placeholder="escribí y Enter para enviar por la UART (Esc vuelve al código)",
+                    placeholder=_("escribí y Enter para enviar por la UART (Esc vuelve al código)"),
                     id="uart-input",
                 )
             with VerticalScroll(id="right"):
                 yield HardwareView(id="hardware")
                 yield BacktraceView(id="backtrace")
                 with TabbedContent(id="inspect"):
-                    with TabPane("Variables", id="tab-variables"):
+                    with TabPane(_("Variables"), id="tab-variables"):
                         yield VariablesView(id="variables")
-                    with TabPane("Registros", id="tab-registers"):
+                    with TabPane(_("Registros"), id="tab-registers"):
                         yield RegistersView(id="registers")
-                    with TabPane("Pila", id="tab-stack"):
+                    with TabPane(_("Pila"), id="tab-stack"):
                         yield MemoryView(id="stack")
-                    with TabPane("Puntos", id="tab-points"):
+                    with TabPane(_("Puntos"), id="tab-points"):
                         yield BreakpointsView(id="points")
-                    with TabPane("Memoria", id="tab-memory"):
+                    with TabPane(_("Memoria"), id="tab-memory"):
                         yield MemoryInspector(id="memory")
         yield Static(id="status")
         yield Footer()
@@ -234,11 +235,11 @@ class HardboiledApp(App[None]):
     def on_mount(self) -> None:
         self.theme = "textual-light" if self.prefs.theme == "light" else "textual-dark"
         self._apply_keymap()
-        self.query_one("#code").border_title = "Código"
-        self.query_one("#uart").border_title = "Consola UART"
-        self.query_one("#hardware").border_title = "Placa"
+        self.query_one("#code").border_title = _("Código")
+        self.query_one("#uart").border_title = _("Consola UART")
+        self.query_one("#hardware").border_title = _("Placa")
         self.query_one(CodeView).focus()
-        self._set_status(Text("cargando…", style="dim"))
+        self._set_status(Text(_("cargando…"), style="dim"))
         self.set_interval(1 / 30, self._drain_events)
         if self.worker is not None and not self.worker.is_alive():
             self.worker.start()
@@ -259,7 +260,10 @@ class HardboiledApp(App[None]):
         self.set_keymap(valid)
         if unknown:
             self.notify(
-                "acciones desconocidas en [keys]: " + ", ".join(unknown) + " (ver ? para la lista)",
+                _(
+                    "acciones desconocidas en [keys]: {actions} (ver ? para la lista)",
+                    actions=", ".join(unknown),
+                ),
                 severity="warning",
             )
 
@@ -270,7 +274,7 @@ class HardboiledApp(App[None]):
 
     def _drain_events(self) -> None:
         uart = bytearray()
-        for _ in range(MAX_EVENTS_PER_FRAME):
+        for _event in range(MAX_EVENTS_PER_FRAME):
             try:
                 event = self.evt_queue.get_nowait()
             except queue.Empty:
@@ -304,19 +308,20 @@ class HardboiledApp(App[None]):
                     self.query_one(CodeView).show_file(c_files[0])
                     self._refresh_breakpoints()
             case EvtCpuRunning():
-                self._set_status(Text("▶ ejecutando…  (F6 pausa)", style="bold green"))
+                self._set_status(Text(_("▶ ejecutando…  (F6 pausa)"), style="bold green"))
             case EvtCpuProgress():
                 if self._profiling:
                     self.send(CmdProfile())  # mapa de calor en vivo (cada ~0,2 s)
                 status = Text()
-                status.append("▶ ejecutando ", style="bold green")
+                status.append(_("▶ ejecutando "), style="bold green")
                 status.append(event.function or "??", style="bold")
                 status.append(
-                    f"  pc=0x{event.pc:08x}  ciclos={event.cycle_count:,}"
-                    f"  {event.instructions_per_second / 1e6:.2f} M instr/s",
+                    f"  pc=0x{event.pc:08x}  "
+                    + _("ciclos={cycles}", cycles=f"{event.cycle_count:,}")
+                    + f"  {event.instructions_per_second / 1e6:.2f} M instr/s",
                     style="dim",
                 )
-                status.append("  (F6 pausa)", style="green")
+                status.append(_("  (F6 pausa)"), style="green")
                 self._set_status(status)
             case EvtCpuSuspended():
                 self._on_suspended(event)
@@ -340,7 +345,10 @@ class HardboiledApp(App[None]):
                 # Se muestra al llegar la suspensión, que trae la pila de llamadas.
                 self._pending_trap = event
             case EvtProgramExited():
-                self.notify(f"main() devolvió {event.exit_code}", title="Programa terminado")
+                self.notify(
+                    _("main() devolvió {code}", code=event.exit_code),
+                    title=_("Programa terminado"),
+                )
             case EvtWarning():
                 where = (
                     f"{os.path.basename(event.source_file)}:{event.source_line}"
@@ -350,7 +358,7 @@ class HardboiledApp(App[None]):
                 hint = f"\n{event.hint}" if event.hint else ""
                 self.notify(
                     f"{event.text}\n{where}{hint}\n(hardboiled explain {event.kind})",
-                    title="Aviso",
+                    title=_("Aviso"),
                     severity="warning",
                     timeout=10,
                 )
@@ -383,7 +391,9 @@ class HardboiledApp(App[None]):
         )
         pending = uart_state.get("rx_pending", 0)
         self.query_one("#uart").border_title = (
-            f"Consola UART ({pending} bytes recibidos sin leer)" if pending else "Consola UART"
+            _("Consola UART ({count} bytes recibidos sin leer)", count=pending)
+            if pending
+            else _("Consola UART")
         )
         self.query_one(DisassemblyView).show(event.disassembly, event.pc)
         self.query_one(MemoryInspector).refresh_request()
@@ -398,7 +408,10 @@ class HardboiledApp(App[None]):
         status.append(event.function or "??", style="bold")
         if event.source_file is not None:
             status.append(f"  {os.path.basename(event.source_file)}:{event.source_line}")
-        status.append(f"  pc=0x{event.pc:08x}  ciclos={event.cycle_count:,}", style="dim")
+        status.append(
+            f"  pc=0x{event.pc:08x}  " + _("ciclos={cycles}", cycles=f"{event.cycle_count:,}"),
+            style="dim",
+        )
         if event.reason:
             status.append(f"  · {event.reason}", style="italic")
         self._set_status(status)
@@ -422,7 +435,7 @@ class HardboiledApp(App[None]):
             self._show_location(self._suspended.source_file, self._suspended.source_line)
             return
         if frame.source_file is None:
-            self.notify(f"{frame.label}: sin código fuente", severity="warning")
+            self.notify(_("{frame}: sin código fuente", frame=frame.label), severity="warning")
             return
         code = self.query_one(CodeView)
         code.show_file(frame.source_file)
@@ -439,7 +452,9 @@ class HardboiledApp(App[None]):
         )
 
     def _update_clock_title(self) -> None:
-        self.query_one("#hardware").border_title = f"Placa · reloj {format_hz(self._clock_hz)}"
+        self.query_one("#hardware").border_title = _(
+            "Placa · reloj {clock}", clock=format_hz(self._clock_hz)
+        )
 
     def _set_status(self, text: Text) -> None:
         self.query_one("#status", Static).update(text)
@@ -503,10 +518,12 @@ class HardboiledApp(App[None]):
 
         self.push_screen(
             Prompt(
-                f"Breakpoint condicional en la línea {line}:",
+                _("Breakpoint condicional en la línea {line}:", line=line),
                 "i == 3     #5     n > 2 #2",
-                help="Una expresión C detiene sólo si es verdadera; #N detiene desde la "
-                "pasada N. Vacío: breakpoint común.",
+                help=_(
+                    "Una expresión C detiene sólo si es verdadera; #N detiene desde la "
+                    "pasada N. Vacío: breakpoint común."
+                ),
             ),
             submit,
         )
@@ -545,13 +562,13 @@ class HardboiledApp(App[None]):
                 return
             self._last_search = text
             if code.find(text) is None:
-                self.notify(f"no se encontró {text!r}", severity="warning")
+                self.notify(_("no se encontró {text}", text=repr(text)), severity="warning")
 
         self.push_screen(
             Prompt(
-                "Buscar en el código:",
+                _("Buscar en el código:"),
                 value=self._last_search,
-                help="F3 siguiente, Shift+F3 anterior; vacío quita el resaltado.",
+                help=_("F3 siguiente, Shift+F3 anterior; vacío quita el resaltado."),
             ),
             submit,
         )
@@ -561,7 +578,9 @@ class HardboiledApp(App[None]):
             self.action_search()
             return
         if self.query_one(CodeView).find(self._last_search, backwards) is None:
-            self.notify(f"no se encontró {self._last_search!r}", severity="warning")
+            self.notify(
+                _("no se encontró {text}", text=repr(self._last_search)), severity="warning"
+            )
 
     def action_search_next(self) -> None:
         self._search_again(backwards=False)
@@ -574,9 +593,9 @@ class HardboiledApp(App[None]):
             if text is None or not text.strip():
                 return
             if not text.strip().isdigit() or not self.query_one(CodeView).goto_line(int(text)):
-                self.notify(f"línea inválida: {text}", severity="warning")
+                self.notify(_("línea inválida: {text}", text=text), severity="warning")
 
-        self.push_screen(Prompt("Ir a la línea:", "número"), submit)
+        self.push_screen(Prompt(_("Ir a la línea:"), _("número")), submit)
 
     def _change_clock(self, hz: int | None) -> None:
         self.send(CmdSetClock(hz))
@@ -597,7 +616,7 @@ class HardboiledApp(App[None]):
 
     def action_open_file(self) -> None:
         if not self._source_files:
-            self.notify("el programa no tiene archivos fuente con información de depuración")
+            self.notify(_("el programa no tiene archivos fuente con información de depuración"))
             return
         code = self.query_one(CodeView)
 
@@ -615,7 +634,7 @@ class HardboiledApp(App[None]):
 
     def action_register_format(self) -> None:
         mode = self.query_one(RegistersView).cycle_format()
-        self.notify(f"registros en formato: {mode}", timeout=2)
+        self.notify(_("registros en formato: {mode}", mode=_(mode)), timeout=2)
 
     def action_toggle_disassembly(self) -> None:
         self.query_one(DisassemblyView).toggle_class("visible")
@@ -627,7 +646,7 @@ class HardboiledApp(App[None]):
             self.send(CmdProfile())
         else:
             self.query_one(CodeView).set_profile(None)
-            self.notify("mapa de calor oculto", timeout=2)
+            self.notify(_("mapa de calor oculto"), timeout=2)
 
     def _show_profile(self, event: EvtProfile) -> None:
         if not self._profiling:
@@ -643,8 +662,9 @@ class HardboiledApp(App[None]):
                 if event.total
             )
             self.notify(
-                f"{event.total:,} instrucciones desde el reset" + (f"\n{top}" if top else ""),
-                title="Perfil (h lo oculta)",
+                _("{count} instrucciones desde el reset", count=f"{event.total:,}")
+                + (f"\n{top}" if top else ""),
+                title=_("Perfil (h lo oculta)"),
                 timeout=6,
             )
 
@@ -660,10 +680,12 @@ class HardboiledApp(App[None]):
 
         self.push_screen(
             Prompt(
-                "Vigilar una expresión (detiene cuando cambia):",
+                _("Vigilar una expresión (detiene cuando cambia):"),
                 "results[1], total, f->color, *p…",
-                help="La misma expresión otra vez quita el watchpoint. "
-                "Los de variables locales se eliminan al terminar su función.",
+                help=_(
+                    "La misma expresión otra vez quita el watchpoint. "
+                    "Los de variables locales se eliminan al terminar su función."
+                ),
             ),
             submit,
         )

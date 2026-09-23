@@ -10,6 +10,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from hardboiled.core.events import FrameInfo, collapse_frames
+from hardboiled.i18n import _
 
 
 class BacktraceView(OptionList):
@@ -24,7 +25,7 @@ class BacktraceView(OptionList):
 
     def __init__(self, *, id: str | None = None) -> None:
         super().__init__(id=id)
-        self.border_title = "Llamadas"
+        self.border_title = _("Llamadas")
         self.frames: tuple[FrameInfo, ...] = ()
 
     def set_frames(self, frames: tuple[FrameInfo, ...]) -> None:
@@ -48,7 +49,7 @@ class BacktraceView(OptionList):
         else:
             text.append(f"  0x{frame.pc:08x}", style="dim")
         if count > 1:
-            text.append(f"  x{count} (recursión)", style="bold magenta")
+            text.append(" " + _(" x{count} (recursión)", count=count), style="bold magenta")
         return text
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:

@@ -34,6 +34,7 @@ TEMPLATE = """\
 [ui]
 # theme = "dark"           # dark o light (proyector del aula)
 # colorblind = false       # LEDs y estados distinguibles por forma, no sólo por color
+# language = "es"          # es o en: idioma de los mensajes (o HARDBOILED_LANG)
 
 [keys]
 # Reasignar atajos: acción = "tecla[,otra]" (reemplaza todas las teclas de esa
@@ -71,6 +72,7 @@ class RunPrefs(_Model):
 class UiPrefs(_Model):
     theme: Literal["dark", "light"] = "dark"
     colorblind: bool = False
+    language: Literal["es", "en"] | None = None
 
 
 class UserConfig(_Model):

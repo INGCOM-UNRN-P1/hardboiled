@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Button, Label, Static
 
 from hardboiled.core.events import PeripheralInfo
+from hardboiled.i18n import _
 from hardboiled.ui.palette import current_palette
 
 
@@ -113,7 +114,11 @@ class ButtonBankView(Horizontal):
             label = self.query_one(Label)
         except NoMatches:
             return  # todavía no se montó
-        label.tooltip = f"pulsaciones: {presses}, flancos pendientes: {pending:04b}"
+        label.tooltip = _(
+            "pulsaciones: {presses}, flancos pendientes: {pending}",
+            presses=presses,
+            pending=f"{pending:04b}",
+        )
         for pin in range(self.info.width_bits):
             try:
                 button = self.query_one(f"#btn-{pin}", Button)
@@ -223,14 +228,14 @@ class TimerView(Static):
         text = Text.assemble((f"{self.info.name:<9}", "bold"))
         if self.ctrl & 1:
             irq = " + IRQ" if self.ctrl & 2 else ""
-            text.append(f"período {self.reload}{irq}", style="green")
+            text.append(_("período {cycles}", cycles=self.reload) + irq, style="green")
             if "count" in self.state:
-                text.append(f"  faltan {self.state['count']}", style="bold")
+                text.append(_("  faltan {count}", count=self.state["count"]), style="bold")
         else:
-            text.append("detenido", style="dim")
+            text.append(_("detenido"), style="dim")
         expirations = self.state.get("expirations")
         if expirations:
-            text.append(f"  vencimientos: {expirations}", style="dim")
+            text.append(_("  vencimientos: {count}", count=expirations), style="dim")
         return text
 
 

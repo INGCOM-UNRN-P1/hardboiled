@@ -16,6 +16,7 @@ from textual.message import Message
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
 
+from hardboiled.i18n import _
 from hardboiled.ui.palette import current_palette
 
 GUTTER_WIDTH = 10  # "●▶ 1234 │ "
@@ -122,12 +123,14 @@ class CodeView(ScrollView, can_focus=True):
         self._trap_line = None
         self._cursor_line = 1
         if path is None:
-            self._lines = [Text("(sin código fuente para la ubicación actual)", style="dim")]
+            self._lines = [Text(_("(sin código fuente para la ubicación actual)"), style="dim")]
         else:
             try:
                 code = Path(path).read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
-                self._lines = [Text(f"no se pudo abrir {path}: {exc}", style="red")]
+                self._lines = [
+                    Text(_("no se pudo abrir {path}: {error}", path=path, error=exc), style="red")
+                ]
             else:
                 lexer = Syntax.guess_lexer(path, code)
                 theme = current_palette(self).syntax_theme

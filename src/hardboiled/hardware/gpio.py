@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hardboiled.core.events import EvtHardwareUpdated
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_, _
 
 
 class LedBar(Peripheral):
@@ -22,12 +23,12 @@ class LedBar(Peripheral):
 
     def read(self, reg: int) -> int:
         if reg != 0:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         return self.value
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg != 0:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         new_value = merge(self.value, value, mask) & self._mask
         if new_value != self.value:
             self.value = new_value
@@ -48,15 +49,15 @@ class SwitchBank(Peripheral):
 
     def read(self, reg: int) -> int:
         if reg != 0:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         return self.value
 
     def write(self, reg: int, value: int, mask: int) -> None:
-        raise self.fault(reg, "los switches son de sólo lectura")
+        raise self.fault(reg, N_("los switches son de sólo lectura"))
 
     def toggle(self, pin_index: int) -> None:
         if not 0 <= pin_index < self.width_bits:
-            raise ValueError(f"{self.name} no tiene el pin {pin_index}")
+            raise ValueError(_("{device} no tiene el pin {pin}", device=self.name, pin=pin_index))
         self.set_value(self.value ^ (1 << pin_index))
 
     def set_value(self, value: int) -> None:

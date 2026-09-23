@@ -21,6 +21,7 @@ from typing import Any
 from elftools.elf.elffile import ELFFile
 
 from hardboiled.core.dwarf import USER_SOURCE_SUFFIXES
+from hardboiled.i18n import _
 
 OPT_FLAG = re.compile(r"(?:^|\s)-O([1-3sz]|fast)\b")
 LOCATION_FORMS = ("DW_FORM_exprloc", "DW_FORM_block1", "DW_FORM_block")
@@ -37,16 +38,20 @@ class BuildReport:
         messages = []
         if not self.has_debug:
             messages.append(
-                "el programa no tiene información de depuración de tu código (¿se compiló "
-                "sin -g?): no se puede seguir línea por línea ni ver variables. "
-                "`hardboiled build` ya agrega -g."
+                _(
+                    "el programa no tiene información de depuración de tu código (¿se compiló "
+                    "sin -g?): no se puede seguir línea por línea ni ver variables. "
+                    "`hardboiled build` ya agrega -g."
+                )
             )
         if self.optimized:
             messages.append(
-                "el programa parece compilado con optimización ("
-                + "; ".join(self.reasons)
-                + "): el paso a paso puede saltar líneas o volver atrás y algunas variables "
-                "figuran como no disponibles. Para depurar conviene -O0."
+                _(
+                    "el programa parece compilado con optimización ({reasons}): el paso a "
+                    "paso puede saltar líneas o volver atrás y algunas variables figuran como "
+                    "no disponibles. Para depurar conviene -O0.",
+                    reasons="; ".join(self.reasons),
+                )
             )
         return messages
 
@@ -89,7 +94,9 @@ def analyze(path: str | Path) -> BuildReport:
                 report.producers.append(text)
                 flag = OPT_FLAG.search(text)
                 if flag:
-                    report.reasons.append(f"el compilador registró -O{flag.group(1)}")
+                    report.reasons.append(
+                        _("el compilador registró -O{level}", level=flag.group(1))
+                    )
             for die in cu.iter_DIEs():
                 if die.tag in ("DW_TAG_variable", "DW_TAG_formal_parameter"):
                     location = die.attributes.get("DW_AT_location")
@@ -101,9 +108,11 @@ def analyze(path: str | Path) -> BuildReport:
                         name = die.attributes.get("DW_AT_name")
                         no_frame_pointer.append(_text(name.value) if name else "?")
         if location_lists:
-            report.reasons.append(f"{location_lists} variables cambian de lugar durante la función")
+            report.reasons.append(
+                _("{count} variables cambian de lugar durante la función", count=location_lists)
+            )
         if no_frame_pointer:
             shown = ", ".join(no_frame_pointer[:3])
-            report.reasons.append(f"funciones sin frame pointer ({shown})")
+            report.reasons.append(_("funciones sin frame pointer ({names})", names=shown))
         report.optimized = bool(report.reasons)
         return report

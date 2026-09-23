@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 
-from hardboiled import __version__
+from hardboiled import __version__, i18n
 from hardboiled.cli import (
     board,
     build,
@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         try:
             args.user_config = load_user_config()
+            i18n.configure(args.user_config.ui.language)
         except ConfigError as exc:
             raise CliError(f"{exc}\n(corregilo o revisalo con `hardboiled config`)") from exc
         code: int = args.func(args)

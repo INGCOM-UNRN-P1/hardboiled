@@ -14,6 +14,7 @@ from collections.abc import Callable
 
 from hardboiled.core.events import EvtUartOutput
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_
 
 TX_DATA = 0x0
 STATUS = 0x4
@@ -95,7 +96,7 @@ class Uart(Peripheral):
             return value
         if reg == CTRL:
             return self.ctrl
-        raise self.fault(reg, "registro inexistente")
+        raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg == TX_DATA:
@@ -106,6 +107,6 @@ class Uart(Peripheral):
             self.ctrl = merge(self.ctrl, value, mask) & CTRL_RX_IRQ
             self._request_irq()
         elif reg in (STATUS, RX_DATA):
-            raise self.fault(reg, "registro de sólo lectura")
+            raise self.fault(reg, N_("registro de sólo lectura"))
         else:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))

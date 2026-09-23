@@ -19,6 +19,7 @@ from hardboiled.core.events import StackSlot, VariableInfo
 from hardboiled.core.expressions import Evaluator, ExpressionError, tokenize
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
 from hardboiled.core.variables import CType, Formatter, FrameContext, Storage, VariableTable
+from hardboiled.i18n import _
 
 
 class DebuggerError(Exception):
@@ -36,9 +37,9 @@ class BreakpointCondition:
     def describe(self) -> str:
         parts = []
         if self.expression:
-            parts.append(f"si {self.expression}")
+            parts.append(_("si {expression}", expression=self.expression))
         if self.hit_target:
-            parts.append(f"desde la pasada {self.hit_target}")
+            parts.append(_("desde la pasada {hits}", hits=self.hit_target))
         return ", ".join(parts)
 
 
@@ -134,9 +135,9 @@ class Debugger:
             try:
                 tokenize(expression)
             except ExpressionError as exc:
-                raise DebuggerError(f"condición inválida: {exc}") from exc
+                raise DebuggerError(_("condición inválida: {error}", error=exc)) from exc
         if hit_target is not None and hit_target < 1:
-            raise DebuggerError("la cantidad de pasadas debe ser 1 o más")
+            raise DebuggerError(_("la cantidad de pasadas debe ser 1 o más"))
         self._line_breakpoints[(file, effective)] = address
         self._rebuild()
         if expression is None and hit_target is None:
@@ -157,14 +158,18 @@ class Debugger:
                 if not self.evaluator().integer(condition.expression):
                     return False
             except ExpressionError as exc:
-                self._breakpoint_note = f"no se pudo evaluar la condición: {exc}"
+                self._breakpoint_note = _("no se pudo evaluar la condición: {error}", error=exc)
                 return True
         condition.hits += 1
         if condition.hit_target is not None and condition.hits < condition.hit_target:
             return False
-        detail = [f"{condition.expression} es verdadera"] if condition.expression else []
-        detail.append(f"pasada {condition.hits}")
-        self._breakpoint_note = "breakpoint condicional: " + ", ".join(detail)
+        detail = (
+            [_("{expression} es verdadera", expression=condition.expression)]
+            if condition.expression
+            else []
+        )
+        detail.append(_("pasada {hits}", hits=condition.hits))
+        self._breakpoint_note = _("breakpoint condicional: {detail}", detail=", ".join(detail))
         return True
 
     def resolve_line(self, line: int, source_file: str | None = None) -> tuple[str, int, int]:
@@ -172,7 +177,9 @@ class Debugger:
         file = self._resolve_file(source_file)
         resolved = self.lines.address_for_line(file, line)
         if resolved is None:
-            raise DebuggerError(f"no hay código ejecutable en {file}:{line} ni después")
+            raise DebuggerError(
+                _("no hay código ejecutable en {file}:{line} ni después", file=file, line=line)
+            )
         return file, resolved[0], resolved[1]
 
     def toggle_address_breakpoint(self, address: int) -> bool:
@@ -193,10 +200,12 @@ class Debugger:
                 return current.file
             if len(self.lines.user_files) == 1:
                 return self.lines.user_files[0]
-            raise DebuggerError("indicá el archivo fuente del breakpoint")
+            raise DebuggerError(_("indicá el archivo fuente del breakpoint"))
         resolved = self.lines.resolve_file(source_file)
         if resolved is None:
-            raise DebuggerError(f"el binario no tiene información de líneas de {source_file}")
+            raise DebuggerError(
+                _("el binario no tiene información de líneas de {file}", file=source_file)
+            )
         return resolved
 
     # ---------------------------------------------------------------- estado
@@ -316,26 +325,30 @@ class Debugger:
         notes: dict[int, list[str]] = {}
         for frame in frames:
             label = (
-                f"interrupción IRQ {frame.irq_line}"
+                _("interrupción IRQ {line}", line=frame.irq_line)
                 if frame.irq_line is not None
                 else frame.function or self.image.describe(frame.pc)
             )
             low = frame.regs.get(2, sp)
             if frame.isr_frame is not None:
                 high = frame.isr_frame + ISR_FRAME_SIZE
-                self._note(notes, frame.isr_frame, f"IRQ {frame.irq_line}: pc interrumpido")
+                self._note(
+                    notes, frame.isr_frame, _("IRQ {line}: pc interrumpido", line=frame.irq_line)
+                )
                 for slot, register in enumerate(ISR_SAVED_REGS, start=1):
                     self._note(
-                        notes, frame.isr_frame + 4 * slot, f"IRQ: {ABI_NAMES[register]} guardado"
+                        notes,
+                        frame.isr_frame + 4 * slot,
+                        _("IRQ: {register} guardado", register=ABI_NAMES[register]),
                     )
                 for padding in range(frame.isr_frame + 4 * (len(ISR_SAVED_REGS) + 1), high, 4):
-                    self._note(notes, padding, "IRQ: relleno (alineación a 16)")
+                    self._note(notes, padding, _("IRQ: relleno (alineación a 16)"))
                 bounds.append((frame.index, frame.isr_frame, high, label))
                 continue
             high = frame.cfa if frame.cfa is not None else top
             bounds.append((frame.index, low, high, label))
             for address, register in frame.saved_slots.items():
-                note = f"{ABI_NAMES[register]} guardado"
+                note = _("{register} guardado", register=ABI_NAMES[register])
                 if register == 1:
                     value = self.cpu.read_word(address)
                     if value is not None:
@@ -439,11 +452,16 @@ class Debugger:
             raise DebuggerError(str(exc)) from exc
         if value.address is None:
             raise DebuggerError(
-                f"{expression!r} no es una variable en memoria: no se puede vigilar"
+                _(
+                    "{expression} no es una variable en memoria: no se puede vigilar",
+                    expression=repr(expression),
+                )
             )
         size = value.ctype.size
         if size <= 0:
-            raise DebuggerError(f"{expression!r} no tiene tamaño conocido")
+            raise DebuggerError(
+                _("{expression} no tiene tamaño conocido", expression=repr(expression))
+            )
         try:
             watch_id = self.cpu.add_watch(value.address, size)
         except ValueError as exc:
@@ -501,10 +519,16 @@ class Debugger:
                 f"{self.formatter.scalar(ctype, hit.old)} → {self.formatter.scalar(ctype, hit.new)}"
             )
         else:
-            change = "cambió su contenido"
+            change = _("cambió su contenido")
         location = self.lines.lookup(hit.pc)
         where = (
-            f" (escrito en {location.file.rsplit('/', 1)[-1]}:{location.line})" if location else ""
+            _(
+                " (escrito en {file}:{line})",
+                file=location.file.rsplit("/", 1)[-1],
+                line=location.line,
+            )
+            if location
+            else ""
         )
         return replace(stop, message=f"watchpoint {watch.expression}: {change}{where}")
 
@@ -524,7 +548,9 @@ class Debugger:
             stop = replace(stop, message=self._breakpoint_note)
         removed = self._prune_watchpoints()
         if removed and stop.reason is StopReason.BREAK:
-            note = "watchpoint eliminado al salir de su función: " + ", ".join(removed)
+            note = _(
+                "watchpoint eliminado al salir de su función: {names}", names=", ".join(removed)
+            )
             stop = replace(stop, message=f"{stop.message}; {note}" if stop.message else note)
         return stop
 
@@ -608,20 +634,30 @@ class Debugger:
         """
         frames = self.backtrace()
         if len(frames) < 2 or frames[0].cfa is None:
-            raise DebuggerError("no hay una función llamadora a la que volver")
+            raise DebuggerError(_("no hay una función llamadora a la que volver"))
         cpu = self.cpu
         function = frames[0].function or self.image.describe(frames[0].pc)
         if frames[1].irq_line is not None:
             pic = cpu.pic
             depth = pic.depth
             stop = self._run(lambda pc: pic.depth < depth)
-            return self._with_message(stop, f"fin de la interrupción ({function})")
+            return self._with_message(
+                stop, _("fin de la interrupción ({function})", function=function)
+            )
         return_pc, cfa = frames[1].pc, frames[0].cfa
         stop = self._run(lambda pc: pc == return_pc and cpu.sp >= cfa, frozenset({return_pc}))
         if stop.reason is StopReason.BREAK and cpu.pc == return_pc:
             value = cpu.read_register(10)
             signed = value - (1 << 32) if value & 0x8000_0000 else value
-            return self._with_message(stop, f"{function} devolvió a0 = {signed} (0x{value:x})")
+            return self._with_message(
+                stop,
+                _(
+                    "{function} devolvió a0 = {value} ({hex})",
+                    function=function,
+                    value=signed,
+                    hex=f"0x{value:x}",
+                ),
+            )
         return stop
 
     @staticmethod

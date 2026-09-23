@@ -28,6 +28,7 @@ from elftools.elf.elffile import ELFFile
 
 from hardboiled.core.dwarf import USER_SOURCE_SUFFIXES
 from hardboiled.core.events import VariableInfo
+from hardboiled.i18n import _
 
 MAX_ARRAY_ITEMS = 64
 MAX_DEPTH = 4
@@ -110,7 +111,7 @@ class TypeCache:
             self._types[die.offset] = ctype
             ctype.target = self.resolve(die)
             if ctype.target.kind == "function":
-                returns, _, params = ctype.target.name.partition(" (")
+                returns, _sep, params = ctype.target.name.partition(" (")
                 ctype.name = f"{returns} (*)({params}"
             else:
                 ctype.name = f"{ctype.target.name} *"
@@ -457,7 +458,7 @@ class Formatter:
     ) -> VariableInfo:
         path = f"{path}.{name}" if path and not name.startswith("[") else f"{path}{name}"
         if storage is None:
-            return VariableInfo(name, ctype.name, "<no disponible>", None, path=path)
+            return VariableInfo(name, ctype.name, _("<no disponible>"), None, path=path)
         if storage.register is not None:
             raw = regs[storage.register].to_bytes(4, "little")[: max(ctype.size, 1)]
             return self._value(name, ctype, raw, None, path, 0)
@@ -469,7 +470,11 @@ class Formatter:
         raw = self.read(address, ctype.size)
         if raw is None:
             return VariableInfo(
-                name, ctype.name, f"<sin acceso a 0x{address:08x}>", address, path=path
+                name,
+                ctype.name,
+                _("<sin acceso a {address}>", address=f"0x{address:08x}"),
+                address,
+                path=path,
             )
         return self._value(name, ctype, raw, address, path, depth)
 

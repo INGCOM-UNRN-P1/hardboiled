@@ -16,6 +16,7 @@ from collections.abc import Callable
 
 from hardboiled.core.events import EvtHardwareUpdated
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_, _
 
 STATE = 0x0
 IRQ_EN = 0x4
@@ -59,7 +60,7 @@ class ButtonBank(Peripheral):
     def press(self, pin: int) -> None:
         """Presiona un botón; se suelta solo después de `hold_cycles`."""
         if not 0 <= pin < self.width_bits:
-            raise ValueError(f"{self.name} no tiene el botón {pin}")
+            raise ValueError(_("{device} no tiene el botón {pin}", device=self.name, pin=pin))
         self._set(pin, True)
         self._releases[pin] = self.clock.cycles + self.hold_cycles
         self.presses += 1
@@ -113,11 +114,11 @@ class ButtonBank(Peripheral):
             return self.edge
         if reg == PENDING:
             return self.pending
-        raise self.fault(reg, "registro inexistente")
+        raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg == STATE:
-            raise self.fault(reg, "STATE es de sólo lectura")
+            raise self.fault(reg, N_("STATE es de sólo lectura"))
         if reg == IRQ_EN:
             self.irq_enable = merge(self.irq_enable, value, mask) & self._mask
         elif reg == EDGE:
@@ -125,5 +126,5 @@ class ButtonBank(Peripheral):
         elif reg == PENDING:
             self.pending &= ~(value & mask)  # write-1-to-clear
         else:
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         self._update_irq()

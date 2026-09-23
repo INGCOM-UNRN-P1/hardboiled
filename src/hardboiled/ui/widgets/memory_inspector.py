@@ -16,6 +16,7 @@ from textual.message import Message
 from textual.widgets import Input, Static
 
 from hardboiled.core.events import EvtMemoryDump
+from hardboiled.i18n import _
 from hardboiled.ui.palette import current_palette
 
 PAGE = 256
@@ -29,8 +30,8 @@ class MemoryInspector(Vertical):
     """
 
     BINDINGS = [  # noqa: RUF012
-        Binding("pageup", "page(-1)", "Anterior", show=False),
-        Binding("pagedown", "page(1)", "Siguiente", show=False),
+        Binding("pageup", "page(-1)", _("Anterior"), show=False),
+        Binding("pagedown", "page(1)", _("Siguiente"), show=False),
     ]
 
     class DumpRequested(Message):
@@ -46,7 +47,7 @@ class MemoryInspector(Vertical):
         self._current: dict[int, int] = {}
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="dirección, símbolo o expresión (&results, 0x20000000…)")
+        yield Input(placeholder=_("dirección, símbolo o expresión (&results, 0x20000000…)"))
         yield Static(Text("Escribí una dirección y Enter.", style="dim"), id="dump")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:

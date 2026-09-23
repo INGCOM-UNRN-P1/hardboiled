@@ -12,6 +12,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
+from hardboiled.i18n import _
+
 
 class FilePicker(ModalScreen[str | None]):
     DEFAULT_CSS = """
@@ -23,7 +25,7 @@ class FilePicker(ModalScreen[str | None]):
     FilePicker OptionList { height: auto; max-height: 30; margin-top: 1; }
     """
 
-    BINDINGS = [Binding("escape", "cancel", "Cancelar")]  # noqa: RUF012
+    BINDINGS = [Binding("escape", "cancel", _("Cancelar"))]  # noqa: RUF012
 
     def __init__(self, files: tuple[str, ...], current: str | None) -> None:
         super().__init__()
@@ -33,7 +35,7 @@ class FilePicker(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("Abrir archivo fuente (Enter abre, Esc cancela):")
+            yield Label(_("Abrir archivo fuente (Enter abre, Esc cancela):"))
             options = []
             for path in self.files:
                 prompt = Text.assemble(

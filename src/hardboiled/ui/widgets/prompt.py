@@ -8,6 +8,8 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label
 
+from hardboiled.i18n import _
+
 
 class Prompt(ModalScreen[str | None]):
     """Pide un texto: Enter lo confirma, Escape cancela (devuelve None)."""
@@ -21,7 +23,7 @@ class Prompt(ModalScreen[str | None]):
     Prompt Label.help { color: $text-muted; margin-top: 1; }
     """
 
-    BINDINGS = [Binding("escape", "cancel", "Cancelar")]  # noqa: RUF012
+    BINDINGS = [Binding("escape", "cancel", _("Cancelar"))]  # noqa: RUF012
 
     def __init__(self, title: str, placeholder: str = "", value: str = "", help: str = "") -> None:
         super().__init__()

@@ -72,6 +72,7 @@ from hardboiled.core.profile import build_profile
 from hardboiled.core.session import BreakpointStore, apply_points, capture_points
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import ButtonBank, LedBar, SwitchBank
+from hardboiled.i18n import _
 from hardboiled.watch import ProgramWatcher, WatchError
 
 PROGRESS_INTERVAL = 0.2  # segundos entre EvtCpuProgress
@@ -163,7 +164,12 @@ class RunnerThread(threading.Thread):
         failed = self.store.restore(self.machine.debugger)
         if failed:
             self._emit(
-                EvtMessage("no se pudieron restaurar: " + ", ".join(failed) + " (código cambiado)")
+                EvtMessage(
+                    _(
+                        "no se pudieron restaurar: {points} (código cambiado)",
+                        points=", ".join(failed),
+                    )
+                )
             )
         if self.machine.debugger.line_breakpoints or self.machine.debugger.watchpoints:
             self._emit_breakpoints()
@@ -178,9 +184,9 @@ class RunnerThread(threading.Thread):
             self._emit(EvtCpuRunning())
             stop = self.machine.debugger.run_to_main()
             if stop is not None:
-                self._report(stop, "inicio de main()")
+                self._report(stop, _("inicio de main()"))
                 return
-        self._suspended("reset")
+        self._suspended(_("reset"))
 
     def _dispatch(self, command: Command) -> None:
         debugger = self.machine.debugger
@@ -197,7 +203,7 @@ class RunnerThread(threading.Thread):
                 self._execute(debugger.step_instruction)
             case CmdStepOut():
                 if len(debugger.backtrace()) < 2:
-                    self._emit(EvtMessage("no hay una función llamadora a la que volver"))
+                    self._emit(EvtMessage(_("no hay una función llamadora a la que volver")))
                 else:
                     self._execute(debugger.step_out)
             case CmdRunToLine(line_number=line, source_file=source):
@@ -212,7 +218,7 @@ class RunnerThread(threading.Thread):
             case CmdReset():
                 self._history.clear()
                 self.machine.reset()
-                self._emit(EvtMessage("placa reiniciada"))
+                self._emit(EvtMessage(_("placa reiniciada")))
                 self._boot()
             case CmdReload(elf_path=path):
                 self._reload(path)
@@ -247,7 +253,7 @@ class RunnerThread(threading.Thread):
                 case CmdPressButton(pin_index=pin):
                     buttons = self.machine.buttons()
                     if buttons is None:
-                        raise DebuggerError("la placa no tiene botones")
+                        raise DebuggerError(_("la placa no tiene botones"))
                     buttons.press(pin)
                     self.machine.cpu.refresh_deadline()  # el botón se suelta solo
                     return
@@ -261,13 +267,13 @@ class RunnerThread(threading.Thread):
                 case CmdUartInput(data=data):
                     uart = self.machine.uart()
                     if uart is None:
-                        raise DebuggerError("la placa no tiene UART")
+                        raise DebuggerError(_("la placa no tiene UART"))
                     uart.receive(data)
                     return
                 case CmdToggleSwitch(pin_index=pin):
                     switches = self.machine.switches()
                     if switches is None:
-                        raise DebuggerError("la placa no tiene switches")
+                        raise DebuggerError(_("la placa no tiene switches"))
                     switches.toggle(pin)
                     return
                 case _:
@@ -380,17 +386,17 @@ class RunnerThread(threading.Thread):
             if self.watcher is None:
                 return
             if self.watcher.builds:
-                self._emit(EvtMessage("cambió el código: recompilando…"))
+                self._emit(EvtMessage(_("cambió el código: recompilando…")))
             try:
                 path = str(self.watcher.rebuild())
             except WatchError as exc:
-                self._emit(EvtMessage(f"no se recargó: {exc}"))
+                self._emit(EvtMessage(_("no se recargó: {error}", error=exc)))
                 return
         old = self.machine
         try:
             new = Machine.from_elf(path, old.board)
         except (ElfLoadError, OSError) as exc:
-            self._emit(EvtMessage(f"no se recargó {path}: {exc}"))
+            self._emit(EvtMessage(_("no se recargó {path}: {error}", path=path, error=exc)))
             return
         points = capture_points(old.debugger)
         new.cpu.set_clock(old.cpu.clock_hz)
@@ -404,30 +410,40 @@ class RunnerThread(threading.Thread):
         self._announce()
         self._warn_about_build()
         self._emit_breakpoints()
-        note = f"; no se pudieron reubicar: {', '.join(failed)}" if failed else ""
-        self._emit(EvtMessage(f"programa recargado ({len(points)} puntos conservados){note}"))
+        note = _("; no se pudieron reubicar: {points}", points=", ".join(failed)) if failed else ""
+        self._emit(
+            EvtMessage(
+                _(
+                    "programa recargado ({count} puntos conservados){note}",
+                    count=len(points),
+                    note=note,
+                )
+            )
+        )
         self._boot()
 
     # -------------------------------------------------------------- ejecución
 
     def _step_back(self) -> None:
         if not self._history:
-            self._emit(EvtMessage("no hay pasos anteriores para deshacer"))
+            self._emit(EvtMessage(_("no hay pasos anteriores para deshacer")))
             return
         self.machine.restore(self._history.pop())
         for dev in self.machine.peripherals:
             if isinstance(dev, LedBar | SwitchBank):
                 self._emit(EvtHardwareUpdated(dev.name, 0, dev.value))
         remaining = len(self._history)
-        self._suspended(f"paso atrás ({remaining} disponibles; la UART no se deshace)")
+        self._suspended(
+            _("paso atrás ({count} disponibles; la UART no se deshace)", count=remaining)
+        )
 
     def _execute(self, operation: Callable[[], StopInfo]) -> None:
         cpu = self.machine.cpu
         if cpu.halted is not None:
             self._emit(
                 EvtMessage(
-                    f"{cpu.halted.message}. Usá Reset para volver a empezar"
-                    + (" o F8 para volver atrás." if self._history else ".")
+                    _("{message}. Usá Reset para volver a empezar", message=cpu.halted.message)
+                    + (_(" o F8 para volver atrás.") if self._history else ".")
                 )
             )
             return
@@ -453,13 +469,16 @@ class RunnerThread(threading.Thread):
         elif stop.reason is StopReason.LIMIT:
             self._emit(
                 EvtMessage(
-                    f"{stop.message}. F5 continúa otras "
-                    f"{self.machine.cpu.quota_step:,} instrucciones."
+                    _(
+                        "{message}. F5 continúa otras {count} instrucciones.",
+                        message=stop.message,
+                        count=f"{self.machine.cpu.quota_step:,}",
+                    )
                 )
             )
         if reason is None:
             reason = stop.message or (
-                "breakpoint" if self.machine.debugger.is_breakpoint() else "step"
+                _("breakpoint") if self.machine.debugger.is_breakpoint() else _("step")
             )
         self._suspended(reason)
 
@@ -535,11 +554,16 @@ def memory_dump(machine: Machine, where: str, length: int) -> EvtMemoryDump:
     data = machine.cpu.read_memory(address, length)
     if data is None:
         region = (
-            "el espacio MMIO (leerlo tendría efectos)"
+            _("el espacio MMIO (leerlo tendría efectos)")
             if machine.cpu.is_mmio(address)
-            else ("una zona sin memoria")
+            else _("una zona sin memoria")
         )
-        return EvtMemoryDump(where, address, b"", f"0x{address:08x} está en {region}")
+        return EvtMemoryDump(
+            where,
+            address,
+            b"",
+            _("{address} está en {region}", address=f"0x{address:08x}", region=region),
+        )
     labels = debugger.global_labels(address, address + length)
     return EvtMemoryDump(where, address, data, None, labels)
 
@@ -593,7 +617,7 @@ def frame_infos(machine: Machine, frames: list[Frame]) -> tuple[FrameInfo, ...]:
     infos = []
     for frame in frames:
         if frame.irq_line is not None:
-            label = f"interrupción IRQ {frame.irq_line}"
+            label = _("interrupción IRQ {line}", line=frame.irq_line)
         else:
             label = frame.function or machine.image.describe(frame.pc)
         location = frame.location

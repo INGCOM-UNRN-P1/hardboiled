@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from hardboiled.core.cpu import ABI_NAMES
 from hardboiled.core.variables import CType, FrameContext, VariableTable
+from hardboiled.i18n import _
 
 INT = CType("base", "int", 4, 0x05)
 
@@ -75,7 +76,13 @@ def tokenize(text: str) -> list[tuple[str, str]]:
     while position < len(text):
         match = TOKEN.match(text, position)
         if match is None or match.end() == position:
-            raise ExpressionError(f"símbolo inesperado en la posición {position + 1}: {text!r}")
+            raise ExpressionError(
+                _(
+                    "símbolo inesperado en la posición {position}: {text}",
+                    position=position + 1,
+                    text=repr(text),
+                )
+            )
         kind = match.lastgroup
         assert kind is not None
         tokens.append((kind, match.group(kind)))
@@ -106,10 +113,16 @@ class Evaluator:
         self._tokens = tokenize(text)
         self._index = 0
         if not self._tokens:
-            raise ExpressionError("la expresión está vacía")
+            raise ExpressionError(_("la expresión está vacía"))
         value = self._binary(0)
         if self._index != len(self._tokens):
-            raise ExpressionError(f"sobra texto después de la posición {self._index}: {text!r}")
+            raise ExpressionError(
+                _(
+                    "sobra texto después de la posición {position}: {text}",
+                    position=self._index,
+                    text=repr(text),
+                )
+            )
         return value
 
     def integer(self, text: str) -> int:
@@ -124,11 +137,13 @@ class Evaluator:
         if ctype.kind == "array":  # un arreglo "decae" a puntero a su primer elemento
             return value.address or 0
         if ctype.kind in ("struct", "union"):
-            raise ExpressionError(f"no se puede usar un {ctype.name} como número")
+            raise ExpressionError(_("no se puede usar un {type} como número", type=ctype.name))
         size = min(max(ctype.size, 1), 8)
         raw = self.read(value.address or 0, size)
         if raw is None:
-            raise ExpressionError(f"no se puede leer la memoria en 0x{value.address or 0:08x}")
+            raise ExpressionError(
+                _("no se puede leer la memoria en {address}", address=f"0x{value.address or 0:08x}")
+            )
         number = int.from_bytes(raw, "little")
         signed = ctype.kind == "enum" or ctype.encoding in (0x05, 0x06)
         if signed and number >> (size * 8 - 1):
@@ -149,7 +164,7 @@ class Evaluator:
 
     def _expect(self, op: str) -> None:
         if self._accept(op) is None:
-            raise ExpressionError(f"se esperaba '{op}'")
+            raise ExpressionError(_("se esperaba '{token}'", token=op))
 
     def _binary(self, level: int) -> Value:
         if level == len(BINARY_LEVELS):
@@ -163,7 +178,7 @@ class Evaluator:
     @staticmethod
     def _apply(op: str, a: int, b: int) -> int:
         if op in ("/", "%") and b == 0:
-            raise ExpressionError("división por cero en la expresión")
+            raise ExpressionError(_("división por cero en la expresión"))
         results: dict[str, Callable[[], int]] = {
             "||": lambda: int(bool(a) or bool(b)),
             "&&": lambda: int(bool(a) and bool(b)),
@@ -195,7 +210,7 @@ class Evaluator:
             return self._deref(operand)
         if op == "&":
             if operand.address is None:
-                raise ExpressionError("& necesita una variable en memoria")
+                raise ExpressionError(_("& necesita una variable en memoria"))
             return Value(INT, constant=operand.address)
         number = self.load(operand)
         result = {"-": -number, "!": int(not number), "~": ~number, "+": number}[op]
@@ -204,9 +219,11 @@ class Evaluator:
     def _deref(self, pointer: Value) -> Value:
         target = pointer.ctype.target
         if pointer.ctype.kind not in ("pointer", "array") or target is None:
-            raise ExpressionError("sólo se puede desreferenciar un puntero")
+            raise ExpressionError(_("sólo se puede desreferenciar un puntero"))
         if target.kind in ("void", "function"):
-            raise ExpressionError(f"no se puede desreferenciar un {pointer.ctype.name}")
+            raise ExpressionError(
+                _("no se puede desreferenciar un {type}", type=pointer.ctype.name)
+            )
         return Value(target, address=self.load(pointer) & 0xFFFF_FFFF)
 
     def _postfix(self) -> Value:
@@ -217,13 +234,15 @@ class Evaluator:
                 self._expect("]")
                 element = value.ctype.target
                 if value.ctype.kind not in ("array", "pointer") or element is None:
-                    raise ExpressionError(f"{value.ctype.name} no se puede indexar")
+                    raise ExpressionError(_("{type} no se puede indexar", type=value.ctype.name))
                 base = value.address if value.ctype.kind == "array" else self.load(value)
                 value = Value(element, address=((base or 0) + index * element.size) & 0xFFFF_FFFF)
             elif (op := self._accept(".", "->")) is not None:
                 token = self._peek()
                 if token is None or token[0] != "name":
-                    raise ExpressionError(f"se esperaba un nombre de campo después de '{op}'")
+                    raise ExpressionError(
+                        _("se esperaba un nombre de campo después de '{token}'", token=op)
+                    )
                 self._index += 1
                 if op == "->":
                     value = self._deref(value)
@@ -235,18 +254,22 @@ class Evaluator:
     def _member(value: Value, name: str) -> Value:
         ctype = value.ctype
         if ctype.kind not in ("struct", "union"):
-            raise ExpressionError(f"{ctype.name} no tiene campos")
-        for member, offset, mtype, bits, _ in ctype.members:
+            raise ExpressionError(_("{type} no tiene campos", type=ctype.name))
+        for member, offset, mtype, bits, _bit_offset in ctype.members:
             if member == name:
                 if bits is not None:
-                    raise ExpressionError(f"{name} es un campo de bits: no tiene dirección")
+                    raise ExpressionError(
+                        _("{name} es un campo de bits: no tiene dirección", name=name)
+                    )
                 return Value(mtype, address=(value.address or 0) + offset)
-        raise ExpressionError(f"{ctype.name} no tiene un campo {name!r}")
+        raise ExpressionError(
+            _("{type} no tiene un campo {name}", type=ctype.name, name=repr(name))
+        )
 
     def _primary(self) -> Value:
         token = self._peek()
         if token is None:
-            raise ExpressionError("la expresión termina antes de tiempo")
+            raise ExpressionError(_("la expresión termina antes de tiempo"))
         kind, text = token
         self._index += 1
         if kind == "number":
@@ -263,11 +286,13 @@ class Evaluator:
             value = self._binary(0)
             self._expect(")")
             return value
-        raise ExpressionError(f"no se esperaba '{text}'")
+        raise ExpressionError(_("no se esperaba '{token}'", token=text))
 
     def _register(self, name: str) -> int:
         if self.frame is None:
-            raise ExpressionError("los registros sólo están disponibles con el programa detenido")
+            raise ExpressionError(
+                _("los registros sólo están disponibles con el programa detenido")
+            )
         if name == "pc":
             return self.frame.pc
         if name.startswith("x") and name[1:].isdigit() and int(name[1:]) < 32:
@@ -275,22 +300,22 @@ class Evaluator:
         elif name in REGISTER_ALIASES:
             index = REGISTER_ALIASES[name]
         else:
-            raise ExpressionError(f"registro desconocido: ${name}")
+            raise ExpressionError(_("registro desconocido: ${name}", name=name))
         value = self.frame.regs.get(index)
         if value is None:
-            raise ExpressionError(f"${name} no se conoce en este marco")
+            raise ExpressionError(_("${name} no se conoce en este marco", name=name))
         return value
 
     def _variable(self, name: str) -> Value:
         pc = self.frame.pc if self.frame is not None else self.pc
         decl = self.variables.find(name, pc)
         if decl is None:
-            raise ExpressionError(f"no hay ninguna variable {name!r} visible aquí")
+            raise ExpressionError(_("no hay ninguna variable {name} visible aquí", name=repr(name)))
         if pc is not None and any(local is decl for local in self.variables.locals_at(pc)):
             self.used_locals = True
         storage = self.variables.storage(decl, self.frame)
         if storage is None:
-            raise ExpressionError(f"la ubicación de {name!r} no está disponible")
+            raise ExpressionError(_("la ubicación de {name} no está disponible", name=repr(name)))
         if storage.register is not None:
             assert self.frame is not None
             return Value(decl.ctype, constant=self.frame.regs[storage.register])

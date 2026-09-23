@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from hardboiled.core.events import StackSlot
+from hardboiled.i18n import _
 
 
 class MemoryView(Static):
@@ -15,7 +16,7 @@ class MemoryView(Static):
 
     def __init__(self, *, id: str | None = None) -> None:
         super().__init__(id=id)
-        self.border_title = "Pila (direcciones altas arriba)"
+        self.border_title = _("Pila (direcciones altas arriba)")
 
     def set_stack(self, slots: tuple[StackSlot, ...], sp: int, fp: int) -> None:
         text = Text(no_wrap=True, overflow="ellipsis")
@@ -41,6 +42,6 @@ class MemoryView(Static):
                 text.append("  " + " ".join(marks), style="bold yellow")
             text.append("\n")
         if not slots:
-            text.append("(sp fuera de la SRAM)", style="dim")
+            text.append(_("(sp fuera de la SRAM)"), style="dim")
         text.rstrip()
         self.update(text)

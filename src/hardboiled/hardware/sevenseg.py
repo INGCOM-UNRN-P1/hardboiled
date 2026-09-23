@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from hardboiled.core.events import EvtHardwareUpdated
 from hardboiled.hardware.bus import Peripheral, merge
+from hardboiled.i18n import N_
 
 MAX_DIGITS = 8
 
@@ -36,11 +37,11 @@ class SevenSegment(Peripheral):
     def read(self, reg: int) -> int:
         if reg in (0, 4):
             return self.words[reg // 4]
-        raise self.fault(reg, "registro inexistente")
+        raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
         if reg not in (0, 4):
-            raise self.fault(reg, "registro inexistente")
+            raise self.fault(reg, N_("registro inexistente"))
         index = reg // 4
         # Sólo existen los bytes de los dígitos que tiene el display.
         available = min(max(self.digits - 4 * index, 0), 4)

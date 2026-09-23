@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import queue
 import time
 from collections.abc import Callable, Iterator
@@ -7,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from hardboiled import i18n
 from hardboiled.config import BoardConfig, BoardInfo
 from hardboiled.core.events import CmdShutdown, Command, Event
 from hardboiled.core.machine import Machine
@@ -14,6 +16,19 @@ from hardboiled.core.runner import RunnerThread
 from tests.hwloop import HardwareLoop
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Los tests esperan los mensajes originales, en español, sin importar el entorno.
+os.environ.pop("HARDBOILED_LANG", None)
+i18n.set_language("es")
+
+
+@pytest.fixture(autouse=True)
+def spanish_messages() -> Iterator[None]:
+    """Un test que cambia el idioma no afecta a los siguientes."""
+    yield
+    i18n.set_language("es")
+
+
 RUNNER_TIMEOUT = 10
 
 
