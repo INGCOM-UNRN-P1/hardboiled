@@ -64,6 +64,8 @@ class BoardInfo(_Model):
     # "trap": un lw/sw/lh/sh a una dirección no múltiplo de su tamaño es una trampa
     # (como en muchos microcontroladores); "allow": se resuelve en silencio.
     misaligned: Literal["trap", "allow"] = "trap"
+    # División o resto por cero: "warn" avisa y sigue, "break" detiene, "off" ignora.
+    div_by_zero: Literal["warn", "break", "off"] = "warn"
 
 
 class MemoryConfig(_Model):

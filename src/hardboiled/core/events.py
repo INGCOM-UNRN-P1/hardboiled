@@ -356,6 +356,19 @@ class EvtBreakpointsChanged:
 
 
 @dataclass(frozen=True)
+class EvtWarning:
+    """Algo sospechoso que el programa hizo y siguió (división por cero, lectura sin
+    inicializar…)."""
+
+    kind: str
+    text: str
+    pc: int
+    function: str | None = None
+    source_file: str | None = None
+    source_line: int | None = None
+
+
+@dataclass(frozen=True)
 class EvtClockChanged:
     hz: int | None
 
@@ -381,6 +394,7 @@ Event = (
     | EvtBreakpointsChanged
     | EvtMessage
     | EvtClockChanged
+    | EvtWarning
 )
 
 

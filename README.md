@@ -331,6 +331,16 @@ acceso desalineado (un `lw`/`sw` a una dirección no múltiplo de 4, o `lh`/`sh`
 no múltiplo de 2; con `misaligned = "allow"` en `[board]` se resuelve en
 silencio como hace el hardware que lo soporta) e instrucción ilegal.
 
+### Avisos
+
+Algunas cosas no son trampas pero casi siempre son errores: el programa sigue
+y se muestra un aviso con la línea (en la TUI como notificación, en
+`--headless` por stderr). La **división o el resto por cero** no generan
+excepción en RISC-V (con la extensión M el cociente queda en −1; con división
+por software el resultado depende de la biblioteca). Cada aviso se configura en
+`[board]` como `"warn"` (por defecto), `"break"` (detiene ahí) u `"off"`:
+`div_by_zero = "break"`.
+
 Agotar la cuota de instrucciones (`max_instructions`) no es una trampa: la CPU
 se suspende con un aviso y, si se continúa (F5), se habilita otra cuota igual;
 no todo programa largo es un bucle infinito. En `--headless` termina con código

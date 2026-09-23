@@ -54,6 +54,7 @@ from hardboiled.core.events import (
     EvtProgramExited,
     EvtProgramLoaded,
     EvtTrap,
+    EvtWarning,
     FrameInfo,
     WatchInfo,
 )
@@ -289,6 +290,8 @@ class RunnerThread(threading.Thread):
     def _poll(self) -> bool:
         """Llamado desde el hook de la CPU: True pide pausar la ejecución."""
         self._progress()
+        for warning in warning_events(self.machine):
+            self._emit(warning)
         pause = False
         while True:
             try:
@@ -351,6 +354,8 @@ class RunnerThread(threading.Thread):
             self._emit_breakpoints()
 
     def _report(self, stop: StopInfo, reason: str | None = None) -> None:
+        for warning in warning_events(self.machine):
+            self._emit(warning)
         if stop.reason is StopReason.TRAP:
             self._emit(trap_event(self.machine, stop))
         elif stop.reason is StopReason.EXITED:
@@ -447,6 +452,24 @@ def memory_dump(machine: Machine, where: str, length: int) -> EvtMemoryDump:
         return EvtMemoryDump(where, address, b"", f"0x{address:08x} está en {region}")
     labels = debugger.global_labels(address, address + length)
     return EvtMemoryDump(where, address, data, None, labels)
+
+
+def warning_events(machine: Machine) -> list[EvtWarning]:
+    """Avisos acumulados por la CPU, ubicados en el código."""
+    events = []
+    for diagnostic in machine.cpu.take_diagnostics():
+        location = machine.debugger.location(diagnostic.pc)
+        events.append(
+            EvtWarning(
+                diagnostic.kind,
+                diagnostic.message,
+                diagnostic.pc,
+                machine.debugger.function(diagnostic.pc),
+                location.file if location else None,
+                location.line if location else None,
+            )
+        )
+    return events
 
 
 def trap_event(machine: Machine, stop: StopInfo) -> EvtTrap:

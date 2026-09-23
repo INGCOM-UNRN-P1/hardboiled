@@ -1,0 +1,86 @@
+"""Avisos: operaciones sospechosas que el programa hace y sigue ejecutando."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+from hardboiled.cli import main
+from hardboiled.config import BoardConfig
+from hardboiled.core.cpu import StopReason
+from hardboiled.core.events import CmdContinue, CmdToggleSwitch, EvtCpuSuspended, EvtWarning
+from hardboiled.core.machine import Machine
+from hardboiled.toolchain import BuildOptions, build, select_compiler
+from tests.conftest import FIXTURES, HarnessFactory, fixture_path, line_of
+
+needs_zig = pytest.mark.skipif(
+    importlib.util.find_spec("ziglang") is None, reason="requiere el extra [zig]"
+)
+
+DIV0 = 11  # caso de traps.c
+
+
+def machine_with(**options: str) -> Machine:
+    board = BoardConfig.model_validate({"board": options})
+    machine = Machine.from_elf(FIXTURES / "traps.elf", board)
+    machine.switches().set_value(DIV0)  # type: ignore[union-attr]
+    return machine
+
+
+def test_software_division_by_zero_warns_once_at_the_call() -> None:
+    machine = machine_with()
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.EXITED  # un aviso no detiene
+    (warning,) = machine.cpu.take_diagnostics()
+    assert warning.kind == "div0" and "división por cero" in warning.message
+    location = machine.debugger.location(warning.pc)
+    assert location is not None and location.file.endswith("traps.c")
+    assert machine.debugger.function(warning.pc) == "main"
+
+
+def test_break_and_off_modes() -> None:
+    machine = machine_with(div_by_zero="break")
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.BREAK and "división por cero" in stop.message
+    machine = machine_with(div_by_zero="off")
+    machine.debugger.continue_()
+    assert machine.cpu.take_diagnostics() == []
+
+
+@needs_zig
+def test_m_extension_div_instruction(tmp_path: Path) -> None:
+    source = tmp_path / "div.c"
+    source.write_text(
+        '#include "hardboiled.h"\n'
+        "int main(void) { volatile int d = (int)switch_get(); return 7 / d; }\n"
+    )
+    elf = build(
+        [source], tmp_path / "div.elf", BuildOptions(march="rv32im"), select_compiler("zig")
+    ).output
+    machine = Machine.from_elf(elf)
+    stop = machine.debugger.continue_()
+    assert stop.exit_code == -1  # así lo define RISC-V
+    (warning,) = machine.cpu.take_diagnostics()
+    assert "el cociente queda en -1" in warning.message
+    instruction = machine.debugger.instruction_at(warning.pc)
+    assert instruction is not None and instruction.mnemonic == "div"
+
+
+def test_runner_emits_warning_event(harness: HarnessFactory) -> None:
+    h = harness("traps")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdToggleSwitch(0))
+    h.cmd.put(CmdToggleSwitch(1))
+    h.cmd.put(CmdToggleSwitch(3))  # 0b1011 = 11
+    h.cmd.put(CmdContinue())
+    warning = h.wait_for(EvtWarning)
+    assert warning.kind == "div0" and warning.function == "main"
+    assert warning.source_line == line_of("traps.c", "div0")
+
+
+def test_headless_prints_warnings(capsys: pytest.CaptureFixture[str]) -> None:
+    code = main(["run", str(fixture_path("traps.elf")), "--headless", "--switches", str(DIV0)])
+    assert code == 0
+    assert "aviso: división por cero" in capsys.readouterr().err

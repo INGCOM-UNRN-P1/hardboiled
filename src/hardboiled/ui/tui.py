@@ -55,6 +55,7 @@ from hardboiled.core.events import (
     EvtProgramLoaded,
     EvtTrap,
     EvtUartOutput,
+    EvtWarning,
 )
 from hardboiled.ui.palette import palette_for
 from hardboiled.ui.widgets.backtrace_view import BacktraceView
@@ -333,6 +334,13 @@ class HardboiledApp(App[None]):
                 self._pending_trap = event
             case EvtProgramExited():
                 self.notify(f"main() devolvió {event.exit_code}", title="Programa terminado")
+            case EvtWarning():
+                where = (
+                    f"{os.path.basename(event.source_file)}:{event.source_line}"
+                    if event.source_file
+                    else f"0x{event.pc:08x}"
+                )
+                self.notify(f"{event.text}\n{where}", title="Aviso", severity="warning", timeout=8)
             case EvtClockChanged():
                 if event.hz is not None:
                     self._last_clock_hz = event.hz

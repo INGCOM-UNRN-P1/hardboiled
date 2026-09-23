@@ -21,7 +21,7 @@ from hardboiled.cli.common import (
 from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput, collapse_frames
 from hardboiled.core.machine import Machine
-from hardboiled.core.runner import frame_infos
+from hardboiled.core.runner import frame_infos, warning_events
 from hardboiled.core.session import BreakpointStore
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
@@ -166,6 +166,9 @@ def run_headless(machine: Machine) -> int:
 
     machine.set_event_sink(sink)
     stop = machine.debugger.continue_()
+    for warning in warning_events(machine):
+        where = f" ({warning.source_file}:{warning.source_line})" if warning.source_file else ""
+        print(f"\naviso: {warning.text}{where}", file=sys.stderr)
     if stop.reason is StopReason.LIMIT:
         print(
             f"\nLÍMITE: {stop.message}. Con --max-instructions se puede dar más margen.",

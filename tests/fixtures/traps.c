@@ -40,6 +40,11 @@ int main(void)
         uintptr_t address = (uintptr_t)&not_code[0] + (switch_get() - 9); /* +1 */
         return *(volatile int *)address;
     }
+    case 11: { /* división por cero: RISC-V no la atrapa */
+        volatile int dividendo = 10;
+        int divisor = (int)switch_get() - 11;
+        return dividendo / divisor; /* @div0 */
+    }
     default:
         return 0;
     }

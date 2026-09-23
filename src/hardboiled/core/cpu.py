@@ -111,6 +111,7 @@ class _Halt(Enum):
     STACK = auto()
     FAULT = auto()
     WATCH = auto()
+    DIAGNOSTIC = auto()  # un aviso configurado para detener ("break")
 
 
 @dataclass(frozen=True)
@@ -131,6 +132,24 @@ class CpuSnapshot:
     cycles: int
     halted: StopInfo | None
     isr_frames: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Diagnostic:
+    """Un aviso (no una trampa): algo sospechoso que el programa hizo y siguió."""
+
+    kind: str  # "div0", "uninit"
+    pc: int  # dónde ocurrió (para una rutina de biblioteca, la llamada)
+    message: str
+
+
+# Rutinas de división por software de libgcc/compiler-rt: (divisor en a1, operación).
+SOFTWARE_DIVISION = {
+    "__divsi3": "división",
+    "__udivsi3": "división",
+    "__modsi3": "resto (%)",
+    "__umodsi3": "resto (%)",
+}
 
 
 @dataclass
@@ -165,9 +184,11 @@ class Cpu:
         clock_hz: int | None = None,
         stack_guard: str = "globals",
         misaligned: str = "trap",
+        div_by_zero: str = "warn",
     ) -> None:
         self.memory = memory
         self.misaligned = misaligned
+        self.div_by_zero = div_by_zero
         self.bus = bus
         self.pic = pic
         self.clock = bus.clock
@@ -189,6 +210,10 @@ class Cpu:
         self._special: dict[int, _Halt] = {}
         self._sp_writers: frozenset[int] = frozenset()
         self._memory_ops: dict[int, tuple[int, int, int, bool]] = {}
+        # dirección -> (registro divisor, operación, es llamada a biblioteca)
+        self._divisions: dict[int, tuple[int, str, bool]] = {}
+        self.diagnostics: list[Diagnostic] = []
+        self._warned: set[tuple[str, int]] = set()
         self._vector_table: int | None = None
         self._isr_frames: list[int] = []  # marcos guardados, el último es el más interno
         self._watches: dict[int, _Watch] = {}
@@ -280,6 +305,8 @@ class Cpu:
         self._refresh_deadline()
 
     def _reset_run_state(self) -> None:
+        self.diagnostics = []
+        self._warned = set()
         self.halted = None
         self.instructions = 0
         self.max_instructions = getattr(self, "quota_step", self.max_instructions)
@@ -340,6 +367,7 @@ class Cpu:
         sp_writers: set[int] = set()
         # dirección -> (registro base, offset, tamaño, es escritura) de lh/lhu/lw/sh/sw
         memory_ops: dict[int, tuple[int, int, int, bool]] = {}
+        divisions: dict[int, tuple[int, str, bool]] = {}
         for address, word in image.code_words():
             if word == INSN_MRET:
                 special[address] = _Halt.MRET
@@ -351,6 +379,9 @@ class Cpu:
             rd = (word >> 7) & 0x1F
             funct3 = (word >> 12) & 0x7
             rs1 = (word >> 15) & 0x1F
+            if opcode == 0x33 and word >> 25 == 1 and funct3 >= 4:  # div, divu, rem, remu
+                operation = "división" if funct3 < 6 else "resto (%)"
+                divisions[address] = ((word >> 20) & 0x1F, operation, False)
             if opcode == 0x03 and funct3 in (1, 2, 5):  # lh, lw, lhu
                 offset = word >> 20
                 offset -= (offset & 0x800) << 1
@@ -365,6 +396,14 @@ class Cpu:
                 sp_writers.add(address)
         self._special = special
         self._memory_ops = memory_ops if self.misaligned == "trap" else {}
+        if self.div_by_zero != "off":
+            for name, operation in SOFTWARE_DIVISION.items():
+                entry = image.symbol_address(name)
+                if entry is not None:
+                    divisions[entry] = (11, operation, True)  # divisor en a1
+            self._divisions = divisions
+        else:
+            self._divisions = {}
         self.call_sites = frozenset(calls)
         self._sp_writers = frozenset(sp_writers)
 
@@ -469,6 +508,8 @@ class Cpu:
             pc = self.pc
             if halt is _Halt.CHECK:
                 return StopInfo(StopReason.BREAK, pc)
+            if halt is _Halt.DIAGNOSTIC and self.diagnostics:
+                return StopInfo(StopReason.BREAK, pc, self.diagnostics[-1].message)
             if halt is _Halt.WATCH and self._watch_hit is not None:
                 return StopInfo(StopReason.BREAK, pc, "watchpoint", watch=self._watch_hit)
             if halt is _Halt.PAUSE:
@@ -582,6 +623,10 @@ class Cpu:
         if access is not None and self._misaligned_access(uc, access):
             self._halt(uc, _Halt.FAULT)
             return
+        division = self._divisions.get(address)
+        if division is not None and self._division_by_zero(uc, address, division):
+            self._halt(uc, _Halt.DIAGNOSTIC)
+            return
         if self.pic.ready:
             self._halt(uc, _Halt.IRQ)
             return
@@ -607,6 +652,45 @@ class Cpu:
     ) -> bool:
         self._invalid_access = (access, address)
         return False
+
+    def _division_by_zero(self, uc: Uc, address: int, division: tuple[int, str, bool]) -> bool:
+        """Registra una división por cero (RISC-V no la atrapa). True si hay que detenerse."""
+        register, operation, library = division
+        if uc.reg_read(_REG_IDS[register]) != 0:
+            return False
+        if library:
+            # El lugar interesante es la llamada del programa, no la de otra rutina
+            # de la biblioteca (__divsi3 llama a __udivsi3).
+            site = (uc.reg_read(_REG_IDS[1]) - 4) & 0xFFFF_FFFF
+            caller = self._image.function_at(site) if self._image is not None else None
+            if caller is None or caller.startswith("__"):
+                return False
+            result = "el resultado no está definido (depende de la biblioteca)"
+        else:
+            site = address
+            result = (
+                "el cociente queda en -1" if operation == "división" else "el resto es el dividendo"
+            )
+        return self._diagnose(
+            "div0",
+            site,
+            f"{operation} por cero: RISC-V no genera una excepción; {result} y el "
+            "programa sigue como si nada",
+            self.div_by_zero,
+        )
+
+    def _diagnose(self, kind: str, site: int, message: str, mode: str) -> bool:
+        """Anota un aviso (una vez por lugar). True si el modo pide detenerse."""
+        if (kind, site) not in self._warned:
+            self._warned.add((kind, site))
+            self.diagnostics.append(Diagnostic(kind, site, message))
+            return mode == "break"
+        return False
+
+    def take_diagnostics(self) -> list[Diagnostic]:
+        """Avisos nuevos desde la última consulta."""
+        taken, self.diagnostics = self.diagnostics, []
+        return taken
 
     def _misaligned_access(self, uc: Uc, access: tuple[int, int, int, bool]) -> bool:
         """¿La instrucción de memoria en curso accedería a una dirección desalineada?
