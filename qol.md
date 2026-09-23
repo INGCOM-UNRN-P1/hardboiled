@@ -4,6 +4,10 @@ Propuestas surgidas de implementar y usar la versión 1.0.0. Cada mejora indica
 **impacto** pedagógico/práctico (🔴 alto · 🟡 medio · 🟢 bajo) y **esfuerzo**
 estimado (S: horas · M: 1-2 días · L: más).
 
+> **Estado**: las mejoras 1 a 63 (secciones A a I) están implementadas. Cada una
+> tiene su commit, que se encuentra con `git log --grep "QoL #N"`. La sección J
+> (64 a 83) reúne propuestas de hardware nuevo todavía sin implementar.
+
 ---
 
 ## A. Depuración
