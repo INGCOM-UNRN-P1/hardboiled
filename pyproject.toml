@@ -14,6 +14,11 @@ dependencies = [
     "unicorn>=2.1.4",
 ]
 
+[project.optional-dependencies]
+# Compilador C para riscv32 sin toolchain del sistema: `python -m ziglang cc`.
+# Queda en el mismo entorno aislado que la herramienta (uv tool install "hardboiled[zig]").
+zig = ["ziglang>=0.16.0"]
+
 [project.scripts]
 hardboiled = "hardboiled.cli:main"
 
@@ -27,7 +32,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.8",
-    # Provee `python -m ziglang cc`: compilador C para riscv32 sin toolchain del sistema.
+    # Compila los fixtures de los tests (mismo paquete que el extra [zig]).
     "ziglang>=0.16.0",
 ]
 

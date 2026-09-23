@@ -99,6 +99,11 @@ dependencies = [
     { name = "unicorn" },
 ]
 
+[package.optional-dependencies]
+zig = [
+    { name = "ziglang" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -114,7 +119,9 @@ requires-dist = [
     { name = "pyelftools", specifier = ">=0.33" },
     { name = "textual", specifier = ">=8.2.8" },
     { name = "unicorn", specifier = ">=2.1.4" },
+    { name = "ziglang", marker = "extra == 'zig'", specifier = ">=0.16.0" },
 ]
+provides-extras = ["zig"]
 
 [package.metadata.requires-dev]
 dev = [

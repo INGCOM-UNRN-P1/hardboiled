@@ -18,8 +18,18 @@ periféricos simulados (LEDs, switches, UART, timer con interrupciones).
 Requiere Python 3.12+ y [`uv`](https://docs.astral.sh/uv/). No hace falta `sudo`.
 
 ```bash
-uv venv && uv pip install -e .      # sólo la herramienta
-uv sync                             # entorno de desarrollo (tests, ruff, mypy, zig)
+uv tool install "hardboiled[zig]"   # herramienta + compilador C para RV32I (zig)
+uv tool install hardboiled          # sólo la herramienta (si ya tenés riscv*-gcc)
+```
+
+El extra `[zig]` instala el paquete `ziglang` dentro del entorno aislado de la
+herramienta: no toca el sistema ni requiere `sudo`, pero pesa decenas de MB.
+
+Desde el repositorio:
+
+```bash
+uv venv && uv pip install -e ".[zig]"   # instalación editable
+uv sync                                 # entorno de desarrollo (tests, ruff, mypy, zig)
 ```
 
 ## Compilar un programa
