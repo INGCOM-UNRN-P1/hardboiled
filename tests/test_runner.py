@@ -157,6 +157,16 @@ async def test_tui_drives_runner() -> None:
         variables = app.query_one(VariablesView)
         await settle(lambda: any(v.name == "ticks" for v in variables._globals))
 
+        # Desensamblado mixto: `d` lo muestra, con la instrucción del PC marcada.
+        from hardboiled.ui.widgets.disasm_view import DisassemblyView
+
+        disasm = app.query_one(DisassemblyView)
+        assert not disasm.display
+        await pilot.press("d")
+        await settle(lambda: disasm.display and disasm.option_count > 0)
+        pc = app._suspended.pc if app._suspended else -1
+        assert any(row is not None and row.address == pc for row in disasm._rows)
+
         await pilot.press("f5")
         uart = app.query_one("#uart", Log)
         await settle(lambda: "hola" in "".join(str(line) for line in uart.lines))

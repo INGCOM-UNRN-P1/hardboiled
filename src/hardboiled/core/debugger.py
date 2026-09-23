@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
+from hardboiled.core.disasm import Instruction, disassemble
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import VariableInfo
@@ -208,6 +209,29 @@ class Debugger:
     def backtrace(self) -> list[Frame]:
         """Pila de llamadas: el marco 0 es la función en curso."""
         return self.unwinder.unwind(self.cpu)
+
+    # ---------------------------------------------------------- desensamblado
+
+    def disassemble_around(self, pc: int | None = None, limit: int = 400) -> list[Instruction]:
+        """La función que contiene `pc` completa o, sin función, desde la etiqueta previa."""
+        pc = self.cpu.pc if pc is None else pc
+        read = self.cpu.read_memory
+        function = self.image.function_at(pc)
+        if function is not None:
+            symbol = self.image.symbols[function]
+            start, end = symbol.address, symbol.address + symbol.size
+        else:
+            label = self.image.nearest_symbol(pc)
+            start = pc - label[1] if label is not None and label[1] < 0x400 else pc
+            end = pc + 64
+        if (end - start) // 2 > limit:  # funciones enormes: una ventana alrededor del PC
+            start = max(start, pc - limit)
+            end = min(end, pc + limit)
+        instructions = disassemble(read, start, end, self.image.describe, limit)
+        if pc not in {i.address for i in instructions}:
+            # Arrancó a mitad de una instrucción (datos en .text): se desensambla desde el PC.
+            instructions = disassemble(read, pc, pc + 64, self.image.describe, limit)
+        return instructions
 
     # ------------------------------------------------------------- variables
 

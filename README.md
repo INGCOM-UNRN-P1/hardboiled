@@ -162,6 +162,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `0`–`7` | Conmuta un switch (también: click en el botón) |
 | `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
 | `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
+| `d` | Muestra u oculta el desensamblado mixto (C + RV32I) |
 | `r` | Reset de la placa |
 | `q` | Salir |
 
@@ -195,6 +196,13 @@ sesiones** en `.hardboiled/<programa>.breakpoints.json`, junto al ELF o al
 primer fuente, con rutas relativas y ubicados por archivo:línea (sobreviven a
 recompilar). Se desactiva con `--no-save-breakpoints` o `save_breakpoints =
 false` en `config.toml`.
+
+El **desensamblado** (`d`) muestra la función en curso intercalando cada
+línea de C con sus instrucciones RV32I (con pseudoinstrucciones como `li`,
+`mv`, `ret` o `call` y los destinos de saltos con su símbolo); la instrucción
+actual se marca con `▶` y Enter o click sobre una instrucción pone un
+breakpoint en esa dirección. Junto con `F7` (stepi) permite seguir el código
+de máquina paso a paso.
 
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
@@ -275,6 +283,7 @@ Vista (ui/)            ── cmd_queue: CmdStepInto, CmdContinue, CmdToggleSwit
 | `core/unwind.py` | Pila de llamadas: CFI de DWARF, frame pointer y marcos de interrupción. |
 | `core/variables.py` | Variables y tipos C desde `.debug_info`, evaluación de ubicaciones DWARF. |
 | `core/expressions.py` | Evaluador de expresiones C (watchpoints y condiciones). |
+| `core/disasm.py` | Desensamblador RV32I/M/Zicsr/C con pseudoinstrucciones. |
 | `core/dwarf.py` / `core/elf.py` | Tabla de líneas DWARF (PC ⇄ archivo:línea), segmentos y símbolos. |
 | `core/pic.py` | Controlador de interrupciones virtual. |
 | `core/machine.py` | Arma la placa a partir de `board.toml`. |

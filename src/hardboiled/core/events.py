@@ -155,6 +155,17 @@ class VariableInfo:
 
 
 @dataclass(frozen=True)
+class DisasmLine:
+    """Una instrucción desensamblada con la línea de C a la que pertenece."""
+
+    address: int
+    raw: str  # bytes en hexadecimal ("fe010113" o "1141")
+    text: str  # "addi sp, sp, -32"
+    source_file: str | None
+    source_line: int | None
+
+
+@dataclass(frozen=True)
 class FrameInfo:
     """Un marco de la pila de llamadas (el 0 es la función en curso)."""
 
@@ -196,6 +207,8 @@ class EvtCpuSuspended:
     # Variables locales del marco 0 y globales del programa.
     locals: tuple[VariableInfo, ...] = field(default=())
     global_vars: tuple[VariableInfo, ...] = field(default=())
+    # Instrucciones de la función en curso (o alrededor del PC si no hay función).
+    disassembly: tuple[DisasmLine, ...] = field(default=())
 
 
 @dataclass(frozen=True)

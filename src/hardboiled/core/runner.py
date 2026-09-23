@@ -35,6 +35,7 @@ from hardboiled.core.events import (
     CmdToggleWatchpoint,
     Command,
     ConditionInfo,
+    DisasmLine,
     Event,
     EvtBreakpointsChanged,
     EvtCpuRunning,
@@ -320,7 +321,25 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         frames=frame_infos(machine, frames),
         locals=machine.debugger.locals_of(frames[0] if frames else None),
         global_vars=machine.debugger.global_variables(),
+        disassembly=disassembly_lines(machine, pc),
     )
+
+
+def disassembly_lines(machine: Machine, pc: int) -> tuple[DisasmLine, ...]:
+    lines = []
+    for instruction in machine.debugger.disassemble_around(pc):
+        location = machine.lines.lookup(instruction.address)
+        width = instruction.size * 2
+        lines.append(
+            DisasmLine(
+                instruction.address,
+                f"{instruction.raw:0{width}x}",
+                instruction.text,
+                location.file if location else None,
+                location.line if location else None,
+            )
+        )
+    return tuple(lines)
 
 
 def frame_infos(machine: Machine, frames: list[Frame]) -> tuple[FrameInfo, ...]:

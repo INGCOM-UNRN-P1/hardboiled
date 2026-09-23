@@ -51,6 +51,7 @@ from hardboiled.core.events import (
 from hardboiled.ui.widgets.backtrace_view import BacktraceView
 from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
+from hardboiled.ui.widgets.disasm_view import DisassemblyView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.prompt import Prompt
@@ -85,6 +86,8 @@ class HardboiledApp(App[None]):
     #code { height: 1fr; border: round $primary; }
     #code:focus { border: round $accent; }
     #uart { height: 9; border: round $primary; }
+    #disasm { display: none; }
+    #disasm.visible { display: block; }
     #status { height: 1; padding: 0 1; background: $panel; }
     """
 
@@ -108,6 +111,7 @@ class HardboiledApp(App[None]):
         Binding("u", "step_back", show=False),
         Binding("g", "run_to_cursor", show=False),
         Binding("w", "watch", "Watch"),
+        Binding("d", "toggle_disassembly", "ASM"),
         Binding("B", "conditional_breakpoint", show=False),
         Binding("ctrl+f9", "conditional_breakpoint", show=False),
         Binding("r", "reset", "Reset"),
@@ -137,6 +141,7 @@ class HardboiledApp(App[None]):
         with Horizontal(id="main"):
             with Vertical(id="left"):
                 yield CodeView(id="code")
+                yield DisassemblyView(id="disasm")
                 yield Log(id="uart", highlight=False)
             with VerticalScroll(id="right"):
                 yield HardwareView(id="hardware")
@@ -222,6 +227,7 @@ class HardboiledApp(App[None]):
                 )
                 self._refresh_breakpoints()
                 self.query_one(BreakpointsView).update_points(event)
+                self.query_one(DisassemblyView).set_breakpoints(event.addresses)
             case EvtTrap():
                 where = f" (dirección 0x{event.fault_address:08x})" if event.fault_address else ""
                 self.notify(f"{event.reason}{where}", title="TRAP", severity="error", timeout=10)
@@ -236,6 +242,7 @@ class HardboiledApp(App[None]):
         self._suspended = event
         self._show_location(event.source_file, event.source_line)
         self.query_one(BacktraceView).set_frames(event.frames)
+        self.query_one(DisassemblyView).show(event.disassembly, event.pc)
         function = event.frames[0].label if event.frames else event.function
         self.query_one(VariablesView).set_variables(event.locals, event.global_vars, function)
         self.query_one(RegistersView).set_registers(event.registers)
@@ -356,6 +363,14 @@ class HardboiledApp(App[None]):
             ),
             submit,
         )
+
+    def action_toggle_disassembly(self) -> None:
+        self.query_one(DisassemblyView).toggle_class("visible")
+
+    def on_disassembly_view_address_breakpoint_requested(
+        self, message: DisassemblyView.AddressBreakpointRequested
+    ) -> None:
+        self.send(CmdToggleAddressBreakpoint(message.address))
 
     def action_watch(self) -> None:
         def submit(expression: str | None) -> None:
