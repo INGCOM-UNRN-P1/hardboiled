@@ -16,11 +16,13 @@ from hardboiled.core.events import (
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
+    CmdSetClock,
     CmdStepOver,
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
     EvtBreakpointsChanged,
+    EvtClockChanged,
     EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
@@ -338,3 +340,12 @@ async def test_tui_user_keymap() -> None:
         assert app._suspended is not first and app._suspended is not None
         assert app._suspended.source_line == line_of("basic.c", "main_store")
         await pilot.press("q")
+
+
+def test_runner_set_clock(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    assert h.wait_for(EvtClockChanged).hz is None  # placa de los tests: sin límite
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdSetClock(2_000_000))
+    assert h.wait_for(EvtClockChanged).hz == 2_000_000
+    assert h.machine.cpu.clock_hz == 2_000_000

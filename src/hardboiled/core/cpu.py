@@ -497,6 +497,11 @@ class Cpu:
         origin_time, origin_cycles = self._pace_origin
         return origin_time + (self.clock.cycles - origin_cycles) / self.clock_hz > time.monotonic()
 
+    def set_clock(self, hz: int | None) -> None:
+        """Cambia la frecuencia nominal; el acompasado arranca de cero desde ahora."""
+        self.clock_hz = hz
+        self._pace_origin = (time.monotonic(), self.clock.cycles)
+
     def refresh_deadline(self) -> None:
         """Recalcula el próximo evento temporal (tras un estímulo externo)."""
         self._refresh_deadline()

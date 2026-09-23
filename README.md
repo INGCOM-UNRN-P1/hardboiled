@@ -171,6 +171,7 @@ valores cambiados subrayados.
 | `x` | Cambia el formato de los registros: hex, con signo, sin signo, ASCII, símbolo |
 | `f` | Abre otro archivo fuente del programa (para poner breakpoints antes de llegar) |
 | `?` | Ayuda: atajos vigentes, marcadores y mapa de memoria de la placa |
+| `+` / `-` / `=` | Reloj de la CPU al doble / a la mitad / alterna fijo y sin límite |
 | `r` | Reset de la placa |
 | `q` | Salir |
 

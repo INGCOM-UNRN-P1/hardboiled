@@ -46,3 +46,12 @@ def test_normalize_keys() -> None:
     assert normalize_keys("F8, n") == "f8,n"
     assert normalize_keys("/,?") == "slash,question_mark"
     assert normalize_keys("B") == "B"  # una letra conserva mayúsculas (Shift)
+
+
+def test_format_hz() -> None:
+    from hardboiled.ui.tui import format_hz
+
+    assert format_hz(1_000_000) == "1 MHz"
+    assert format_hz(250_000) == "250 kHz"
+    assert format_hz(500) == "500 Hz"
+    assert format_hz(None).startswith("sin límite")

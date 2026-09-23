@@ -112,6 +112,13 @@ class CmdPressButton:
 
 
 @dataclass(frozen=True)
+class CmdSetClock:
+    """Frecuencia nominal de la CPU (None = tan rápido como se pueda)."""
+
+    hz: int | None
+
+
+@dataclass(frozen=True)
 class CmdToggleSwitch:
     pin_index: int
 
@@ -147,6 +154,7 @@ Command = (
     | CmdReadMemory
     | CmdUartInput
     | CmdPressButton
+    | CmdSetClock
     | CmdToggleSwitch
     | CmdPause
     | CmdReset
@@ -348,6 +356,11 @@ class EvtBreakpointsChanged:
 
 
 @dataclass(frozen=True)
+class EvtClockChanged:
+    hz: int | None
+
+
+@dataclass(frozen=True)
 class EvtMessage:
     """Aviso informativo para mostrar al usuario."""
 
@@ -367,6 +380,7 @@ Event = (
     | EvtProgramExited
     | EvtBreakpointsChanged
     | EvtMessage
+    | EvtClockChanged
 )
 
 

@@ -26,6 +26,7 @@ from hardboiled.core.events import (
     CmdRunToLine,
     CmdSelectFrame,
     CmdSetBreakpointCondition,
+    CmdSetClock,
     CmdShutdown,
     CmdStepBack,
     CmdStepInstruction,
@@ -42,6 +43,7 @@ from hardboiled.core.events import (
     DisasmLine,
     Event,
     EvtBreakpointsChanged,
+    EvtClockChanged,
     EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
@@ -107,6 +109,7 @@ class RunnerThread(threading.Thread):
 
     def _announce(self) -> None:
         machine = self.machine
+        self._emit(EvtClockChanged(machine.cpu.clock_hz))
         self._emit(
             EvtProgramLoaded(
                 elf_path=str(machine.image.path),
@@ -212,6 +215,10 @@ class RunnerThread(threading.Thread):
                         raise DebuggerError("la placa no tiene botones")
                     buttons.press(pin)
                     self.machine.cpu.refresh_deadline()  # el botón se suelta solo
+                    return
+                case CmdSetClock(hz=hz):
+                    self.machine.cpu.set_clock(hz)
+                    self._emit(EvtClockChanged(hz))
                     return
                 case CmdUartInput(data=data):
                     uart = self.machine.uart()

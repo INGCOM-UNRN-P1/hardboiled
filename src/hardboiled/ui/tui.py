@@ -28,6 +28,7 @@ from hardboiled.core.events import (
     CmdRunToLine,
     CmdSelectFrame,
     CmdSetBreakpointCondition,
+    CmdSetClock,
     CmdShutdown,
     CmdStepBack,
     CmdStepInstruction,
@@ -42,6 +43,7 @@ from hardboiled.core.events import (
     Command,
     Event,
     EvtBreakpointsChanged,
+    EvtClockChanged,
     EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
@@ -93,6 +95,9 @@ DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
     ("goto_line", "colon", ""),
     ("register_format", "x", ""),
     ("conditional_breakpoint", "B,ctrl+f9", ""),
+    ("clock_faster", "plus", ""),
+    ("clock_slower", "minus", ""),
+    ("clock_unlimited", "equals_sign", ""),
     ("help", "question_mark", "Ayuda"),
     ("reset", "r", "Reset"),
     ("quit", "q", "Salir"),
@@ -111,6 +116,20 @@ def normalize_keys(keys: str) -> str:
         for k in keys.split(",")
         if k.strip()
     )
+
+
+MIN_CLOCK_HZ = 1_000
+MAX_CLOCK_HZ = 100_000_000
+DEFAULT_CLOCK_HZ = 1_000_000
+
+
+def format_hz(hz: int | None) -> str:
+    if hz is None:
+        return "sin límite (+/- para fijarlo, = alterna)"
+    for unit, scale in (("MHz", 1_000_000), ("kHz", 1_000)):
+        if hz >= scale:
+            return f"{hz / scale:g} {unit}"
+    return f"{hz} Hz"
 
 
 def parse_condition(text: str) -> tuple[str | None, int | None]:
@@ -173,6 +192,8 @@ class HardboiledApp(App[None]):
         self._source_files: tuple[str, ...] = ()
         self._last_search = ""
         self._program: EvtProgramLoaded | None = None
+        self._clock_hz: int | None = None
+        self._last_clock_hz = DEFAULT_CLOCK_HZ
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -312,6 +333,11 @@ class HardboiledApp(App[None]):
                 self._pending_trap = event
             case EvtProgramExited():
                 self.notify(f"main() devolvió {event.exit_code}", title="Programa terminado")
+            case EvtClockChanged():
+                if event.hz is not None:
+                    self._last_clock_hz = event.hz
+                self._clock_hz = event.hz
+                self._update_clock_title()
             case EvtMessage():
                 self.notify(event.text, severity="warning")
             case EvtUartOutput():
@@ -386,6 +412,9 @@ class HardboiledApp(App[None]):
             frozenset(line for f, line in self._breakpoints if f == code.file),
             frozenset(line for f, line in self._conditional if f == code.file),
         )
+
+    def _update_clock_title(self) -> None:
+        self.query_one("#hardware").border_title = f"Placa · reloj {format_hz(self._clock_hz)}"
 
     def _set_status(self, text: Text) -> None:
         self.query_one("#status", Static).update(text)
@@ -523,6 +552,23 @@ class HardboiledApp(App[None]):
                 self.notify(f"línea inválida: {text}", severity="warning")
 
         self.push_screen(Prompt("Ir a la línea:", "número"), submit)
+
+    def _change_clock(self, hz: int | None) -> None:
+        self.send(CmdSetClock(hz))
+
+    def action_clock_faster(self) -> None:
+        if self._clock_hz is not None:
+            self._change_clock(min(self._clock_hz * 2, MAX_CLOCK_HZ))
+
+    def action_clock_slower(self) -> None:
+        current = self._clock_hz or self._last_clock_hz
+        self._change_clock(max(current // 2, MIN_CLOCK_HZ))
+
+    def action_clock_unlimited(self) -> None:
+        if self._clock_hz is None:
+            self._change_clock(self._last_clock_hz)
+        else:
+            self._change_clock(None)
 
     def action_open_file(self) -> None:
         if not self._source_files:
