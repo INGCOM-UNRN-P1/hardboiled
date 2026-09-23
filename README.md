@@ -184,6 +184,12 @@ Los **breakpoints condicionales** (`B`, marcados `◆`) detienen sólo si una
 expresión C es verdadera en ese punto y/o a partir de la pasada N (`#N`):
 evitan apretar F5 decenas de veces dentro de un bucle.
 
+Breakpoints, condiciones y watchpoints de globales se **recuerdan entre
+sesiones** en `.hardboiled/<programa>.breakpoints.json`, junto al ELF o al
+primer fuente, con rutas relativas y ubicados por archivo:línea (sobreviven a
+recompilar). Se desactiva con `--no-save-breakpoints` o `save_breakpoints =
+false` en `config.toml`.
+
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
 click) muestra su línea marcada con `▷` y sus variables locales.

@@ -73,4 +73,5 @@ def cmd_copy(args: argparse.Namespace) -> int:
 
 def cmd_demo(args: argparse.Namespace) -> int:
     args.program = [str(_example(args.name))]
+    args.no_save_breakpoints = True  # los ejemplos instalados pueden ser de sólo lectura
     return cmd_run(args)

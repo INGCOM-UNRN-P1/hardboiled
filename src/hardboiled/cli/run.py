@@ -21,6 +21,7 @@ from hardboiled.cli.common import (
 from hardboiled.core.cpu import StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput
 from hardboiled.core.machine import Machine
+from hardboiled.core.session import BreakpointStore
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
 
@@ -45,6 +46,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-instructions", type=parse_int, help="cuota de instrucciones")
     parser.add_argument(
         "--no-stop-at-main", action="store_true", help="no detenerse al inicio de main()"
+    )
+    parser.add_argument(
+        "--no-save-breakpoints",
+        action="store_true",
+        help="no recordar breakpoints en .hardboiled/ junto al programa",
     )
     parser.add_argument(
         "--realtime",
@@ -102,7 +108,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         board = board.model_copy(
             update={"board": board.board.model_copy(update={"clock_hz": None})}
         )
-    machine = load_machine(resolve_program(args), board)
+    elf = resolve_program(args)
+    machine = load_machine(elf, board)
     if args.switches is not None:
         switches = machine.switches()
         if switches is None:
@@ -117,7 +124,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     cmd_queue: queue.Queue[Command] = queue.Queue()
     evt_queue: queue.Queue[Event] = queue.Queue()
     stop_at_main = prefs.stop_at_main and not args.no_stop_at_main
-    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main=stop_at_main)
+    store = None
+    if prefs.save_breakpoints and not args.no_save_breakpoints:
+        # Junto a lo que escribió el alumno: el ELF o el primer fuente (no la caché).
+        store = BreakpointStore.for_program(Path(args.program[0]))
+    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main, store)
     HardboiledApp(cmd_queue, evt_queue, runner, user_config(args).ui).run()
     return 0
 

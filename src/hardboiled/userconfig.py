@@ -28,6 +28,7 @@ TEMPLATE = """\
 [run]
 # clock_hz = 1_000_000     # reemplaza el clock_hz de la placa en la TUI
 # stop_at_main = true
+# save_breakpoints = true  # recordar breakpoints en .hardboiled/ junto al programa
 
 [ui]
 # theme = "dark"           # dark o light (proyector del aula)
@@ -57,6 +58,7 @@ class BuildPrefs(_Model):
 class RunPrefs(_Model):
     clock_hz: int | None = Field(default=None, gt=0)
     stop_at_main: bool = True
+    save_breakpoints: bool = True
 
 
 class UiPrefs(_Model):

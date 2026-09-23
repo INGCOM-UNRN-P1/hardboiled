@@ -47,6 +47,7 @@ from hardboiled.core.events import (
     WatchInfo,
 )
 from hardboiled.core.machine import Machine
+from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import LedBar, SwitchBank
 
@@ -58,9 +59,11 @@ class RunnerThread(threading.Thread):
         cmd_queue: queue.Queue[Command],
         evt_queue: queue.Queue[Event],
         stop_at_main: bool = True,
+        store: BreakpointStore | None = None,
     ) -> None:
         super().__init__(name="hardboiled-runner", daemon=True)
         self.machine = machine
+        self.store = store
         self.cmd_queue = cmd_queue
         self.evt_queue = evt_queue
         self.stop_at_main = stop_at_main
@@ -77,6 +80,7 @@ class RunnerThread(threading.Thread):
 
     def run(self) -> None:
         self._announce()
+        self._restore_breakpoints()
         self._boot()
         while not self._shutdown:
             command = self._deferred.popleft() if self._deferred else self.cmd_queue.get()
@@ -93,6 +97,17 @@ class RunnerThread(threading.Thread):
                 peripherals=machine.peripheral_info(),
             )
         )
+
+    def _restore_breakpoints(self) -> None:
+        if self.store is None:
+            return
+        failed = self.store.restore(self.machine.debugger)
+        if failed:
+            self._emit(
+                EvtMessage("no se pudieron restaurar: " + ", ".join(failed) + " (código cambiado)")
+            )
+        if self.machine.debugger.line_breakpoints or self.machine.debugger.watchpoints:
+            self._emit_breakpoints()
 
     def _boot(self) -> None:
         for dev in self.machine.peripherals:
@@ -181,6 +196,8 @@ class RunnerThread(threading.Thread):
             for w in debugger.watchpoints
         )
         self._known_watches = {w.expression for w in watches}
+        if self.store is not None:
+            self.store.save(debugger)
         self._emit(
             EvtBreakpointsChanged(debugger.line_breakpoints, debugger.address_breakpoints, watches)
         )
