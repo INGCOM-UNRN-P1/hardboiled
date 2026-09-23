@@ -510,8 +510,15 @@ class Debugger:
 
     # ------------------------------------------------------------- ejecución
 
-    def _run(self, predicate: Callable[[int], bool]) -> StopInfo:
-        stop = self._run_raw(predicate)
+    def _run(
+        self, predicate: Callable[[int], bool], addresses: frozenset[int] | None = None
+    ) -> StopInfo:
+        """Ejecuta hasta que `predicate(pc)` se cumpla (o un breakpoint, trampa, etc.).
+
+        `addresses`: si se indica, el predicado sólo puede cumplirse en esas
+        direcciones y la CPU corre en modo rápido.
+        """
+        stop = self._run_raw(predicate, addresses)
         stop = self._describe_watch_hit(stop)
         if self._breakpoint_note and stop.reason is StopReason.BREAK and not stop.message:
             stop = replace(stop, message=self._breakpoint_note)
@@ -521,7 +528,9 @@ class Debugger:
             stop = replace(stop, message=f"{stop.message}; {note}" if stop.message else note)
         return stop
 
-    def _run_raw(self, predicate: Callable[[int], bool]) -> StopInfo:
+    def _run_raw(
+        self, predicate: Callable[[int], bool], addresses: frozenset[int] | None
+    ) -> StopInfo:
         breakpoints = self._active
         cpu = self.cpu
         start_pc = cpu.pc
@@ -538,17 +547,19 @@ class Debugger:
             return (pc in breakpoints and self._breakpoint_fires(pc)) or predicate(pc)
 
         self._breakpoint_note = None
-        self.cpu.stop_check = check
+        cpu.stop_check = check
+        cpu.stop_addresses = None if addresses is None else frozenset(breakpoints) | addresses
         try:
-            return self.cpu.run()
+            return cpu.run()
         finally:
-            self.cpu.stop_check = None
+            cpu.stop_check = None
+            cpu.stop_addresses = None
 
     def continue_(self) -> StopInfo:
-        return self._run(lambda pc: False)
+        return self._run(lambda pc: False, frozenset())
 
     def run_to(self, address: int) -> StopInfo:
-        return self._run(lambda pc: pc == address)
+        return self._run(lambda pc: pc == address, frozenset({address}))
 
     def run_to_line(self, line: int, source_file: str | None = None) -> StopInfo:
         """Ejecuta hasta la línea indicada (o la siguiente con código) sin dejar breakpoint.
@@ -606,7 +617,7 @@ class Debugger:
             stop = self._run(lambda pc: pic.depth < depth)
             return self._with_message(stop, f"fin de la interrupción ({function})")
         return_pc, cfa = frames[1].pc, frames[0].cfa
-        stop = self._run(lambda pc: pc == return_pc and cpu.sp >= cfa)
+        stop = self._run(lambda pc: pc == return_pc and cpu.sp >= cfa, frozenset({return_pc}))
         if stop.reason is StopReason.BREAK and cpu.pc == return_pc:
             value = cpu.read_register(10)
             signed = value - (1 << 32) if value & 0x8000_0000 else value

@@ -10,12 +10,22 @@ Para que el hook sea barato, el código (que vive en Flash, de sólo lectura) se
 escanea una única vez al cargar: se indexan las direcciones de `mret`, `wfi`,
 `ebreak`/`ecall`, las llamadas (`jal`/`jalr` con rd = ra) y las instrucciones
 que escriben `sp`.
+
+Modo rápido: un hook por instrucción cuesta una llamada a Python cada vez. Si
+el depurador no necesita evaluar una condición en cada instrucción (Continue,
+Run to, Step Out; ver `stop_addresses`), el hook global se reemplaza por uno de
+bloque, que cuenta instrucciones y atiende IRQ, cuota, pausas y vencimientos
+una vez por bloque básico, y por hooks puntuales sólo en las direcciones que
+importan: breakpoints, `mret`/`wfi`/`ebreak`, divisiones, la instrucción
+siguiente a cada escritura de `sp` y los accesos a memoria que podrían estar
+desalineados. Las IRQ se toman entonces al comienzo de un bloque.
 """
 
 from __future__ import annotations
 
 import struct
 import time
+from bisect import bisect_left
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -23,6 +33,7 @@ from typing import Any
 
 from unicorn import (
     UC_ARCH_RISCV,
+    UC_HOOK_BLOCK,
     UC_HOOK_CODE,
     UC_HOOK_MEM_INVALID,
     UC_HOOK_MEM_READ,
@@ -72,6 +83,9 @@ INSN_ECALL = 0x0000_0073
 # Opcodes RV32I con campo rd (LOAD, OP-IMM, AUIPC, OP, LUI, JALR, JAL).
 _RD_OPCODES = frozenset({0x03, 0x13, 0x17, 0x33, 0x37, 0x67, 0x6F})
 _CALL_OPCODES = frozenset({0x67, 0x6F})
+_JUMP_OPCODES = frozenset({0x67, 0x6F})
+# Registros base que el ABI mantiene alineados: sp, gp (y s0 donde es frame pointer).
+_ALIGNED_BASES = frozenset({2, 3})
 
 # Contexto que la CPU virtual salva al entrar a una ISR: los registros que el
 # ABI no obliga a preservar (ra, t0-t6, a0-a7). El marco es [pc, registros...,
@@ -218,6 +232,9 @@ class Cpu:
         self.stop_check: Callable[[int], bool] | None = None
         # Consultado periódicamente durante la ejecución; True = pausar.
         self.poll: Callable[[], bool] | None = None
+        # Si no es None, `stop_check` sólo puede cumplirse en estas direcciones: la
+        # ejecución usa el modo rápido (hooks por bloque en vez de por instrucción).
+        self.stop_addresses: frozenset[int] | None = None
         # dirección de cada llamada (jal/jalr a ra, también comprimidas) -> su tamaño
         self.call_sites: dict[int, int] = {}
         self.halted: StopInfo | None = None
@@ -235,6 +252,15 @@ class Cpu:
         self._watches: dict[int, _Watch] = {}
         self._next_watch = 0
         self._watch_hit: WatchHit | None = None
+        # Modo rápido: direcciones con hook puntual (sin contar breakpoints) y conteo
+        # de instrucciones por bloque (con la extensión C no alcanza con bytes / 4).
+        self._fast_points: frozenset[int] = frozenset()
+        self._sp_checks: frozenset[int] = frozenset()
+        self._insn_addresses: list[int] | None = None
+        self._block_counts: dict[tuple[int, int], int] = {}
+        self._hooks: list[int] = []
+        self._hook_key: tuple[object, ...] | None = None
+        self._stepping = True
         self._uc = self._create_engine()
         self._reset_run_state()
 
@@ -247,7 +273,9 @@ class Cpu:
         uc.mem_map(mem.flash_base, mem.flash_size, UC_PROT_READ | UC_PROT_EXEC)
         uc.mem_map(mem.sram_base, mem.sram_size, UC_PROT_READ | UC_PROT_WRITE)
         uc.mmio_map(mem.mmio_base, mem.mmio_size, self._mmio_read, None, self._mmio_write, None)
-        uc.hook_add(UC_HOOK_CODE, self._on_code)
+        # Los hooks de ejecución (por instrucción o por bloque) se instalan en run().
+        self._hooks = []
+        self._hook_key = None
         uc.hook_add(UC_HOOK_MEM_INVALID, self._on_invalid)
         if getattr(self, "uninitialized", "off") != "off":
             end = mem.sram_base + mem.sram_size - 1
@@ -297,7 +325,7 @@ class Cpu:
         for offset in range(start, stop):
             new[offset - watch.address] = incoming[offset - address]
         if bytes(new) != old:
-            self._watch_hit = WatchHit(watch.watch_id, self._current_pc, old, bytes(new))
+            self._watch_hit = WatchHit(watch.watch_id, self._insn_pc(uc), old, bytes(new))
             self._halt(uc, _Halt.WATCH)
 
     # ------------------------------------------------------------ instantáneas
@@ -347,6 +375,13 @@ class Cpu:
         self._invalid_access: tuple[int, int] | None = None
         self._deadline = _NO_DEADLINE
         self._pace_origin = (time.monotonic(), 0)
+        self._next_poll = 0
+        self._block_pc = 0
+        self._block_base = 0
+        self._block_cycles = 0
+        self._block_size = 0
+        self._cycles_ahead = 0
+        self._counted = False
 
     def check_isa(self, image: ElfImage) -> None:
         """Rechaza programas que usan extensiones que la CPU de la placa no tiene."""
@@ -417,7 +452,24 @@ class Cpu:
         # dirección -> (registro base, offset, tamaño, es escritura) de lh/lhu/lw/sh/sw
         memory_ops: dict[int, tuple[int, int, int, bool]] = {}
         divisions: dict[int, tuple[int, str, bool]] = {}
+        sp_checks: set[int] = set()
+        frame_functions: set[int] = set()  # funciones que arman s0 = sp + n (frame pointer)
+        addresses: list[int] = []
+        functions = sorted(
+            (s.address, s.address + s.size)
+            for s in image.symbols.values()
+            if s.kind == "func" and s.size
+        )
+        starts = [start for start, _ in functions]
+
+        def function_of(address: int) -> int | None:
+            index = bisect_left(starts, address + 1) - 1
+            if index >= 0 and address < functions[index][1]:
+                return starts[index]
+            return None
+
         for address, size, word in image.instructions():
+            addresses.append(address)
             if word == INSN_MRET:
                 special[address] = _Halt.MRET
             elif word == INSN_WFI:
@@ -443,8 +495,27 @@ class Cpu:
                 calls[address] = size
             if opcode in _RD_OPCODES and rd == 2:
                 sp_writers.add(address)
+                if opcode not in _JUMP_OPCODES:
+                    sp_checks.add(address + size)  # se verifica antes de la siguiente
+            if opcode == 0x13 and funct3 == 0 and rd == 8 and rs1 == 2:  # addi s0, sp, n
+                function = function_of(address)
+                if function is not None:
+                    frame_functions.add(function)
         self._special = special
         self._memory_ops = memory_ops if self.misaligned == "trap" else {}
+        # En modo rápido no se vigilan los accesos relativos a registros que el ABI
+        # mantiene alineados (sp, gp, y s0 en funciones con frame pointer).
+        risky = {
+            address
+            for address, (base, offset, size, _) in self._memory_ops.items()
+            if offset % size
+            or not (
+                base in _ALIGNED_BASES or (base == 8 and function_of(address) in frame_functions)
+            )
+        }
+        self._sp_checks = frozenset(sp_checks)
+        self._insn_addresses = addresses if "c" in image.extensions else None
+        self._block_counts = {}
         if self.div_by_zero != "off":
             for name, operation in SOFTWARE_DIVISION.items():
                 entry = image.symbol_address(name)
@@ -455,6 +526,10 @@ class Cpu:
             self._divisions = {}
         self.call_sites = calls
         self._sp_writers = frozenset(sp_writers)
+        self._fast_points = (
+            frozenset(special) | risky | frozenset(self._divisions) | self._sp_checks
+        )
+        self._hook_key = None
 
     def _region_of(self, address: int, size: int = 1) -> str | None:
         if address + size <= NULL_GUARD_END:
@@ -544,15 +619,28 @@ class Cpu:
             self.max_instructions += self.quota_step
         self._refresh_deadline()
         self._pace_origin = (time.monotonic(), self.clock.cycles)
+        self._install_hooks()
         while True:
             self._pending_halt = None
             self._watch_hit = None
             self._fault = None
             self._invalid_access = None
+            self._counted = False
             try:
                 self._uc.emu_start(self.pc, _UNTIL)
             except UcError as exc:
+                if (
+                    not self._stepping
+                    and self._invalid_access is not None
+                    and (self._invalid_access[0] in (UC_MEM_FETCH_PROT, UC_MEM_FETCH_UNMAPPED))
+                ):
+                    # Tras un salto a una dirección inválida el PC no es preciso: el
+                    # culpable es el salto, la última instrucción del bloque.
+                    self._current_pc = self._last_in_block()
+                else:
+                    self._sync_count()
                 return self._terminate(self._trap_from_error(exc))
+            self._sync_count()
             halt = self._pending_halt
             pc = self.pc
             if halt is _Halt.CHECK:
@@ -703,6 +791,159 @@ class Cpu:
             self.bus.service(clock.cycles)
             self._refresh_deadline()
 
+    # ------------------------------------------------------------ modo rápido
+
+    def _install_hooks(self) -> None:
+        """Instala el hook por instrucción o, si alcanza, los del modo rápido."""
+        stops = self.stop_addresses
+        stepping = self.stop_check is not None and stops is None
+        key: tuple[object, ...] = ("step",) if stepping else ("fast", stops or frozenset())
+        if key == self._hook_key:
+            return
+        uc = self._uc
+        for handle in self._hooks:
+            uc.hook_del(handle)
+        if stepping:
+            self._hooks = [uc.hook_add(UC_HOOK_CODE, self._on_code)]
+        else:
+            mmio_end = self.memory.mmio_base + self.memory.mmio_size - 1
+            self._hooks = [
+                uc.hook_add(UC_HOOK_BLOCK, self._on_block),
+                uc.hook_add(
+                    UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE,
+                    self._on_mmio_access,
+                    begin=self.memory.mmio_base,
+                    end=mmio_end,
+                ),
+            ]
+            for address in sorted(self._fast_points | (stops or frozenset())):
+                handle = uc.hook_add(UC_HOOK_CODE, self._on_point, begin=address, end=address)
+                self._hooks.append(handle)
+        self._stepping = stepping
+        self._hook_key = key
+
+    def _count(self, address: int, length: int) -> int:
+        """Instrucciones en [address, address + length)."""
+        addresses = self._insn_addresses
+        if addresses is None:
+            return length >> 2
+        return bisect_left(addresses, address + length) - bisect_left(addresses, address)
+
+    def _last_in_block(self) -> int:
+        end = self._block_pc + self._block_size
+        addresses = self._insn_addresses
+        if addresses is None:
+            return end - 4
+        return addresses[max(bisect_left(addresses, end) - 1, 0)]
+
+    def _on_mmio_access(
+        self, uc: Uc, access: int, address: int, size: int, value: int, _data: Any
+    ) -> None:
+        """Antes de un acceso MMIO: el reloj pasa al ciclo exacto de la instrucción
+        (el bloque lo había adelantado entero) para que el periférico lo vea bien."""
+        pc: int = uc.reg_read(_PC)
+        self._current_pc = pc
+        precise = self._block_cycles + self._count(self._block_pc, pc - self._block_pc) + 1
+        self._cycles_ahead = self.clock.cycles - precise
+        self.clock.cycles = precise
+
+    def _catch_up(self) -> None:
+        if self._cycles_ahead:
+            self.clock.cycles += self._cycles_ahead
+            self._cycles_ahead = 0
+
+    def _halt_counted(self, uc: Uc, reason: _Halt) -> None:
+        self._counted = True
+        self._halt(uc, reason)
+
+    def _sync_count(self) -> None:
+        """Tras detenerse fuera de los hooks de bloque/punto (memoria, MMIO, falla),
+        ajusta los contadores a las instrucciones del bloque que llegaron a ejecutarse."""
+        if self._stepping or self._counted:
+            return
+        pc = self.pc
+        if not 0 <= pc - self._block_pc < 0x1_0000:
+            return
+        done = self._block_base + self._count(self._block_pc, pc - self._block_pc)
+        self.clock.cycles -= self.instructions - done
+        self.instructions = done
+        self._current_pc = pc
+
+    def _on_block(self, uc: Uc, address: int, size: int, _data: Any) -> None:
+        if self._pending_halt is not None:
+            uc.emu_stop()
+            return
+        self._block_pc = address
+        self._block_base = self.instructions
+        self._current_pc = address
+        if self.pic.ready:
+            self._halt_counted(uc, _Halt.IRQ)
+            return
+        if self.instructions >= self.max_instructions:
+            self._halt_counted(uc, _Halt.QUOTA)
+            return
+        if self.instructions >= self._next_poll:
+            self._next_poll = (self.instructions | POLL_INTERVAL_MASK) + 1
+            if self._pace_and_poll():
+                self._halt_counted(uc, _Halt.PAUSE)
+                return
+        key = (address, size)
+        count = self._block_counts.get(key)
+        if count is None:
+            count = self._block_counts[key] = self._count(address, size)
+        self.instructions += count
+        clock = self.clock
+        self._block_cycles = clock.cycles
+        self._block_size = size
+        clock.cycles += count
+        if clock.cycles >= self._deadline:
+            self.bus.service(clock.cycles)
+            self._refresh_deadline()
+
+    def _on_point(self, uc: Uc, address: int, size: int, _data: Any) -> None:
+        """Hook puntual del modo rápido: las verificaciones de `_on_code` que aplican acá."""
+        if self._pending_halt is not None:
+            uc.emu_stop()
+            return
+        self._current_pc = address
+        full = self.instructions
+        before = self._count(self._block_pc, address - self._block_pc)
+        self.instructions = self._block_base + before  # las anteriores a ésta en el bloque
+        halt = self._point_halt(uc, address)
+        if halt is None:
+            self.instructions = full
+            return
+        self.clock.cycles = self._block_cycles + before
+        self._halt_counted(uc, halt)
+
+    def _point_halt(self, uc: Uc, address: int) -> _Halt | None:
+        check = self.stop_check
+        if check is not None and check(address):
+            return _Halt.CHECK
+        special = self._special.get(address)
+        if special is not None:
+            return special
+        access = self._memory_ops.get(address)
+        if access is not None and self._misaligned_access(uc, access):
+            return _Halt.FAULT
+        division = self._divisions.get(address)
+        if division is not None and self._division_by_zero(uc, address, division):
+            return _Halt.DIAGNOSTIC
+        if address in self._sp_checks:
+            sp = uc.reg_read(_SP)
+            if sp < self.stack_floor:
+                return _Halt.STACK
+            if self._shadow is not None:
+                self._track_stack(sp)
+        return None
+
+    def _insn_pc(self, uc: Uc) -> int:
+        """PC de la instrucción en curso desde un hook de memoria (preciso en ambos modos)."""
+        if self._stepping:
+            return self._current_pc
+        pc: int = uc.reg_read(_PC)
+        return pc
+
     def _on_invalid(
         self, uc: Uc, access: int, address: int, size: int, value: int, _data: Any
     ) -> bool:
@@ -759,7 +1000,7 @@ class Cpu:
         start = address - self.memory.sram_base
         if all(shadow[start : start + size]):
             return
-        pc = self._current_pc
+        pc = self._insn_pc(uc)
         name = self.name_address(address) if self.name_address is not None else None
         what = f"`{name}`" if name else f"memoria de la pila en 0x{address:08x}"
         message = (
@@ -824,6 +1065,8 @@ class Cpu:
         except MmioFault as fault:
             self._mmio_fault(uc, fault, offset)
             return 0
+        finally:
+            self._catch_up()
 
     def _mmio_write(self, uc: Uc, offset: int, size: int, value: int, _data: Any) -> None:
         try:
@@ -831,6 +1074,8 @@ class Cpu:
         except MmioFault as fault:
             self._mmio_fault(uc, fault, offset)
             return
+        finally:
+            self._catch_up()
         self._refresh_deadline()
 
     # -------------------------------------------------------- interrupciones

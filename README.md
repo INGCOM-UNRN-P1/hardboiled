@@ -364,8 +364,15 @@ variable: `lectura de `suma` sin inicializar`. Una memoria "sombra" marca los
 bytes escritos de la SRAM y, cada vez que se reserva pila, lo reservado vuelve
 a quedar sin valor (así se detecta una local sin inicializar aunque ese lugar
 lo haya usado antes otra función). Se configura con `uninitialized` en
-`[board]`; cuesta aproximadamente un tercio de velocidad en código con muchos
-accesos a memoria.
+`[board]`; en código con muchos accesos a memoria corre a la mitad de la
+velocidad.
+
+Continue, Run to y Step Out corren en **modo rápido**: la CPU sólo interviene
+una vez por bloque básico y en las instrucciones que importan (breakpoints,
+`mret`/`wfi`, divisiones, cambios de `sp`, accesos a memoria que podrían estar
+desalineados), en lugar de en cada instrucción. Rinde unos 1,7 millones de
+instrucciones por segundo, cuatro veces más que el paso a paso, con la misma
+cuenta de instrucciones y ciclos. Las IRQ se toman al comienzo de un bloque.
 
 Agotar la cuota de instrucciones (`max_instructions`) no es una trampa: la CPU
 se suspende con un aviso y, si se continúa (F5), se habilita otra cuota igual;
