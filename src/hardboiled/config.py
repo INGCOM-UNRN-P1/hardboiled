@@ -61,6 +61,9 @@ class BoardInfo(_Model):
     # "globals": la pila no puede bajar del fin de .bss (detecta el desborde antes de
     # que pise variables); "sram": sólo al salir de la SRAM.
     stack_guard: Literal["globals", "sram"] = "globals"
+    # "trap": un lw/sw/lh/sh a una dirección no múltiplo de su tamaño es una trampa
+    # (como en muchos microcontroladores); "allow": se resuelve en silencio.
+    misaligned: Literal["trap", "allow"] = "trap"
 
 
 class MemoryConfig(_Model):

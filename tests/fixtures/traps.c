@@ -36,6 +36,10 @@ int main(void)
         return 0;
     case 9: /* ejecutar datos de la SRAM */
         return ((int (*)(void))(uintptr_t)not_code)();
+    case 10: { /* acceso desalineado: la dirección se calcula en ejecución */
+        uintptr_t address = (uintptr_t)&not_code[0] + (switch_get() - 9); /* +1 */
+        return *(volatile int *)address;
+    }
     default:
         return 0;
     }

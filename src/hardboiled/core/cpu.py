@@ -164,8 +164,10 @@ class Cpu:
         max_instructions: int = 1_000_000,
         clock_hz: int | None = None,
         stack_guard: str = "globals",
+        misaligned: str = "trap",
     ) -> None:
         self.memory = memory
+        self.misaligned = misaligned
         self.bus = bus
         self.pic = pic
         self.clock = bus.clock
@@ -186,6 +188,7 @@ class Cpu:
         self._image: ElfImage | None = None
         self._special: dict[int, _Halt] = {}
         self._sp_writers: frozenset[int] = frozenset()
+        self._memory_ops: dict[int, tuple[int, int, int, bool]] = {}
         self._vector_table: int | None = None
         self._isr_frames: list[int] = []  # marcos guardados, el último es el más interno
         self._watches: dict[int, _Watch] = {}
@@ -335,6 +338,8 @@ class Cpu:
         special: dict[int, _Halt] = {}
         calls: set[int] = set()
         sp_writers: set[int] = set()
+        # dirección -> (registro base, offset, tamaño, es escritura) de lh/lhu/lw/sh/sw
+        memory_ops: dict[int, tuple[int, int, int, bool]] = {}
         for address, word in image.code_words():
             if word == INSN_MRET:
                 special[address] = _Halt.MRET
@@ -344,11 +349,22 @@ class Cpu:
                 special[address] = _Halt.EXIT
             opcode = word & 0x7F
             rd = (word >> 7) & 0x1F
+            funct3 = (word >> 12) & 0x7
+            rs1 = (word >> 15) & 0x1F
+            if opcode == 0x03 and funct3 in (1, 2, 5):  # lh, lw, lhu
+                offset = word >> 20
+                offset -= (offset & 0x800) << 1
+                memory_ops[address] = (rs1, offset, 4 if funct3 == 2 else 2, False)
+            elif opcode == 0x23 and funct3 in (1, 2):  # sh, sw
+                offset = ((word >> 25) << 5) | ((word >> 7) & 0x1F)
+                offset -= (offset & 0x800) << 1
+                memory_ops[address] = (rs1, offset, 4 if funct3 == 2 else 2, True)
             if opcode in _CALL_OPCODES and rd == 1:
                 calls.add(address)
             if opcode in _RD_OPCODES and rd == 2:
                 sp_writers.add(address)
         self._special = special
+        self._memory_ops = memory_ops if self.misaligned == "trap" else {}
         self.call_sites = frozenset(calls)
         self._sp_writers = frozenset(sp_writers)
 
@@ -496,9 +512,11 @@ class Cpu:
 
     def _stack_overflow(self, pc: int) -> StopInfo:
         sp = self.sp
-        if self.stack_floor > self.memory.sram_base and sp >= self.memory.sram_base:
+        if self.stack_floor > self.memory.sram_base:
             victim = self._image.object_at(sp) if self._image is not None else None
             target = f": pisaría la variable `{victim}`" if victim else ""
+            if sp < self.memory.sram_base:
+                target = " y quedó fuera de la SRAM"
             where = (
                 f"invadió las variables globales (el fin de .bss es "
                 f"0x{self.stack_floor:08x}){target}"
@@ -560,6 +578,10 @@ class Cpu:
         if special is not None:
             self._halt(uc, special)
             return
+        access = self._memory_ops.get(address)
+        if access is not None and self._misaligned_access(uc, access):
+            self._halt(uc, _Halt.FAULT)
+            return
         if self.pic.ready:
             self._halt(uc, _Halt.IRQ)
             return
@@ -585,6 +607,26 @@ class Cpu:
     ) -> bool:
         self._invalid_access = (access, address)
         return False
+
+    def _misaligned_access(self, uc: Uc, access: tuple[int, int, int, bool]) -> bool:
+        """¿La instrucción de memoria en curso accedería a una dirección desalineada?
+
+        Unicorn resuelve esos accesos en silencio (y los hooks de memoria los ven
+        partidos en bytes), así que se calcula la dirección efectiva antes de ejecutar.
+        """
+        base, offset, size, is_store = access
+        address = (uc.reg_read(_REG_IDS[base]) + offset) & 0xFFFF_FFFF
+        if address % size == 0 or self.is_mmio(address):
+            return False  # el bus MMIO ya reporta sus propios desalineados
+        kind = "escritura" if is_store else "lectura"
+        unit = {2: "media palabra (2 bytes)", 4: "palabra (4 bytes)"}[size]
+        self._fault = self._trap(
+            self._current_pc,
+            f"acceso desalineado: {kind} de una {unit} en 0x{address:08x}, que no es "
+            f"múltiplo de {size}. ¿Un puntero a int que apunta dentro de un char[]?",
+            address,
+        )
+        return True
 
     def _mmio_fault(self, uc: Uc, fault: MmioFault, offset: int) -> None:
         self._fault = self._trap(

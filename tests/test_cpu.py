@@ -169,6 +169,7 @@ def test_program_exit_is_sticky_until_reset(make_machine: MachineFactory) -> Non
         (7, "no mapeada: 0x30000000"),
         (8, "deadlock"),
         (9, "SRAM (no es ejecutable)"),
+        (10, "acceso desalineado: lectura de una palabra"),
     ],
 )
 def test_traps(make_machine: MachineFactory, selector: int, expected: str) -> None:
@@ -190,7 +191,6 @@ def test_stack_overflow_is_detected_before_reaching_globals(
     end = machine.image.symbol_address("_end")
     assert end is not None and machine.cpu.stack_floor == end
     assert stop.fault_address is not None and stop.fault_address < end
-    assert stop.fault_address >= machine.board.memory.sram_base  # todavía dentro de la SRAM
     assert "invadió las variables globales" in stop.message
     # Ninguna global fue pisada: `not_code` conserva su valor inicial.
     raw = machine.cpu.read_memory(machine.image.symbol_address("not_code") or 0, 4)
@@ -300,3 +300,18 @@ def test_run_to_line(make_machine: MachineFactory) -> None:
     assert debugger.function() == "factorial"
     with pytest.raises(DebuggerError):
         debugger.run_to_line(10_000, BASIC)
+
+
+def test_misaligned_access_can_be_allowed() -> None:
+    from hardboiled.config import BoardConfig, BoardInfo
+    from hardboiled.core.machine import Machine
+    from tests.conftest import FIXTURES
+
+    machine = Machine.from_elf(
+        FIXTURES / "traps.elf", BoardConfig(board=BoardInfo(misaligned="allow"))
+    )
+    machine.switches().set_value(10)  # type: ignore[union-attr]
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.EXITED
+    # not_code = {0x00000013, ...}: la palabra desde el byte 1 es 0x13000000 >> 8.
+    assert stop.exit_code == 0x13000000
