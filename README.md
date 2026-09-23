@@ -159,6 +159,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `F7` / `i` | Stepi: una sola instrucción de máquina |
 | `F4` / `g` | Run to cursor: ejecuta hasta la línea del cursor sin dejar breakpoint |
 | `0`–`7` | Conmuta un switch (también: click en el botón) |
+| `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
 | `r` | Reset de la placa |
 | `q` | Salir |
 
@@ -171,6 +172,12 @@ el texto si apuntan a una cadena y lo apuntado expandible como `*p`),
 arreglos multidimensionales, estructuras, uniones y campos de bits. Los
 valores que cambiaron desde la última detención se resaltan. Las pestañas
 **Registros** y **Pila** muestran el estado crudo.
+
+Los **watchpoints** (`w`) aceptan expresiones C: `results[1]`, `total`,
+`f->color`, `*p`, `matriz[i][j]`. La ejecución se detiene justo después de la
+escritura que cambió el valor e informa el valor anterior, el nuevo y la línea
+que escribió. Los de variables locales se eliminan cuando termina su función.
+La pestaña **Puntos** lista breakpoints y watchpoints (Supr los quita).
 
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
@@ -250,6 +257,7 @@ Vista (ui/)            ── cmd_queue: CmdStepInto, CmdContinue, CmdToggleSwit
 | `core/debugger.py` | Breakpoints por línea o dirección, Step Into, Step Over, Continue. |
 | `core/unwind.py` | Pila de llamadas: CFI de DWARF, frame pointer y marcos de interrupción. |
 | `core/variables.py` | Variables y tipos C desde `.debug_info`, evaluación de ubicaciones DWARF. |
+| `core/expressions.py` | Evaluador de expresiones C (watchpoints y condiciones). |
 | `core/dwarf.py` / `core/elf.py` | Tabla de líneas DWARF (PC ⇄ archivo:línea), segmentos y símbolos. |
 | `core/pic.py` | Controlador de interrupciones virtual. |
 | `core/machine.py` | Arma la placa a partir de `board.toml`. |

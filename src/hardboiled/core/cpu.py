@@ -25,6 +25,7 @@ from unicorn import (
     UC_ARCH_RISCV,
     UC_HOOK_CODE,
     UC_HOOK_MEM_INVALID,
+    UC_HOOK_MEM_WRITE,
     UC_MEM_FETCH_PROT,
     UC_MEM_FETCH_UNMAPPED,
     UC_MEM_READ_PROT,
@@ -95,6 +96,7 @@ class StopInfo:
     message: str = ""
     fault_address: int | None = None
     exit_code: int | None = None
+    watch: WatchHit | None = None
 
 
 class _Halt(Enum):
@@ -107,6 +109,25 @@ class _Halt(Enum):
     QUOTA = auto()
     STACK = auto()
     FAULT = auto()
+    WATCH = auto()
+
+
+@dataclass(frozen=True)
+class WatchHit:
+    """Una escritura que cambió una región vigilada."""
+
+    watch_id: int
+    pc: int  # la instrucción que escribió
+    old: bytes
+    new: bytes
+
+
+@dataclass
+class _Watch:
+    watch_id: int
+    address: int
+    size: int
+    handle: int | None = None
 
 
 _ACCESS_KIND = {
@@ -150,6 +171,9 @@ class Cpu:
         self._sp_writers: frozenset[int] = frozenset()
         self._vector_table: int | None = None
         self._isr_frame: int | None = None
+        self._watches: dict[int, _Watch] = {}
+        self._next_watch = 0
+        self._watch_hit: WatchHit | None = None
         self._uc = self._create_engine()
         self._reset_run_state()
 
@@ -164,7 +188,52 @@ class Cpu:
         uc.mmio_map(mem.mmio_base, mem.mmio_size, self._mmio_read, None, self._mmio_write, None)
         uc.hook_add(UC_HOOK_CODE, self._on_code)
         uc.hook_add(UC_HOOK_MEM_INVALID, self._on_invalid)
+        for watch in getattr(self, "_watches", {}).values():  # tras un reset
+            watch.handle = self._install_watch(uc, watch)
         return uc
+
+    # ------------------------------------------------------------ watchpoints
+
+    def add_watch(self, address: int, size: int) -> int:
+        """Vigila escrituras que cambien [address, address + size). Devuelve un id."""
+        if self._region_of(address, size) != "sram":
+            raise ValueError("sólo se pueden vigilar variables en la SRAM")
+        self._next_watch += 1
+        watch = _Watch(self._next_watch, address, size)
+        watch.handle = self._install_watch(self._uc, watch)
+        self._watches[watch.watch_id] = watch
+        return watch.watch_id
+
+    def remove_watch(self, watch_id: int) -> None:
+        watch = self._watches.pop(watch_id, None)
+        if watch is not None and watch.handle is not None:
+            self._uc.hook_del(watch.handle)
+
+    def _install_watch(self, uc: Uc, watch: _Watch) -> int:
+        # El rango del hook se compara con la dirección de inicio del acceso: se
+        # extiende 3 bytes hacia abajo para ver también un `sw` que la pisa en parte.
+        begin = max(watch.address - 3, 0)
+        end = watch.address + watch.size - 1
+
+        def on_write(uc: Uc, access: int, address: int, size: int, value: int, _data: Any) -> None:
+            self._check_watch(uc, watch, address, size, value)
+
+        handle: int = uc.hook_add(UC_HOOK_MEM_WRITE, on_write, begin=begin, end=end)
+        return handle
+
+    def _check_watch(self, uc: Uc, watch: _Watch, address: int, size: int, value: int) -> None:
+        start = max(address, watch.address)
+        stop = min(address + size, watch.address + watch.size)
+        if start >= stop or self._pending_halt is not None:
+            return
+        old = bytes(uc.mem_read(watch.address, watch.size))
+        new = bytearray(old)
+        incoming = (value & ((1 << (size * 8)) - 1)).to_bytes(size, "little")
+        for offset in range(start, stop):
+            new[offset - watch.address] = incoming[offset - address]
+        if bytes(new) != old:
+            self._watch_hit = WatchHit(watch.watch_id, self._current_pc, old, bytes(new))
+            self._halt(uc, _Halt.WATCH)
 
     def _reset_run_state(self) -> None:
         self.halted = None
@@ -306,6 +375,7 @@ class Cpu:
         self._pace_origin = (time.monotonic(), self.clock.cycles)
         while True:
             self._pending_halt = None
+            self._watch_hit = None
             self._fault = None
             self._invalid_access = None
             try:
@@ -316,6 +386,8 @@ class Cpu:
             pc = self.pc
             if halt is _Halt.CHECK:
                 return StopInfo(StopReason.BREAK, pc)
+            if halt is _Halt.WATCH and self._watch_hit is not None:
+                return StopInfo(StopReason.BREAK, pc, "watchpoint", watch=self._watch_hit)
             if halt is _Halt.PAUSE:
                 return StopInfo(StopReason.PAUSED, pc, "ejecución pausada")
             if halt is _Halt.EXIT:

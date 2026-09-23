@@ -9,18 +9,30 @@ que una IRQ asíncrona no "secuestra" el step del usuario.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import VariableInfo
+from hardboiled.core.expressions import Evaluator, ExpressionError
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
-from hardboiled.core.variables import Formatter, FrameContext, VariableTable
+from hardboiled.core.variables import CType, Formatter, FrameContext, Storage, VariableTable
 
 
 class DebuggerError(Exception):
     pass
+
+
+@dataclass
+class Watchpoint:
+    watch_id: int
+    expression: str
+    address: int
+    ctype: CType
+    # Marco dueño si la expresión usa locales: al terminar esa función se elimina.
+    scope_cfa: int | None = None
+    scope_function: str | None = None
 
 
 class Debugger:
@@ -38,6 +50,7 @@ class Debugger:
         self.unwinder = Unwinder(image, lines, cfi or CallFrameTable.empty())
         self.variables = variables or VariableTable.empty()
         self.formatter = Formatter(self._read_for_display, self.describe_address)
+        self._watches: dict[int, Watchpoint] = {}
         self._line_breakpoints: dict[tuple[str, int], int] = {}
         self._address_breakpoints: set[int] = set()
         # Conjunto vivo: se consulta en cada instrucción y puede cambiar durante un Continue.
@@ -167,9 +180,119 @@ class Debugger:
                 return f"{decl.name}+{offset}"
         return None
 
+    # ----------------------------------------------------------- watchpoints
+
+    @property
+    def watchpoints(self) -> tuple[Watchpoint, ...]:
+        return tuple(self._watches.values())
+
+    def evaluator(self, frame: Frame | None = None) -> Evaluator:
+        context = self.frame_context(frame)
+        return Evaluator(self.variables, self.cpu.read_memory, context, context.pc)
+
+    def evaluate(self, expression: str) -> str:
+        """Valor de una expresión C en el marco actual, formateado."""
+        try:
+            evaluator = self.evaluator()
+            value = evaluator.evaluate(expression)
+            if value.address is not None:
+                return self.formatter.variable(
+                    expression, value.ctype, Storage(value.address), {}
+                ).value
+            return str(evaluator.load(value))
+        except ExpressionError as exc:
+            raise DebuggerError(str(exc)) from exc
+
+    def add_watchpoint(self, expression: str) -> Watchpoint:
+        expression = expression.strip()
+        try:
+            evaluator = self.evaluator()
+            value = evaluator.evaluate(expression)
+        except ExpressionError as exc:
+            raise DebuggerError(str(exc)) from exc
+        if value.address is None:
+            raise DebuggerError(
+                f"{expression!r} no es una variable en memoria: no se puede vigilar"
+            )
+        size = value.ctype.size
+        if size <= 0:
+            raise DebuggerError(f"{expression!r} no tiene tamaño conocido")
+        try:
+            watch_id = self.cpu.add_watch(value.address, size)
+        except ValueError as exc:
+            raise DebuggerError(f"{expression}: {exc}") from exc
+        scope_cfa = scope_function = None
+        if evaluator.used_locals:
+            frames = self.backtrace()
+            if frames:
+                scope_cfa, scope_function = frames[0].cfa, frames[0].function
+        watch = Watchpoint(
+            watch_id, expression, value.address, value.ctype, scope_cfa, scope_function
+        )
+        self._watches[watch_id] = watch
+        return watch
+
+    def remove_watchpoint(self, expression: str) -> bool:
+        for watch in list(self._watches.values()):
+            if watch.expression == expression.strip():
+                self.cpu.remove_watch(watch.watch_id)
+                del self._watches[watch.watch_id]
+                return True
+        return False
+
+    def toggle_watchpoint(self, expression: str) -> bool:
+        """Pone o quita un watchpoint. Devuelve True si quedó puesto."""
+        if self.remove_watchpoint(expression):
+            return False
+        self.add_watchpoint(expression)
+        return True
+
+    def _prune_watchpoints(self) -> list[str]:
+        """Quita los watchpoints de locales cuya función ya terminó."""
+        scoped = [w for w in self._watches.values() if w.scope_cfa is not None]
+        if not scoped:
+            return []
+        alive = {(frame.cfa, frame.function) for frame in self.backtrace()}
+        removed = []
+        for watch in scoped:
+            if (watch.scope_cfa, watch.scope_function) not in alive:
+                self.cpu.remove_watch(watch.watch_id)
+                del self._watches[watch.watch_id]
+                removed.append(watch.expression)
+        return removed
+
+    def _describe_watch_hit(self, stop: StopInfo) -> StopInfo:
+        hit = stop.watch
+        if hit is None:
+            return stop
+        watch = self._watches.get(hit.watch_id)
+        if watch is None:
+            return stop
+        ctype = watch.ctype
+        if ctype.kind in ("base", "pointer", "enum") and ctype.size <= 8:
+            change = (
+                f"{self.formatter.scalar(ctype, hit.old)} → {self.formatter.scalar(ctype, hit.new)}"
+            )
+        else:
+            change = "cambió su contenido"
+        location = self.lines.lookup(hit.pc)
+        where = (
+            f" (escrito en {location.file.rsplit('/', 1)[-1]}:{location.line})" if location else ""
+        )
+        return replace(stop, message=f"watchpoint {watch.expression}: {change}{where}")
+
     # ------------------------------------------------------------- ejecución
 
     def _run(self, predicate: Callable[[int], bool]) -> StopInfo:
+        stop = self._run_raw(predicate)
+        stop = self._describe_watch_hit(stop)
+        removed = self._prune_watchpoints()
+        if removed and stop.reason is StopReason.BREAK:
+            note = "watchpoint eliminado al salir de su función: " + ", ".join(removed)
+            stop = replace(stop, message=f"{stop.message}; {note}" if stop.message else note)
+        return stop
+
+    def _run_raw(self, predicate: Callable[[int], bool]) -> StopInfo:
         breakpoints = self._active
         cpu = self.cpu
         start_pc = cpu.pc

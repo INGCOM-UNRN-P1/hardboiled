@@ -29,8 +29,10 @@ from hardboiled.core.events import (
     CmdStepInto,
     CmdStepOut,
     CmdStepOver,
+    CmdToggleAddressBreakpoint,
     CmdToggleBreakpoint,
     CmdToggleSwitch,
+    CmdToggleWatchpoint,
     Command,
     Event,
     EvtBreakpointsChanged,
@@ -45,9 +47,11 @@ from hardboiled.core.events import (
     EvtUartOutput,
 )
 from hardboiled.ui.widgets.backtrace_view import BacktraceView
+from hardboiled.ui.widgets.breakpoints_view import BreakpointsView
 from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
+from hardboiled.ui.widgets.prompt import Prompt
 from hardboiled.ui.widgets.registers_view import RegistersView
 from hardboiled.ui.widgets.variables_view import VariablesView
 from hardboiled.userconfig import UiPrefs
@@ -86,6 +90,7 @@ class HardboiledApp(App[None]):
         Binding("i", "step_instruction", show=False),
         Binding("o", "step_out", show=False),
         Binding("g", "run_to_cursor", show=False),
+        Binding("w", "watch", "Watch"),
         Binding("r", "reset", "Reset"),
         Binding("q", "quit", "Salir"),
         *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
@@ -123,6 +128,8 @@ class HardboiledApp(App[None]):
                         yield RegistersView(id="registers")
                     with TabPane("Pila", id="tab-stack"):
                         yield MemoryView(id="stack")
+                    with TabPane("Puntos", id="tab-points"):
+                        yield BreakpointsView(id="points")
         yield Static(id="status")
         yield Footer()
 
@@ -191,6 +198,7 @@ class HardboiledApp(App[None]):
             case EvtBreakpointsChanged():
                 self._breakpoints = event.lines
                 self._refresh_breakpoints()
+                self.query_one(BreakpointsView).update_points(event)
             case EvtTrap():
                 where = f" (dirección 0x{event.fault_address:08x})" if event.fault_address else ""
                 self.notify(f"{event.reason}{where}", title="TRAP", severity="error", timeout=10)
@@ -293,6 +301,32 @@ class HardboiledApp(App[None]):
         code = self.query_one(CodeView)
         if code.file is not None:
             self.send(CmdRunToLine(code.cursor_line, code.file))
+
+    def action_watch(self) -> None:
+        def submit(expression: str | None) -> None:
+            if expression:
+                self.send(CmdToggleWatchpoint(expression))
+
+        self.push_screen(
+            Prompt(
+                "Vigilar una expresión (detiene cuando cambia):",
+                "results[1], total, f->color, *p…",
+                help="La misma expresión otra vez quita el watchpoint. "
+                "Los de variables locales se eliminan al terminar su función.",
+            ),
+            submit,
+        )
+
+    def on_breakpoints_view_remove_requested(
+        self, message: BreakpointsView.RemoveRequested
+    ) -> None:
+        point = message.point
+        if point.kind == "line" and point.line is not None:
+            self.send(CmdToggleBreakpoint(point.line, point.file))
+        elif point.kind == "address" and point.address is not None:
+            self.send(CmdToggleAddressBreakpoint(point.address))
+        elif point.kind == "watch" and point.expression is not None:
+            self.send(CmdToggleWatchpoint(point.expression))
 
     def on_code_view_breakpoint_requested(self, message: CodeView.BreakpointRequested) -> None:
         self.send(CmdToggleBreakpoint(message.line, message.file))

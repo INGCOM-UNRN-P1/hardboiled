@@ -21,6 +21,7 @@ from hardboiled.core.events import (
     CmdStepOver,
     CmdToggleBreakpoint,
     CmdToggleSwitch,
+    CmdToggleWatchpoint,
     Command,
     Event,
     EvtBreakpointsChanged,
@@ -255,3 +256,18 @@ def test_runner_frame_variables(harness: HarnessFactory) -> None:
     frame = h.wait_for(EvtFrameVariables)
     assert frame.label == "sum_squares"
     assert [v.name for v in frame.locals] == ["n", "total", "i"]
+
+
+def test_runner_watchpoints(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdToggleWatchpoint("results[0]"))
+    changed = h.wait_for(EvtBreakpointsChanged)
+    assert [w.expression for w in changed.watches] == ["results[0]"]
+    h.cmd.put(CmdContinue())
+    hit = h.wait_for(EvtCpuSuspended)
+    while "watchpoint" not in hit.reason:
+        hit = h.wait_for(EvtCpuSuspended)
+    assert "0 → 14" in hit.reason
+    h.cmd.put(CmdToggleWatchpoint("nada"))
+    assert "nada" in h.wait_for(EvtMessage).text

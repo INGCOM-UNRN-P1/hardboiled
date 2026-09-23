@@ -67,6 +67,13 @@ class CmdToggleAddressBreakpoint:
 
 
 @dataclass(frozen=True)
+class CmdToggleWatchpoint:
+    """Vigila (o deja de vigilar) una expresión C: `results[1]`, `f->color`, `total`."""
+
+    expression: str
+
+
+@dataclass(frozen=True)
 class CmdToggleSwitch:
     pin_index: int
 
@@ -96,6 +103,7 @@ Command = (
     | CmdSelectFrame
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint
+    | CmdToggleWatchpoint
     | CmdToggleSwitch
     | CmdPause
     | CmdReset
@@ -205,9 +213,18 @@ class EvtProgramExited:
 
 
 @dataclass(frozen=True)
+class WatchInfo:
+    expression: str
+    address: int
+    size: int
+    type_name: str
+
+
+@dataclass(frozen=True)
 class EvtBreakpointsChanged:
     lines: frozenset[tuple[str, int]]
     addresses: frozenset[int]
+    watches: tuple[WatchInfo, ...] = ()
 
 
 @dataclass(frozen=True)

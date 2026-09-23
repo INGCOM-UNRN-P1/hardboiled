@@ -30,6 +30,7 @@ from hardboiled.core.events import (
     CmdToggleAddressBreakpoint,
     CmdToggleBreakpoint,
     CmdToggleSwitch,
+    CmdToggleWatchpoint,
     Command,
     Event,
     EvtBreakpointsChanged,
@@ -42,6 +43,7 @@ from hardboiled.core.events import (
     EvtProgramLoaded,
     EvtTrap,
     FrameInfo,
+    WatchInfo,
 )
 from hardboiled.core.machine import Machine
 from hardboiled.core.unwind import Frame
@@ -62,6 +64,7 @@ class RunnerThread(threading.Thread):
         self.evt_queue = evt_queue
         self.stop_at_main = stop_at_main
         self._deferred: deque[Command] = deque()
+        self._known_watches: set[str] = set()
         self._shutdown = False
         machine.set_event_sink(self._emit)
         machine.cpu.poll = self._poll
@@ -151,6 +154,8 @@ class RunnerThread(threading.Thread):
                     debugger.toggle_line_breakpoint(line, source)
                 case CmdToggleAddressBreakpoint(address=address):
                     debugger.toggle_address_breakpoint(address)
+                case CmdToggleWatchpoint(expression=expression):
+                    debugger.toggle_watchpoint(expression)
                 case CmdToggleSwitch(pin_index=pin):
                     switches = self.machine.switches()
                     if switches is None:
@@ -162,7 +167,18 @@ class RunnerThread(threading.Thread):
         except (DebuggerError, ValueError) as exc:
             self._emit(EvtMessage(str(exc)))
             return
-        self._emit(EvtBreakpointsChanged(debugger.line_breakpoints, debugger.address_breakpoints))
+        self._emit_breakpoints()
+
+    def _emit_breakpoints(self) -> None:
+        debugger = self.machine.debugger
+        watches = tuple(
+            WatchInfo(w.expression, w.address, w.ctype.size, w.ctype.name)
+            for w in debugger.watchpoints
+        )
+        self._known_watches = {w.expression for w in watches}
+        self._emit(
+            EvtBreakpointsChanged(debugger.line_breakpoints, debugger.address_breakpoints, watches)
+        )
 
     def _poll(self) -> bool:
         """Llamado desde el hook de la CPU: True pide pausar la ejecución."""
@@ -201,6 +217,9 @@ class RunnerThread(threading.Thread):
             return
         self._emit(EvtCpuRunning())
         self._report(operation())
+        current = {w.expression for w in self.machine.debugger.watchpoints}
+        if current != self._known_watches:  # watchpoints eliminados al salir de alcance
+            self._emit_breakpoints()
 
     def _report(self, stop: StopInfo, reason: str | None = None) -> None:
         if stop.reason is StopReason.TRAP:
