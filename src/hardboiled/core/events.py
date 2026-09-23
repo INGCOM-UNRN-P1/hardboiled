@@ -42,6 +42,14 @@ class CmdToggleBreakpoint:
 
 
 @dataclass(frozen=True)
+class CmdRunToLine:
+    """Ejecuta hasta una línea de C sin dejar un breakpoint (run to cursor)."""
+
+    line_number: int
+    source_file: str | None = None
+
+
+@dataclass(frozen=True)
 class CmdToggleAddressBreakpoint:
     address: int
 
@@ -71,6 +79,7 @@ Command = (
     | CmdStepOver
     | CmdContinue
     | CmdStepInstruction
+    | CmdRunToLine
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint
     | CmdToggleSwitch

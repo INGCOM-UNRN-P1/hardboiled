@@ -49,11 +49,7 @@ class Debugger:
 
     def toggle_line_breakpoint(self, line: int, source_file: str | None = None) -> bool:
         """Pone o quita un breakpoint. Devuelve True si quedó puesto."""
-        file = self._resolve_file(source_file)
-        resolved = self.lines.address_for_line(file, line)
-        if resolved is None:
-            raise DebuggerError(f"no hay código ejecutable en {file}:{line} ni después")
-        effective_line, address = resolved
+        file, effective_line, address = self.resolve_line(line, source_file)
         key = (file, effective_line)
         if key in self._line_breakpoints:
             del self._line_breakpoints[key]
@@ -63,6 +59,14 @@ class Debugger:
             placed = True
         self._rebuild()
         return placed
+
+    def resolve_line(self, line: int, source_file: str | None = None) -> tuple[str, int, int]:
+        """(archivo, línea efectiva, dirección) de una línea, o la siguiente con código."""
+        file = self._resolve_file(source_file)
+        resolved = self.lines.address_for_line(file, line)
+        if resolved is None:
+            raise DebuggerError(f"no hay código ejecutable en {file}:{line} ni después")
+        return file, resolved[0], resolved[1]
 
     def toggle_address_breakpoint(self, address: int) -> bool:
         if address in self._address_breakpoints:
@@ -124,6 +128,13 @@ class Debugger:
 
     def run_to(self, address: int) -> StopInfo:
         return self._run(lambda pc: pc == address)
+
+    def run_to_line(self, line: int, source_file: str | None = None) -> StopInfo:
+        """Ejecuta hasta la línea indicada (o la siguiente con código) sin dejar breakpoint.
+
+        Los breakpoints del camino detienen antes, como en cualquier Continue.
+        """
+        return self.run_to(self.resolve_line(line, source_file)[2])
 
     def run_to_main(self) -> StopInfo | None:
         """Ejecuta el arranque (crt0) y se detiene en la primera línea del cuerpo de main()."""

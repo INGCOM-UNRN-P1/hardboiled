@@ -20,6 +20,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdReset,
+    CmdRunToLine,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -109,6 +110,13 @@ class RunnerThread(threading.Thread):
                 self._execute(debugger.continue_)
             case CmdStepInstruction():
                 self._execute(debugger.step_instruction)
+            case CmdRunToLine(line_number=line, source_file=source):
+                try:
+                    address = debugger.resolve_line(line, source)[2]
+                except DebuggerError as exc:
+                    self._emit(EvtMessage(str(exc)))
+                else:
+                    self._execute(lambda: debugger.run_to(address))
             case CmdReset():
                 self.machine.reset()
                 self._emit(EvtMessage("placa reiniciada"))
@@ -156,7 +164,13 @@ class RunnerThread(threading.Thread):
                 case CmdReset():
                     self._deferred.append(command)
                     pause = True
-                case CmdStepInto() | CmdStepOver() | CmdContinue() | CmdStepInstruction():
+                case (
+                    CmdStepInto()
+                    | CmdStepOver()
+                    | CmdContinue()
+                    | CmdStepInstruction()
+                    | CmdRunToLine()
+                ):
                     pass  # ya está corriendo
                 case _:
                     self._apply_live(command)

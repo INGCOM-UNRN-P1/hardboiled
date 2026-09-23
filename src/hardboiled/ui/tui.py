@@ -22,6 +22,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdReset,
+    CmdRunToLine,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -69,12 +70,14 @@ class HardboiledApp(App[None]):
         Binding("f10", "step_over", "Step Over"),
         Binding("f11", "step_into", "Step Into"),
         Binding("f7", "step_instruction", "Stepi"),
+        Binding("f4", "run_to_cursor", "Hasta cursor"),
         Binding("c", "continue", show=False),
         Binding("p", "pause", show=False),
         Binding("b", "toggle_breakpoint", show=False),
         Binding("n", "step_over", show=False),
         Binding("s", "step_into", show=False),
         Binding("i", "step_instruction", show=False),
+        Binding("g", "run_to_cursor", show=False),
         Binding("r", "reset", "Reset"),
         Binding("q", "quit", "Salir"),
         *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
@@ -239,6 +242,11 @@ class HardboiledApp(App[None]):
         code = self.query_one(CodeView)
         if code.file is not None:
             self.send(CmdToggleBreakpoint(code.cursor_line, code.file))
+
+    def action_run_to_cursor(self) -> None:
+        code = self.query_one(CodeView)
+        if code.file is not None:
+            self.send(CmdRunToLine(code.cursor_line, code.file))
 
     def on_code_view_breakpoint_requested(self, message: CodeView.BreakpointRequested) -> None:
         self.send(CmdToggleBreakpoint(message.line, message.file))

@@ -257,3 +257,20 @@ def test_step_instruction_on_self_loop(make_machine: MachineFactory) -> None:
     debugger.toggle_address_breakpoint(loop_pc)
     assert debugger.continue_().reason is StopReason.BREAK
     assert machine.cpu.instructions == count + 2
+
+
+def test_run_to_line(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("basic")
+    debugger = machine.debugger
+    debugger.run_to_main()
+    stop = debugger.run_to_line(line_of(BASIC, "main_fact"), BASIC)
+    assert stop.reason is StopReason.BREAK
+    location = debugger.location()
+    assert location is not None and location.line == line_of(BASIC, "main_fact")
+    assert debugger.line_breakpoints == frozenset()  # no deja breakpoint
+    # Un breakpoint en el camino detiene antes.
+    debugger.toggle_line_breakpoint(line_of(BASIC, "fact_recurse"), BASIC)
+    debugger.run_to_line(line_of(BASIC, "main_fact") + 1, BASIC)
+    assert debugger.function() == "factorial"
+    with pytest.raises(DebuggerError):
+        debugger.run_to_line(10_000, BASIC)

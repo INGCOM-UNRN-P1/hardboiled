@@ -15,6 +15,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdReset,
+    CmdRunToLine,
     CmdShutdown,
     CmdStepOver,
     CmdToggleBreakpoint,
@@ -207,3 +208,14 @@ def test_core_never_imports_presentation(package: str) -> None:
     for path in (SRC / package).rglob("*.py"):
         for module in _imports(path):
             assert not module.startswith(("textual", "hardboiled.ui")), f"{path} importa {module}"
+
+
+def test_runner_run_to_line_without_code_does_not_start(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdRunToLine(10_000, "basic.c"))
+    assert "no hay código" in h.wait_for(EvtMessage).text
+    assert not any(isinstance(e, EvtCpuRunning) for e in h.seen[-1:])
+    h.cmd.put(CmdRunToLine(line_of("basic.c", "main_fact")))
+    h.wait_for(EvtCpuRunning)
+    assert h.wait_for(EvtCpuSuspended).source_line == line_of("basic.c", "main_fact")
