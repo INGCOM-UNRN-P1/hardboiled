@@ -26,6 +26,7 @@ from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine
 from hardboiled.core.runner import frame_infos, trap_event, warning_events
 from hardboiled.core.session import BreakpointStore
+from hardboiled.core.trace import TraceError, TraceWriter
 from hardboiled.script import ScriptError, attach_script
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
@@ -71,6 +72,18 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--json",
         action="store_true",
         help="con --headless, informar el resultado en JSON (la UART queda incluida)",
+    )
+    parser.add_argument(
+        "--trace",
+        metavar="ARCHIVO",
+        help="con --headless, guardar una traza por instrucción (.csv o .jsonl)",
+    )
+    parser.add_argument(
+        "--trace-limit",
+        type=parse_int,
+        default=1_000_000,
+        metavar="N",
+        help="máximo de instrucciones en la traza (1000000)",
     )
     parser.add_argument(
         "--realtime",
@@ -141,6 +154,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
     if args.json and not args.headless:
         raise CliError("--json requiere --headless")
+    if args.trace and not args.headless:
+        raise CliError("--trace requiere --headless")
     elf = resolve_program(args)
     machine = load_machine(elf, board)
     if args.switches is not None:
@@ -159,7 +174,15 @@ def cmd_run(args: argparse.Namespace) -> int:
         except ScriptError as exc:
             raise CliError(str(exc)) from exc
     if args.headless:
-        return run_headless_json(machine) if args.json else run_headless(machine)
+        tracer = start_trace(machine, args.trace, args.trace_limit) if args.trace else None
+        if args.json:
+            return run_headless_json(machine, tracer)
+        try:
+            return run_headless(machine)
+        finally:
+            if tracer is not None:
+                tracer.close()
+                print(trace_summary(tracer), file=sys.stderr)
 
     from hardboiled.core.runner import RunnerThread
     from hardboiled.ui.tui import HardboiledApp
@@ -207,6 +230,20 @@ def run_headless(machine: Machine) -> int:
     return EXIT_TRAP
 
 
+def start_trace(machine: Machine, path: str, limit: int) -> TraceWriter:
+    try:
+        tracer = TraceWriter(machine, path, limit)
+    except TraceError as exc:
+        raise CliError(str(exc)) from exc
+    tracer.attach()
+    return tracer
+
+
+def trace_summary(tracer: TraceWriter) -> str:
+    cut = f" (se cortó al llegar a --trace-limit {tracer.limit:,})" if tracer.truncated else ""
+    return f"traza: {tracer.rows:,} instrucciones en {tracer.path}{cut}"
+
+
 def exit_status(stop: StopInfo) -> int:
     """Código de salida del proceso para una ejecución sin interfaz."""
     if stop.reason is StopReason.EXITED:
@@ -214,9 +251,13 @@ def exit_status(stop: StopInfo) -> int:
     return EXIT_TRAP
 
 
-def run_headless_json(machine: Machine) -> int:
+def run_headless_json(machine: Machine, tracer: TraceWriter | None = None) -> int:
     """Como run_headless, pero todo (UART incluida) en un objeto JSON por stdout."""
-    stop = machine.debugger.continue_()
+    try:
+        stop = machine.debugger.continue_()
+    finally:
+        if tracer is not None:
+            tracer.close()
     uart = machine.uart()
     cpu = machine.cpu
     trap = None
@@ -237,6 +278,9 @@ def run_headless_json(machine: Machine) -> int:
             "cycles": cpu.clock.cycles,
             "warnings": [asdict(warning) for warning in warning_events(machine)],
             "build_warnings": machine.build_report.warnings(),
+            "trace": None
+            if tracer is None
+            else {"path": str(tracer.path), "rows": tracer.rows, "truncated": tracer.truncated},
         }
     )
     return exit_status(stop)

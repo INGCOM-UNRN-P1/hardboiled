@@ -23,13 +23,14 @@ desalineados. Las IRQ se toman entonces al comienzo de un bloque.
 
 from __future__ import annotations
 
+import ctypes
 import struct
 import time
 from bisect import bisect_left
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Protocol
 
 from unicorn import (
     UC_ARCH_RISCV,
@@ -114,6 +115,13 @@ class StopInfo:
     exit_code: int | None = None
     watch: WatchHit | None = None
     kind: str | None = None  # tipo de trampa ("null-pointer", "stack-overflow"…)
+
+
+class Tracer(Protocol):
+    """Recibe cada instrucción justo antes de ejecutarse (ver core.trace)."""
+
+    def step(self, pc: int) -> None: ...
+    def event(self, text: str) -> None: ...
 
 
 class _Halt(Enum):
@@ -235,6 +243,9 @@ class Cpu:
         # Si no es None, `stop_check` sólo puede cumplirse en estas direcciones: la
         # ejecución usa el modo rápido (hooks por bloque en vez de por instrucción).
         self.stop_addresses: frozenset[int] | None = None
+        # Traza de ejecución: obliga a correr instrucción por instrucción.
+        self.tracer: Tracer | None = None
+        self._gpr_view: tuple[Any, int] | bool | None = False  # False = sin calibrar
         # dirección de cada llamada (jal/jalr a ra, también comprimidas) -> su tamaño
         self.call_sites: dict[int, int] = {}
         self.halted: StopInfo | None = None
@@ -578,6 +589,39 @@ class Cpu:
     def set_pc(self, value: int) -> None:
         self._uc.reg_write(_PC, value)
 
+    def register_values(self) -> tuple[int, ...]:
+        """x0..x31 de una vez (para la traza, que los lee en cada instrucción).
+
+        Leer el contexto de Unicorn y tomar los registros de su buffer es ~15 veces
+        más rápido que `reg_read_batch`. El offset se calibra una vez escribiendo
+        valores conocidos; si no se encuentran, se usa la lectura normal.
+        """
+        if self._gpr_view is False:
+            self._gpr_view = self._calibrate_gpr_view()
+        view = self._gpr_view
+        if isinstance(view, tuple):
+            context, offset = view
+            self._uc.context_update(context)
+            raw = ctypes.string_at(context._context.value + offset, 128)
+            return struct.unpack("<32I", raw)
+        return tuple(self.read_register(index) for index in range(32))
+
+    def _calibrate_gpr_view(self) -> tuple[Any, int] | None:
+        uc = self._uc
+        saved = uc.context_save()
+        try:
+            probe = [0x5EED_0000 + index for index in range(1, 32)]
+            for index, value in enumerate(probe, start=1):
+                uc.reg_write(_REG_IDS[index], value)
+            context = uc.context_save()
+            raw = ctypes.string_at(context._context.value, context.size)
+            found = raw.find(struct.pack("<31I", *probe))
+            return (context, found - 4) if found >= 4 else None
+        except (AttributeError, TypeError, ValueError):
+            return None
+        finally:
+            uc.context_restore(saved)
+
     def registers(self) -> dict[str, int]:
         regs = {f"x{i}": self.read_register(i) for i in range(32)}
         regs["pc"] = self.pc
@@ -663,6 +707,8 @@ class Cpu:
             if halt is _Halt.PAUSE:
                 return StopInfo(StopReason.PAUSED, pc, "ejecución pausada")
             if halt is _Halt.EXIT:
+                if self.tracer is not None:
+                    self.tracer.step(pc)
                 code = _signed32(self._uc.reg_read(_A0))
                 return self._terminate(
                     StopInfo(StopReason.EXITED, pc, f"programa terminado ({code})", exit_code=code)
@@ -794,6 +840,8 @@ class Cpu:
         if not self.instructions & POLL_INTERVAL_MASK and self._pace_and_poll():
             self._halt(uc, _Halt.PAUSE)
             return
+        if self.tracer is not None:
+            self.tracer.step(address)
         self._sp_dirty = address in self._sp_writers
         self.instructions += 1
         clock = self.clock
@@ -807,7 +855,7 @@ class Cpu:
     def _install_hooks(self) -> None:
         """Instala el hook por instrucción o, si alcanza, los del modo rápido."""
         stops = self.stop_addresses
-        stepping = self.stop_check is not None and stops is None
+        stepping = (self.stop_check is not None and stops is None) or self.tracer is not None
         key: tuple[object, ...] = ("step",) if stepping else ("fast", stops or frozenset())
         if key == self._hook_key:
             return
@@ -1108,6 +1156,8 @@ class Cpu:
         frame = self.sp - ISR_FRAME_SIZE
         if frame < self.stack_floor:
             return self._stack_overflow(pc)
+        if self.tracer is not None:
+            self.tracer.event(f"IRQ {line}")
         words = [pc, *(self.read_register(r) for r in ISR_SAVED_REGS)]
         words += [0] * (ISR_FRAME_SIZE // 4 - len(words))
         self._uc.mem_write(frame, struct.pack(f"<{len(words)}I", *words))
@@ -1133,6 +1183,8 @@ class Cpu:
                 f"se esperaba 0x{expected:08x}",
                 kind="isr-stack",
             )
+        if self.tracer is not None:
+            self.tracer.step(pc)
         raw = bytes(self._uc.mem_read(frame, ISR_FRAME_SIZE))
         saved_pc, *regs = struct.unpack(f"<{ISR_FRAME_SIZE // 4}I", raw)
         for index, value in zip(ISR_SAVED_REGS, regs, strict=False):
@@ -1145,6 +1197,8 @@ class Cpu:
 
     def _wait_for_interrupt(self, pc: int) -> StopInfo | None:
         """`wfi`: adelanta el reloj hasta que haya una IRQ habilitada pendiente."""
+        if self.tracer is not None:
+            self.tracer.step(pc)
         for _ in range(1024):
             if self.pic.wake_pending():
                 break

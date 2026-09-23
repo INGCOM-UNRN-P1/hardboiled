@@ -129,6 +129,24 @@ recompilan si cambian ellos, los encabezados de sus directorios, las opciones
 o el compilador. Los mensajes del compilador van a stderr, así que en
 `--headless` stdout contiene sólo la salida de la UART.
 
+### Traza de ejecución
+
+`run --headless --trace traza.csv` (o `.jsonl`) guarda una fila por
+instrucción ejecutada, para ejercicios de seguimiento de código:
+
+```
+n,cycle,pc,function,file,line,instruction,changes,event
+0,0,0x00010000,_start,crt0.s,20,"auipc gp, 0x1fff1",gp=0x20001000,
+...
+```
+
+Cada fila tiene el número de instrucción, el ciclo, el PC, la función, la
+línea, la instrucción desensamblada y los registros que cambió. La entrada a una
+interrupción figura como evento (`IRQ 0`) en la primera instrucción de la ISR, y
+`mret` muestra los registros que restaura. `--trace-limit N` (1 000 000 por
+defecto) corta la traza, pero el programa sigue hasta terminar. Trazar corre
+instrucción por instrucción, a unas 65 000 por segundo.
+
 ### Corrección automática: `hardboiled test`
 
 Ejecuta el programa sin interfaz con entradas fijas y compara lo que se
