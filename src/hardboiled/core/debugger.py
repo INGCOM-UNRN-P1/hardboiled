@@ -622,7 +622,8 @@ class Debugger:
     def step_over(self) -> StopInfo:
         """Como Step Into, pero las llamadas (jal/jalr a ra) se ejecutan completas.
 
-        Ante una llamada se arma un breakpoint efímero en PC + 4, que sólo se
+        Ante una llamada se arma un breakpoint efímero en PC + 4 (+ 2 si es una
+        comprimida), que sólo se
         considera alcanzado si sp volvió a su valor previo (así una llamada
         recursiva no lo dispara antes de tiempo).
         """
@@ -645,8 +646,9 @@ class Debugger:
             location = lookup(pc)
             if location is not None and location != start:
                 return True
-            if pc in call_sites:
-                return_to = (pc + 4, cpu.sp)
+            size = call_sites.get(pc)
+            if size is not None:  # la llamada vuelve a la instrucción siguiente
+                return_to = (pc + size, cpu.sp)
             return False
 
         return self._run(reached_new_line)

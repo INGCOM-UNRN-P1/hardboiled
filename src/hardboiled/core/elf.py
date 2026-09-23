@@ -251,10 +251,33 @@ class ElfImage:
         return f"{name}+0x{offset:x}" if offset else name
 
     def code_words(self) -> Iterator[tuple[int, int]]:
-        """Palabras de 32 bits alineadas de los segmentos ejecutables (dirección de ejecución)."""
+        """(dirección, instrucción de 32 bits equivalente) de todo el código ejecutable."""
+        for address, _size, word in self.instructions():
+            yield address, word
+
+    def instructions(self) -> Iterator[tuple[int, int, int]]:
+        """(dirección, tamaño, instrucción de 32 bits equivalente) en cada posición posible.
+
+        Sin la extensión C se recorre de a 4 bytes. Con C, cada 2 bytes: una
+        instrucción puede empezar en cualquier múltiplo de 2 y las comprimidas se
+        expanden a su equivalente. Clasificar también posiciones que caen a mitad
+        de una instrucción es inofensivo: la CPU sólo consulta las direcciones
+        que realmente ejecuta.
+        """
+        from hardboiled.core.disasm import expand_compressed  # evita un import circular
+
+        compressed = "c" in self.extensions
+        step = 2 if compressed else 4
         for seg in self.segments:
             if not seg.executable:
                 continue
             data = seg.data
-            for offset in range(0, len(data) - 3, 4):
-                yield seg.vaddr + offset, int.from_bytes(data[offset : offset + 4], "little")
+            for offset in range(0, len(data) - 1, step):
+                half = int.from_bytes(data[offset : offset + 2], "little")
+                if compressed and half & 0x3 != 0x3:
+                    expanded = expand_compressed(half)
+                    if expanded is not None:
+                        yield seg.vaddr + offset, 2, expanded
+                elif offset + 4 <= len(data):
+                    word = int.from_bytes(data[offset : offset + 4], "little")
+                    yield seg.vaddr + offset, 4, word

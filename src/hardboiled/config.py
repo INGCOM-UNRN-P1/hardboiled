@@ -55,9 +55,9 @@ class BoardInfo(_Model):
     name: str = "hardboiled-default"
     arch: Literal["riscv32"] = "riscv32"
     max_instructions: int = Field(default=1_000_000, gt=0)
-    # Conjunto de instrucciones de la CPU: rv32i o rv32im. `build` lo usa como -march
+    # Conjunto de instrucciones: rv32i, rv32im, rv32ic o rv32imc. `build` lo usa como -march
     # por defecto y al cargar se rechazan programas que usen otras extensiones.
-    isa: Literal["rv32i", "rv32im"] = "rv32i"
+    isa: Literal["rv32i", "rv32im", "rv32ic", "rv32imc"] = "rv32i"
     # Frecuencia nominal: si se indica, la emulación se acompasa al reloj real
     # (útil para ver parpadear LEDs). Sin valor, corre tan rápido como puede.
     clock_hz: int | None = Field(default=None, gt=0)

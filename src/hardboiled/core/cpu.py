@@ -218,7 +218,8 @@ class Cpu:
         self.stop_check: Callable[[int], bool] | None = None
         # Consultado periódicamente durante la ejecución; True = pausar.
         self.poll: Callable[[], bool] | None = None
-        self.call_sites: frozenset[int] = frozenset()
+        # dirección de cada llamada (jal/jalr a ra, también comprimidas) -> su tamaño
+        self.call_sites: dict[int, int] = {}
         self.halted: StopInfo | None = None
         self.instructions = 0
         self._image: ElfImage | None = None
@@ -411,12 +412,12 @@ class Cpu:
 
     def _index_code(self, image: ElfImage) -> None:
         special: dict[int, _Halt] = {}
-        calls: set[int] = set()
+        calls: dict[int, int] = {}
         sp_writers: set[int] = set()
         # dirección -> (registro base, offset, tamaño, es escritura) de lh/lhu/lw/sh/sw
         memory_ops: dict[int, tuple[int, int, int, bool]] = {}
         divisions: dict[int, tuple[int, str, bool]] = {}
-        for address, word in image.code_words():
+        for address, size, word in image.instructions():
             if word == INSN_MRET:
                 special[address] = _Halt.MRET
             elif word == INSN_WFI:
@@ -439,7 +440,7 @@ class Cpu:
                 offset -= (offset & 0x800) << 1
                 memory_ops[address] = (rs1, offset, 4 if funct3 == 2 else 2, True)
             if opcode in _CALL_OPCODES and rd == 1:
-                calls.add(address)
+                calls[address] = size
             if opcode in _RD_OPCODES and rd == 2:
                 sp_writers.add(address)
         self._special = special
@@ -452,7 +453,7 @@ class Cpu:
             self._divisions = divisions
         else:
             self._divisions = {}
-        self.call_sites = frozenset(calls)
+        self.call_sites = calls
         self._sp_writers = frozenset(sp_writers)
 
     def _region_of(self, address: int, size: int = 1) -> str | None:

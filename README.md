@@ -69,8 +69,9 @@ hardboiled build main.c util.c -o main.elf -O1 --march rv32im -v
 | `include/hardboiled.h` | SDK: `led_set()`, `switch_get()`, `uart_puts()`, `timer_start()`, `attach_irq()`, … |
 
 La placa declara su conjunto de instrucciones con `isa` en `[board]`
-(`"rv32i"` por defecto o `"rv32im"`, con multiplicación y división por
-hardware). `build` lo usa como `--march` por defecto, y al cargar un programa
+(`"rv32i"` por defecto, `"rv32im"` con multiplicación y división por
+hardware, y `"rv32ic"`/`"rv32imc"` que suman instrucciones comprimidas de 16
+bits: el paso a paso, los breakpoints y Step Over funcionan igual con ellas). `build` lo usa como `--march` por defecto, y al cargar un programa
 se verifica con el atributo `Tag_RISCV_arch` del ELF que no use extensiones
 que la placa no tiene. Con `rv32im` desaparecen las llamadas a `__mulsi3` y
 compañía, que "ensucian" el Step Into.
