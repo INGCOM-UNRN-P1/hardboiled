@@ -22,6 +22,10 @@ uv tool install "hardboiled[zig]"   # herramienta + compilador C para RV32I (zig
 uv tool install hardboiled          # sólo la herramienta (si ya tenés riscv*-gcc)
 ```
 
+Después de instalar, `hardboiled doctor` verifica Python, el emulador, el
+runtime, la configuración, el compilador (compila y ejecuta un programa de
+prueba) y la terminal. Es lo primero que conviene adjuntar en una consulta.
+
 El extra `[zig]` instala el paquete `ziglang` dentro del entorno aislado de la
 herramienta: no toca el sistema ni requiere `sudo`, pero pesa decenas de MB.
 

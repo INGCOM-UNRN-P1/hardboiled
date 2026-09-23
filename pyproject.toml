@@ -59,7 +59,7 @@ module = ["unicorn", "unicorn.*"]
 implicit_reexport = true
 
 [[tool.mypy.overrides]]
-module = ["hardboiled.core.cpu"]
+module = ["hardboiled.core.cpu", "hardboiled.doctor"]
 disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
