@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import queue
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from hardboiled.buildcache import SOURCE_SUFFIXES, build_cached
@@ -16,13 +17,14 @@ from hardboiled.cli.common import (
     board_from,
     load_machine,
     parse_int,
+    print_json,
     user_config,
 )
 from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput, collapse_frames
 from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine
-from hardboiled.core.runner import frame_infos, warning_events
+from hardboiled.core.runner import frame_infos, trap_event, warning_events
 from hardboiled.core.session import BreakpointStore
 from hardboiled.script import ScriptError, attach_script
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
@@ -64,6 +66,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--no-save-breakpoints",
         action="store_true",
         help="no recordar breakpoints en .hardboiled/ junto al programa",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="con --headless, informar el resultado en JSON (la UART queda incluida)",
     )
     parser.add_argument(
         "--realtime",
@@ -132,6 +139,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         board = board.model_copy(
             update={"board": board.board.model_copy(update={"clock_hz": None})}
         )
+    if args.json and not args.headless:
+        raise CliError("--json requiere --headless")
     elf = resolve_program(args)
     machine = load_machine(elf, board)
     if args.switches is not None:
@@ -150,7 +159,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         except ScriptError as exc:
             raise CliError(str(exc)) from exc
     if args.headless:
-        return run_headless(machine)
+        return run_headless_json(machine) if args.json else run_headless(machine)
 
     from hardboiled.core.runner import RunnerThread
     from hardboiled.ui.tui import HardboiledApp
@@ -196,6 +205,41 @@ def run_headless(machine: Machine) -> int:
         return (stop.exit_code or 0) & 0xFF
     print(f"\n{format_trap(machine, stop)}", file=sys.stderr)
     return EXIT_TRAP
+
+
+def exit_status(stop: StopInfo) -> int:
+    """Código de salida del proceso para una ejecución sin interfaz."""
+    if stop.reason is StopReason.EXITED:
+        return (stop.exit_code or 0) & 0xFF
+    return EXIT_TRAP
+
+
+def run_headless_json(machine: Machine) -> int:
+    """Como run_headless, pero todo (UART incluida) en un objeto JSON por stdout."""
+    stop = machine.debugger.continue_()
+    uart = machine.uart()
+    cpu = machine.cpu
+    trap = None
+    if stop.reason is StopReason.TRAP:
+        trap = asdict(trap_event(machine, stop))
+        trap["backtrace"] = [
+            asdict(frame) for frame in frame_infos(machine, machine.debugger.backtrace())
+        ]
+    print_json(
+        {
+            "program": str(machine.image.path),
+            "outcome": stop.reason.value,
+            "message": stop.message,
+            "exit_code": stop.exit_code,
+            "trap": trap,
+            "uart": bytes(uart.transmitted).decode("utf-8", "replace") if uart else "",
+            "instructions": cpu.instructions,
+            "cycles": cpu.clock.cycles,
+            "warnings": [asdict(warning) for warning in warning_events(machine)],
+            "build_warnings": machine.build_report.warnings(),
+        }
+    )
+    return exit_status(stop)
 
 
 def format_trap(machine: Machine, stop: StopInfo) -> str:

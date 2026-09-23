@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
-from hardboiled.cli.common import CliError, Subparsers, board_from
+from hardboiled.cli.common import CliError, Subparsers, board_from, print_json
+from hardboiled.config import BoardConfig
 from hardboiled.core.buildinfo import analyze
 from hardboiled.core.dwarf import LineTable
 from hardboiled.core.elf import ElfImage, ElfLoadError
@@ -14,65 +16,110 @@ def register(sub: Subparsers) -> None:
     info = sub.add_parser("info", help="muestra segmentos, símbolos y fuentes de un ELF")
     info.add_argument("elf")
     info.add_argument("--board")
+    info.add_argument("--json", action="store_true", help="la misma información en JSON")
     info.set_defaults(func=cmd_info)
 
 
-def cmd_info(args: argparse.Namespace) -> int:
-    board = board_from(args.board)
+def collect(path: str, board: BoardConfig) -> dict[str, Any]:
+    """Toda la información del ELF, lista para mostrar o serializar."""
     try:
-        image = ElfImage.load(args.elf)
+        image = ElfImage.load(path)
     except ElfLoadError as exc:
         raise CliError(str(exc)) from exc
-    lines = LineTable.from_elf(args.elf)
+    lines = LineTable.from_elf(path)
     mem = board.memory
-
-    print(f"Archivo:        {image.path}")
-    print(f"Punto de entrada: 0x{image.entry:08x}")
-    main = image.symbol_address("main")
-    print(f"main():         {f'0x{main:08x}' if main is not None else 'no definido'}")
-    vectors = image.symbol_address("__vector_table")
-    print(f"Vectores IRQ:   {f'0x{vectors:08x}' if vectors is not None else 'no definidos'}")
-
-    print("\nSegmentos cargables:")
+    segments = []
     flash_used = sram_used = 0
     for seg in image.segments:
         in_flash = mem.flash_base <= seg.paddr < mem.flash_base + mem.flash_size
         runs_in_sram = mem.sram_base <= seg.vaddr < mem.sram_end
         region = "Flash -> SRAM" if in_flash and runs_in_sram else "Flash" if in_flash else "SRAM"
-        print(
-            f"  {seg.permissions} vaddr=0x{seg.vaddr:08x} paddr=0x{seg.paddr:08x} "
-            f"archivo={len(seg.data):>6} B memoria={seg.memsz:>6} B ({region})"
+        segments.append(
+            {
+                "permissions": seg.permissions,
+                "vaddr": seg.vaddr,
+                "paddr": seg.paddr,
+                "file_size": len(seg.data),
+                "mem_size": seg.memsz,
+                "region": region,
+            }
         )
         if seg.data and in_flash:
             flash_used += len(seg.data)
         if runs_in_sram:
             sram_used += seg.memsz
-    print(
-        f"\nUso: Flash {flash_used} / {mem.flash_size} B, "
-        f"SRAM estática {sram_used} / {mem.sram_size} B "
-        f"(quedan {mem.sram_size - sram_used} B para heap y pila)"
-    )
-
     functions = sorted(
         (s for s in image.symbols.values() if s.kind == "func" and s.size),
         key=lambda s: s.address,
     )
-    print("\nFunciones:")
-    for sym in functions:
-        print(f"  0x{sym.address:08x} {sym.size:>5} B  {sym.name}")
+    report = analyze(path)
+    return {
+        "path": str(image.path),
+        "entry": image.entry,
+        "main": image.symbol_address("main"),
+        "vector_table": image.symbol_address("__vector_table"),
+        "arch": image.arch,
+        "segments": segments,
+        "usage": {
+            "flash_used": flash_used,
+            "flash_size": mem.flash_size,
+            "sram_static": sram_used,
+            "sram_size": mem.sram_size,
+        },
+        "functions": [{"name": s.name, "address": s.address, "size": s.size} for s in functions],
+        "build": {
+            "producers": sorted(set(report.producers)),
+            "has_debug": report.has_debug,
+            "optimized": report.optimized,
+            "warnings": report.warnings(),
+        },
+        "sources": list(lines.user_files),
+    }
 
-    report = analyze(args.elf)
+
+def _hex(value: int | None, missing: str) -> str:
+    return f"0x{value:08x}" if value is not None else missing
+
+
+def cmd_info(args: argparse.Namespace) -> int:
+    data = collect(args.elf, board_from(args.board))
+    if args.json:
+        print_json(data)
+        return 0
+    print(f"Archivo:        {data['path']}")
+    print(f"Punto de entrada: 0x{data['entry']:08x}")
+    print(f"main():         {_hex(data['main'], 'no definido')}")
+    print(f"Vectores IRQ:   {_hex(data['vector_table'], 'no definidos')}")
+
+    print("\nSegmentos cargables:")
+    for seg in data["segments"]:
+        print(
+            f"  {seg['permissions']} vaddr=0x{seg['vaddr']:08x} paddr=0x{seg['paddr']:08x} "
+            f"archivo={seg['file_size']:>6} B memoria={seg['mem_size']:>6} B ({seg['region']})"
+        )
+    usage = data["usage"]
+    print(
+        f"\nUso: Flash {usage['flash_used']} / {usage['flash_size']} B, "
+        f"SRAM estática {usage['sram_static']} / {usage['sram_size']} B "
+        f"(quedan {usage['sram_size'] - usage['sram_static']} B para heap y pila)"
+    )
+
+    print("\nFunciones:")
+    for sym in data["functions"]:
+        print(f"  0x{sym['address']:08x} {sym['size']:>5} B  {sym['name']}")
+
+    build = data["build"]
     print("\nCompilación:")
-    for producer in sorted(set(report.producers)):
+    for producer in build["producers"]:
         print(f"  compilador: {producer}")
-    if report.has_debug and not report.optimized:
+    if build["has_debug"] and not build["optimized"]:
         print("  apto para depurar: con información de depuración y sin optimización")
-    for message in report.warnings():
+    for message in build["warnings"]:
         print(f"  aviso: {message}")
 
     print("\nArchivos fuente con información de depuración:")
-    if not lines.user_files:
+    if not data["sources"]:
         print("  (ninguno: ¿se compiló con -g?)")
-    for file in lines.user_files:
+    for file in data["sources"]:
         print(f"  {file}")
     return 0

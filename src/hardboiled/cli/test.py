@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from pathlib import Path
 
 from hardboiled.cli.build import add_build_options
-from hardboiled.cli.common import CliError, Subparsers, board_from, load_machine, parse_int
+from hardboiled.cli.common import (
+    CliError,
+    Subparsers,
+    board_from,
+    load_machine,
+    parse_int,
+    print_json,
+)
 from hardboiled.cli.run import read_uart_input, resolve_program
 from hardboiled.grading import Case, CaseResult, Grader, SuiteError, load_suite
 
@@ -36,6 +44,7 @@ def register(sub: Subparsers) -> None:
         "--expect-trap", metavar="TIPO", help="trampa esperada (p. ej. null-pointer, o *)"
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="sólo el resumen")
+    parser.add_argument("--json", action="store_true", help="resultados en JSON")
     add_build_options(parser)
     parser.set_defaults(func=cmd_test)
 
@@ -87,6 +96,11 @@ def run_cases(args: argparse.Namespace) -> list[CaseResult]:
 
 def cmd_test(args: argparse.Namespace) -> int:
     results = run_cases(args)
+    passed = sum(result.passed for result in results)
+    status = 0 if passed == len(results) else EXIT_FAILED
+    if args.json:
+        print_json({"passed": passed, "total": len(results), "cases": [asdict(r) for r in results]})
+        return status
     for result in results:
         if result.passed and args.quiet:
             continue
@@ -95,6 +109,5 @@ def cmd_test(args: argparse.Namespace) -> int:
         print(f"{mark} {result.name} ({detail}, {result.instructions:,} instrucciones)")
         for failure in result.failures:
             print("      " + failure.replace("\n", "\n      "))
-    passed = sum(result.passed for result in results)
     print(f"\n{passed}/{len(results)} casos correctos")
-    return 0 if passed == len(results) else EXIT_FAILED
+    return status

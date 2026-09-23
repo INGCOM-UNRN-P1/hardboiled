@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -69,6 +70,11 @@ def load_machine(elf: str | Path, board: BoardConfig) -> Machine:
         raise CliError(str(exc)) from exc
     except FileNotFoundError as exc:
         raise CliError(f"no existe {elf}") from exc
+
+
+def print_json(data: object) -> None:
+    """Salida para otras herramientas: JSON legible, con acentos tal cual."""
+    print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
 def user_config(args: argparse.Namespace) -> UserConfig:

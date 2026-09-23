@@ -115,6 +115,13 @@ ignora `clock_hz` (la ejecución no se demora) salvo que se pase `--realtime`.
 Con `--headless`, el código de salida es el valor devuelto por `main()` (módulo
 256), `3` si hubo una trampa y `2` ante errores de uso.
 
+Para integrar con otras herramientas, `info`, `run --headless`, `test` y
+`doctor` aceptan `--json`. Imprimen un único objeto JSON por stdout y conservan
+los mismos códigos de salida. En `run --headless --json` la salida de la UART
+va dentro del objeto (`uart`), junto con `outcome` (`exited`, `trap` o
+`limit`), `exit_code`, la trampa con su ubicación, pista y pila de llamadas,
+los avisos, las instrucciones y los ciclos.
+
 `run` acepta un ELF o fuentes `.c`/`.s` (con las mismas opciones de
 compilación que `build`). Los fuentes se compilan en la caché del usuario
 (`~/.cache/hardboiled/builds` en Linux, o `HARDBOILED_CACHE_DIR`) y sólo se
