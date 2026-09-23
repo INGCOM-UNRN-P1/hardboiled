@@ -20,12 +20,6 @@ offset = "0x00"
 width_bits = 8
 
 [[peripherals]]
-name = "beds"
-type = "gpio_out"
-offset = "0x34"
-width_bits = 8
-
-[[peripherals]]
 name = "switches"
 type = "gpio_in"
 offset = "0x04"
