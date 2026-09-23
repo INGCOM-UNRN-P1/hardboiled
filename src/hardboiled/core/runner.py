@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import queue
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
 
@@ -39,6 +40,7 @@ from hardboiled.core.events import (
     DisasmLine,
     Event,
     EvtBreakpointsChanged,
+    EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
     EvtFrameVariables,
@@ -56,6 +58,7 @@ from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import LedBar, SwitchBank
 
+PROGRESS_INTERVAL = 0.2  # segundos entre EvtCpuProgress
 DEFAULT_HISTORY = 200  # 200 instantáneas de 64 KB de SRAM: ~13 MB
 
 
@@ -77,6 +80,8 @@ class RunnerThread(threading.Thread):
         self.stop_at_main = stop_at_main
         self._deferred: deque[Command] = deque()
         self._known_watches: set[str] = set()
+        self._run_started = self._last_progress = time.monotonic()
+        self._run_start_count = 0
         # Instantáneas previas a cada comando de ejecución, para el paso atrás.
         self._history: deque[MachineSnapshot] = deque(maxlen=max(history_size, 0) or None)
         self._history_enabled = history_size > 0
@@ -232,8 +237,29 @@ class RunnerThread(threading.Thread):
             )
         )
 
+    def _progress(self) -> None:
+        """Informa el avance cada PROGRESS_INTERVAL segundos mientras la CPU corre."""
+        now = time.monotonic()
+        if now - self._last_progress < PROGRESS_INTERVAL:
+            return
+        cpu = self.machine.cpu
+        elapsed = now - self._run_started
+        executed = cpu.instructions - self._run_start_count
+        pc = cpu.current_pc
+        self._emit(
+            EvtCpuProgress(
+                pc,
+                self.machine.debugger.function(pc),
+                cpu.clock.cycles,
+                cpu.instructions,
+                executed / elapsed if elapsed > 0 else 0.0,
+            )
+        )
+        self._last_progress = now
+
     def _poll(self) -> bool:
         """Llamado desde el hook de la CPU: True pide pausar la ejecución."""
+        self._progress()
         pause = False
         while True:
             try:
@@ -286,6 +312,8 @@ class RunnerThread(threading.Thread):
         if self._history_enabled:
             self._history.append(self.machine.snapshot())
         self._emit(EvtCpuRunning())
+        self._run_started = self._last_progress = time.monotonic()
+        self._run_start_count = cpu.instructions
         self._report(operation())
         debugger = self.machine.debugger
         current = {w.expression for w in debugger.watchpoints}

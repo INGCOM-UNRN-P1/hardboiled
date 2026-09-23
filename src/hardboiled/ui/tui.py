@@ -39,6 +39,7 @@ from hardboiled.core.events import (
     Command,
     Event,
     EvtBreakpointsChanged,
+    EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
     EvtFrameVariables,
@@ -220,6 +221,17 @@ class HardboiledApp(App[None]):
                     self._refresh_breakpoints()
             case EvtCpuRunning():
                 self._set_status(Text("▶ ejecutando…  (F6 pausa)", style="bold green"))
+            case EvtCpuProgress():
+                status = Text()
+                status.append("▶ ejecutando ", style="bold green")
+                status.append(event.function or "??", style="bold")
+                status.append(
+                    f"  pc=0x{event.pc:08x}  ciclos={event.cycle_count:,}"
+                    f"  {event.instructions_per_second / 1e6:.2f} M instr/s",
+                    style="dim",
+                )
+                status.append("  (F6 pausa)", style="green")
+                self._set_status(status)
             case EvtCpuSuspended():
                 self._on_suspended(event)
             case EvtMemoryDump():

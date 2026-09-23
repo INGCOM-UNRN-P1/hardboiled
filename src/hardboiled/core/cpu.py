@@ -344,6 +344,11 @@ class Cpu:
         return value
 
     @property
+    def current_pc(self) -> int:
+        """PC de la instrucción que se está ejecutando (válido también dentro de hooks)."""
+        return self._current_pc
+
+    @property
     def sp(self) -> int:
         value: int = self._uc.reg_read(_SP)
         return value

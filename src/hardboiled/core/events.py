@@ -213,6 +213,17 @@ class EvtCpuRunning:
 
 
 @dataclass(frozen=True)
+class EvtCpuProgress:
+    """Mientras la CPU corre, unas 5 veces por segundo."""
+
+    pc: int
+    function: str | None
+    cycle_count: int
+    instructions: int
+    instructions_per_second: float
+
+
+@dataclass(frozen=True)
 class EvtCpuSuspended:
     pc: int
     source_file: str | None
@@ -325,6 +336,7 @@ class EvtMessage:
 Event = (
     EvtProgramLoaded
     | EvtCpuRunning
+    | EvtCpuProgress
     | EvtCpuSuspended
     | EvtFrameVariables
     | EvtMemoryDump

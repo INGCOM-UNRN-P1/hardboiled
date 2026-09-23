@@ -21,6 +21,7 @@ from hardboiled.core.events import (
     CmdToggleSwitch,
     CmdToggleWatchpoint,
     EvtBreakpointsChanged,
+    EvtCpuProgress,
     EvtCpuRunning,
     EvtCpuSuspended,
     EvtFrameVariables,
@@ -87,6 +88,8 @@ def test_runner_pause_and_live_switches(harness: HarnessFactory) -> None:
     assert (update.device_name, update.value) == ("switches", 4)
     h.cmd.put(CmdContinue())
     h.wait_for(EvtCpuRunning)
+    progress = h.wait_for(EvtCpuProgress)  # el bucle infinito informa su avance
+    assert progress.function == "main" and progress.instructions_per_second > 0
     h.cmd.put(CmdToggleSwitch(0))  # se aplica en vivo mientras corre
     h.cmd.put(CmdPause())
     paused = h.wait_for(EvtCpuSuspended)
