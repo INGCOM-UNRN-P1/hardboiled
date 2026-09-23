@@ -289,8 +289,12 @@ valida con pydantic (regiones alineadas y sin superposición, periféricos dentr
 del espacio MMIO, líneas de IRQ únicas). Ver `board.toml` en la raíz. El campo
 opcional `board.clock_hz` acompasa la emulación al reloj real para que un LED
 que parpadea con el timer tenga una velocidad visible; sin él, la CPU corre tan
-rápido como puede. El SDK (`hardboiled.h`) asume los offsets de la placa por
-defecto.
+rápido como puede. El SDK (`hardboiled.h` y el linker script se generan a partir
+de la placa: si el proyecto tiene su propio `board.toml`, `build` y `run`
+generan un SDK acorde en la caché, y `hardboiled gen-header [board.toml]`
+(o `--linker-script`) lo imprime para inspeccionarlo. El primer periférico de
+cada tipo usa los nombres clásicos (`LEDS`/`led_set()`, `TIMER_CTRL`/
+`timer_start()`…) y los siguientes, su nombre (`BARRA`/`barra_set()`).
 
 ## Arquitectura
 

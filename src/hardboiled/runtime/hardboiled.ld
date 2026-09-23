@@ -1,10 +1,11 @@
-/* hardboiled.ld — Linker script para la placa virtual hardboiled (RV32I).
+/* hardboiled.ld — Linker script para la placa 'lab-rv32-basics' (RV32I).
+ * Generado a partir de board.toml con `hardboiled gen-header --linker-script`.
  *
- * Mapa de memoria (ver board.toml):
+ * Mapa de memoria:
  *   0x0000_0000 - 0x0000_FFFF  zona de trampa (punteros nulos)
- *   0x0001_0000 - 0x0001_FFFF  Flash: vectores, crt0, .text, .rodata, imagen de .data
- *   0x2000_0000 - 0x2000_FFFF  SRAM: .data, .bss, heap y pila (crece desde 0x2001_0000)
- *   0x4000_0000 - 0x4000_0FFF  MMIO (periféricos)
+ *   0x00010000 (64 KB)  Flash: vectores, crt0, .text, .rodata, .data
+ *   0x20000000 (64 KB)  SRAM: .data, .bss, heap y pila (desde el final)
+ *   0x40000000 (4 KB)  MMIO (periféricos)
  */
 OUTPUT_ARCH(riscv)
 ENTRY(_start)

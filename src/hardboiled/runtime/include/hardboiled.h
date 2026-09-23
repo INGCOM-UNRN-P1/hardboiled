@@ -1,13 +1,13 @@
 /*
  * hardboiled.h — SDK pedagógico para la placa virtual hardboiled (RV32I).
  *
- * Encapsula los registros de E/S mapeados en memoria (MMIO) de la placa por
- * defecto (board.toml) y ofrece funciones simples para LEDs, switches, UART,
- * timer e interrupciones.
+ * Generado a partir de la placa 'lab-rv32-basics' con `hardboiled gen-header`.
+ * Encapsula los registros de E/S mapeados en memoria (MMIO) y ofrece
+ * funciones simples para los periféricos y las interrupciones.
  *
  * Mapa MMIO (base 0x4000_0000):
- *   0x000  LEDS         escritura/lectura: un bit por LED
- *   0x004  SWITCHES     solo lectura: un bit por interruptor
+ *   0x000  LEDS         escritura/lectura: un bit por LED (8)
+ *   0x004  SWITCHES     sólo lectura: un bit por interruptor (4)
  *   0x010  UART_TX      escritura: byte a transmitir
  *   0x014  UART_STATUS  lectura: bit 0 = listo para transmitir
  *   0x020  TIMER_CTRL   bit 0 = habilitado, bit 1 = genera IRQ
@@ -43,14 +43,14 @@
 #define UART_STATUS_READY (1u << 0)
 
 #define HB_IRQ_LINES 8
-#define IRQ_TIMER0   0
+#define IRQ_TIMER0 0
 
 typedef void (*irq_handler_t)(void);
 
 /* Tabla de handlers definida en crt0.s. */
 extern volatile irq_handler_t __irq_handlers[HB_IRQ_LINES];
 
-/* ---------------------------------------------------------------- LEDs --- */
+/* ------------------------------------------------------------------ LEDs --- */
 
 static inline void led_set(uint32_t mask) { LEDS = mask; }
 static inline uint32_t led_get(void) { return LEDS; }
@@ -58,12 +58,12 @@ static inline void led_on(unsigned int index) { LEDS = LEDS | (1u << index); }
 static inline void led_off(unsigned int index) { LEDS = LEDS & ~(1u << index); }
 static inline void led_toggle(unsigned int index) { LEDS = LEDS ^ (1u << index); }
 
-/* ------------------------------------------------------------ Switches --- */
+/* -------------------------------------------------------------- Switches --- */
 
 static inline uint32_t switch_get(void) { return SWITCHES; }
 static inline int switch_read(unsigned int index) { return (int)((SWITCHES >> index) & 1u); }
 
-/* ---------------------------------------------------------------- UART --- */
+/* ------------------------------------------------------------------ UART --- */
 
 static inline void uart_putc(char c)
 {
@@ -90,7 +90,7 @@ static inline void uart_puthex(uint32_t value)
     }
 }
 
-/* --------------------------------------------------------------- Timer --- */
+/* ----------------------------------------------------------------- Timer --- */
 
 static inline void timer_start(uint32_t period_cycles, int with_irq)
 {

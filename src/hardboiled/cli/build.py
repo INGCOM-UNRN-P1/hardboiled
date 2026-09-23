@@ -8,7 +8,9 @@ import shlex
 import sys
 from pathlib import Path
 
-from hardboiled.cli.common import CliError, Subparsers, user_config
+from hardboiled import paths
+from hardboiled.cli.common import CliError, Subparsers, board_from, user_config
+from hardboiled.sdk import runtime_for
 from hardboiled.toolchain import BuildError, BuildOptions, ToolchainError, build, select_compiler
 
 
@@ -21,11 +23,15 @@ def add_build_options(parser: argparse.ArgumentParser) -> None:
     group.add_argument("-D", dest="defines", action="append", default=[], help="macro")
     group.add_argument("-I", dest="include_dirs", action="append", default=[], help="includes")
     group.add_argument("--cflags", default="", help='flags extra, p. ej. --cflags="-std=c99"')
+    if not any(action.dest == "board" for action in parser._actions):
+        group.add_argument("--board", help="board.toml (por defecto ./board.toml si existe)")
 
 
 def options_from(args: argparse.Namespace) -> BuildOptions:
     prefs = user_config(args).build
+    board = board_from(getattr(args, "board", None))
     return BuildOptions(
+        runtime=runtime_for(board, paths.cache_dir()),
         opt_level=args.opt_level or prefs.opt_level,
         march=args.march or prefs.march,
         defines=tuple(args.defines),
