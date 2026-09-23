@@ -54,6 +54,7 @@ class CodeView(ScrollView, can_focus=True):
         self._trap_line: int | None = None  # línea donde ocurrió una trampa
         self._cursor_line = 1
         self._breakpoints: frozenset[int] = frozenset()
+        self._search: str | None = None
         self._conditional: frozenset[int] = frozenset()
 
     @property
@@ -92,6 +93,39 @@ class CodeView(ScrollView, can_focus=True):
         if line is not None:
             self._cursor_line = line
             self._ensure_visible(line)
+        self.refresh()
+
+    # --------------------------------------------------------- búsqueda
+
+    def find(self, text: str, backwards: bool = False) -> int | None:
+        """Busca `text` (sin distinguir mayúsculas) desde el cursor; mueve el cursor.
+
+        Da la vuelta al llegar al final del archivo. Devuelve la línea o None.
+        """
+        needle = text.lower()
+        if not needle or not self._lines:
+            return None
+        self._search = text
+        total = len(self._lines)
+        step = -1 if backwards else 1
+        for distance in range(1, total + 1):
+            index = (self._cursor_line - 1 + step * distance) % total
+            if needle in self._lines[index].plain.lower():
+                self.goto_line(index + 1)
+                return index + 1
+        self.refresh()
+        return None
+
+    def goto_line(self, line: int) -> bool:
+        if not 1 <= line <= len(self._lines):
+            return False
+        self._cursor_line = line
+        self._ensure_visible(line)
+        self.refresh()
+        return True
+
+    def clear_search(self) -> None:
+        self._search = None
         self.refresh()
 
     def set_trap_line(self, line: int | None) -> None:
@@ -160,6 +194,8 @@ class CodeView(ScrollView, can_focus=True):
 
         code = self._lines[index].copy()
         code.no_wrap = True
+        if self._search:
+            code.highlight_words([self._search], style="black on yellow", case_sensitive=False)
         if background is not None:
             gutter.stylize(background)
             code.stylize(background)

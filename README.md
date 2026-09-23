@@ -168,7 +168,9 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `r` | Reset de la placa |
 | `q` | Salir |
 
-`↑`/`↓`/`PgUp`/`PgDn` mueven el cursor en el código.
+`↑`/`↓`/`PgUp`/`PgDn` mueven el cursor en el código; `/` busca (F3 y
+Shift+F3 van a la coincidencia siguiente y anterior, resaltadas) y `:` va a
+una línea.
 
 La pestaña **Variables** muestra los parámetros y locales de la función en
 curso (respetando el alcance de los bloques, como el `int i` de un `for`) y

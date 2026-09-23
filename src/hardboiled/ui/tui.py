@@ -119,6 +119,10 @@ class HardboiledApp(App[None]):
         Binding("w", "watch", "Watch"),
         Binding("d", "toggle_disassembly", "ASM"),
         Binding("f", "open_file", "Archivos"),
+        Binding("slash", "search", "Buscar"),
+        Binding("f3", "search_next", show=False),
+        Binding("shift+f3", "search_previous", show=False),
+        Binding("colon", "goto_line", show=False),
         Binding("x", "register_format", show=False),
         Binding("B", "conditional_breakpoint", show=False),
         Binding("ctrl+f9", "conditional_breakpoint", show=False),
@@ -143,6 +147,7 @@ class HardboiledApp(App[None]):
         self._suspended: EvtCpuSuspended | None = None
         self._pending_trap: EvtTrap | None = None
         self._source_files: tuple[str, ...] = ()
+        self._last_search = ""
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -398,6 +403,47 @@ class HardboiledApp(App[None]):
 
     def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
         self.send(CmdReadMemory(message.where))
+
+    def action_search(self) -> None:
+        def submit(text: str | None) -> None:
+            code = self.query_one(CodeView)
+            if not text:
+                code.clear_search()
+                return
+            self._last_search = text
+            if code.find(text) is None:
+                self.notify(f"no se encontró {text!r}", severity="warning")
+
+        self.push_screen(
+            Prompt(
+                "Buscar en el código:",
+                value=self._last_search,
+                help="F3 siguiente, Shift+F3 anterior; vacío quita el resaltado.",
+            ),
+            submit,
+        )
+
+    def _search_again(self, backwards: bool) -> None:
+        if not self._last_search:
+            self.action_search()
+            return
+        if self.query_one(CodeView).find(self._last_search, backwards) is None:
+            self.notify(f"no se encontró {self._last_search!r}", severity="warning")
+
+    def action_search_next(self) -> None:
+        self._search_again(backwards=False)
+
+    def action_search_previous(self) -> None:
+        self._search_again(backwards=True)
+
+    def action_goto_line(self) -> None:
+        def submit(text: str | None) -> None:
+            if text is None or not text.strip():
+                return
+            if not text.strip().isdigit() or not self.query_one(CodeView).goto_line(int(text)):
+                self.notify(f"línea inválida: {text}", severity="warning")
+
+        self.push_screen(Prompt("Ir a la línea:", "número"), submit)
 
     def action_open_file(self) -> None:
         if not self._source_files:
