@@ -20,6 +20,8 @@ PACKAGED_FILES = (
     "data/board.toml",
     "examples/demo.c",
     "examples/hola.c",
+    "data/project/main.c",
+    "data/project/Makefile",
 )
 
 

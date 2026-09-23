@@ -32,6 +32,20 @@ uv venv && uv pip install -e ".[zig]"   # instalación editable
 uv sync                                 # entorno de desarrollo (tests, ruff, mypy, zig)
 ```
 
+## Empezar un proyecto
+
+```bash
+hardboiled new mi-tp            # main.c, Makefile, board.toml, compile_flags.txt, .gitignore
+cd mi-tp && hardboiled run main.c
+hardboiled new mi-tp --example interrupciones   # partir de un ejemplo incluido
+```
+
+El `Makefile` generado ofrece `make`, `make run`, `make headless` y
+`make clean`. `compile_flags.txt` le indica a clangd (VS Code, Neovim, etc.)
+el target RV32I y dónde está `hardboiled.h`, así el autocompletado y los
+diagnósticos funcionan sin configurar nada. Si se reinstala hardboiled y cambia
+la ruta, `hardboiled new . --editor-only` lo regenera.
+
 ## Compilar un programa
 
 ```bash
