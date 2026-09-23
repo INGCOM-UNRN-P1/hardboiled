@@ -34,8 +34,12 @@ uv sync                                 # entorno de desarrollo (tests, ruff, my
 
 ## Compilar un programa
 
-El binario debe ser RV32I puro (sin extensiones M/A/C), enlazado con el
-runtime incluido en el paquete (`src/hardboiled/runtime/`):
+```bash
+hardboiled build programa.c                  # -> programa.elf
+hardboiled build main.c util.c -o main.elf -O1 --march rv32im -v
+```
+
+`build` agrega solo el runtime incluido en el paquete y los flags de la placa:
 
 | Archivo | Contenido |
 |---|---|
@@ -43,27 +47,14 @@ runtime incluido en el paquete (`src/hardboiled/runtime/`):
 | `hardboiled.ld` | Linker script alineado con el mapa de memoria de la placa. |
 | `include/hardboiled.h` | SDK: `led_set()`, `switch_get()`, `uart_puts()`, `timer_start()`, `attach_irq()`, … |
 
-Con la toolchain GNU (`riscv64-unknown-elf-gcc` sirve para 32 bits):
+El compilador se elige así: `--cc` (`auto`, `gcc`, `zig` o una ruta), si no la
+variable `HARDBOILED_CC`, y si no el primero disponible entre una toolchain GNU
+para RISC-V en el `PATH` (`riscv64-unknown-elf-gcc`, `riscv32-unknown-elf-gcc`,
+`riscv-none-elf-gcc`, …) y el clang del extra `[zig]`. Otras opciones: `-O`,
+`--march` (`rv32i`, `rv32im`, `rv32ic`, `rv32imc`), `-D`, `-I`, `--cflags` y
+`-v` para ver el comando completo.
 
-```bash
-riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -g -O0 \
-    -ffreestanding -nostdlib -nostartfiles \
-    -I src/hardboiled/runtime/include -T src/hardboiled/runtime/hardboiled.ld \
-    src/hardboiled/runtime/crt0.s programa.c -lgcc -o programa.elf
-```
-
-Sin toolchain instalada, el paquete `ziglang` (incluido en el entorno de
-desarrollo) trae un clang capaz de generar RV32I:
-
-```bash
-uv run python -m ziglang cc -target riscv32-freestanding-none -mcpu=generic_rv32 \
-    -g -O0 -fno-sanitize=undefined -fno-unwind-tables -fno-asynchronous-unwind-tables \
-    -ffunction-sections -Wl,--gc-sections \
-    -I src/hardboiled/runtime/include -T src/hardboiled/runtime/hardboiled.ld \
-    src/hardboiled/runtime/crt0.s programa.c -o programa.elf
-```
-
-`tests/fixtures/build.py` recompila así todos los ejemplos de `tests/fixtures/`.
+`tests/fixtures/build.py` recompila con este mismo módulo los ELF de prueba.
 
 ## Uso
 
