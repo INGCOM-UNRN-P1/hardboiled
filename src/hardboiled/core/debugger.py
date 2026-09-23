@@ -9,6 +9,7 @@ que una IRQ asíncrona no "secuestra" el step del usuario.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
 from hardboiled.core.dwarf import LineTable, SourceLocation
@@ -174,6 +175,36 @@ class Debugger:
             return location is not None and location != start
 
         return self._run(reached_new_line)
+
+    def step_out(self) -> StopInfo:
+        """Ejecuta hasta volver a la función llamadora (como `finish` de gdb).
+
+        Se detiene en la dirección de retorno cuando sp vuelve al CFA del marco
+        actual, así una llamada recursiva a la misma función no lo confunde.
+        Dentro de una rutina de interrupción, sale hasta el código interrumpido.
+        """
+        frames = self.backtrace()
+        if len(frames) < 2 or frames[0].cfa is None:
+            raise DebuggerError("no hay una función llamadora a la que volver")
+        cpu = self.cpu
+        function = frames[0].function or self.image.describe(frames[0].pc)
+        if frames[1].irq_line is not None:
+            pic = cpu.pic
+            stop = self._run(lambda pc: not pic.in_isr)
+            return self._with_message(stop, f"fin de la interrupción ({function})")
+        return_pc, cfa = frames[1].pc, frames[0].cfa
+        stop = self._run(lambda pc: pc == return_pc and cpu.sp >= cfa)
+        if stop.reason is StopReason.BREAK and cpu.pc == return_pc:
+            value = cpu.read_register(10)
+            signed = value - (1 << 32) if value & 0x8000_0000 else value
+            return self._with_message(stop, f"{function} devolvió a0 = {signed} (0x{value:x})")
+        return stop
+
+    @staticmethod
+    def _with_message(stop: StopInfo, message: str) -> StopInfo:
+        if stop.reason is not StopReason.BREAK:
+            return stop
+        return replace(stop, message=message)
 
     def step_over(self) -> StopInfo:
         """Como Step Into, pero las llamadas (jal/jalr a ra) se ejecutan completas.

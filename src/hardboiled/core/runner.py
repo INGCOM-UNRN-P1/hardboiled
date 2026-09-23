@@ -24,6 +24,7 @@ from hardboiled.core.events import (
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
+    CmdStepOut,
     CmdStepOver,
     CmdToggleAddressBreakpoint,
     CmdToggleBreakpoint,
@@ -111,6 +112,11 @@ class RunnerThread(threading.Thread):
                 self._execute(debugger.continue_)
             case CmdStepInstruction():
                 self._execute(debugger.step_instruction)
+            case CmdStepOut():
+                if len(debugger.backtrace()) < 2:
+                    self._emit(EvtMessage("no hay una función llamadora a la que volver"))
+                else:
+                    self._execute(debugger.step_out)
             case CmdRunToLine(line_number=line, source_file=source):
                 try:
                     address = debugger.resolve_line(line, source)[2]

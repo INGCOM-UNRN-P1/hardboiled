@@ -29,6 +29,11 @@ class CmdContinue:
 
 
 @dataclass(frozen=True)
+class CmdStepOut:
+    """Ejecuta hasta volver a la función llamadora (finish)."""
+
+
+@dataclass(frozen=True)
 class CmdStepInstruction:
     """Ejecuta una única instrucción de máquina (stepi)."""
 
@@ -79,6 +84,7 @@ Command = (
     | CmdStepOver
     | CmdContinue
     | CmdStepInstruction
+    | CmdStepOut
     | CmdRunToLine
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint

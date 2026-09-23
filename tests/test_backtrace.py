@@ -79,3 +79,47 @@ def test_frame_pointer_fallback_matches_cfi(make_machine: MachineFactory, breakp
     without = Unwinder(machine.image, machine.lines, CallFrameTable.empty()).unwind(machine.cpu)
     # Sin CFI se reconstruye igual (salvo el marco de crt0, que no usa s0).
     assert summary(without)[: len(with_cfi) - 1] == with_cfi[:-1]
+
+
+def test_step_out_returns_to_caller_with_value(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("basic")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("basic.c", "square_body"), "basic.c")
+    debugger.continue_()
+    debugger.toggle_line_breakpoint(line_of("basic.c", "square_body"), "basic.c")
+    stop = debugger.step_out()
+    assert debugger.function() == "sum_squares"
+    assert "square devolvió a0 = 1" in stop.message
+
+
+def test_step_out_of_recursion_leaves_one_level(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("basic")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("basic.c", "fact_recurse"), "basic.c")
+    for _ in range(3):
+        debugger.continue_()
+    depth = len(debugger.backtrace())
+    debugger.toggle_line_breakpoint(line_of("basic.c", "fact_recurse"), "basic.c")
+    stop = debugger.step_out()
+    assert len(debugger.backtrace()) == depth - 1
+    assert debugger.function() == "factorial"
+    assert "devolvió a0 = 6" in stop.message  # factorial(3) volviendo a factorial(4)
+
+
+def test_step_out_of_interrupt(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("mmio")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("mmio.c", "isr_body"), "mmio.c")
+    debugger.continue_()
+    debugger.toggle_line_breakpoint(line_of("mmio.c", "isr_body"), "mmio.c")
+    stop = debugger.step_out()
+    assert not machine.pic.in_isr
+    assert "fin de la interrupción" in stop.message
+
+
+def test_step_out_without_caller(make_machine: MachineFactory) -> None:
+    from hardboiled.core.debugger import DebuggerError
+
+    machine, _ = make_machine("basic")  # en _start, sin llamador
+    with pytest.raises(DebuggerError):
+        machine.debugger.step_out()

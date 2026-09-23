@@ -155,6 +155,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `F9` / `b` | Pone/quita un breakpoint en la línea del cursor (también: click en el margen) |
 | `F10` / `n` | Step Over: siguiente línea sin entrar en las funciones |
 | `F11` / `s` | Step Into: siguiente línea, entrando en las funciones llamadas |
+| `Shift+F11` / `o` | Step Out: termina la función actual e informa el valor devuelto |
 | `F7` / `i` | Stepi: una sola instrucción de máquina |
 | `F4` / `g` | Run to cursor: ejecuta hasta la línea del cursor sin dejar breakpoint |
 | `0`–`7` | Conmuta un switch (también: click en el botón) |
