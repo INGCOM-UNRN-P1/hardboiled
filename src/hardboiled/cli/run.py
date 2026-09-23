@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import queue
 import sys
+from pathlib import Path
 
+from hardboiled.buildcache import SOURCE_SUFFIXES, build_cached
+from hardboiled.cli.build import add_build_options, options_from
 from hardboiled.cli.common import (
     EXIT_TRAP,
     CliError,
@@ -17,11 +20,16 @@ from hardboiled.cli.common import (
 from hardboiled.core.cpu import StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput
 from hardboiled.core.machine import Machine
+from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
 
 
 def register(sub: Subparsers) -> None:
     run = sub.add_parser("run", help="ejecuta un ELF en la TUI (o sin interfaz con --headless)")
-    run.add_argument("elf", help="binario ELF riscv32 enlazado con el runtime de hardboiled")
+    run.add_argument(
+        "program",
+        nargs="+",
+        help="un ELF, o fuentes .c/.s que se compilan (con caché) antes de ejecutar",
+    )
     run.add_argument("--board", help="board.toml (por defecto ./board.toml si existe)")
     run.add_argument("--headless", action="store_true", help="ejecutar sin TUI hasta terminar")
     run.add_argument("--switches", type=parse_int, help="estado inicial de los switches (0b0101)")
@@ -34,7 +42,38 @@ def register(sub: Subparsers) -> None:
         action="store_true",
         help="con --headless, respetar clock_hz de la placa (por defecto corre sin pausas)",
     )
+    add_build_options(run)
     run.set_defaults(func=cmd_run)
+
+
+def resolve_program(args: argparse.Namespace) -> Path:
+    """Devuelve el ELF a ejecutar, compilando los fuentes si hace falta."""
+    programs = [Path(p) for p in args.program]
+    suffixes = {p.suffix.lower() for p in programs}
+    if suffixes == {".elf"}:
+        if len(programs) > 1:
+            raise CliError("se puede ejecutar un único ELF por vez")
+        return programs[0]
+    if ".elf" in suffixes:
+        raise CliError("no se pueden mezclar un ELF y archivos fuente")
+    unknown = sorted(suffixes - set(SOURCE_SUFFIXES))
+    if unknown:
+        raise CliError(f"tipo de archivo no reconocido: {', '.join(unknown)} (se espera .elf o .c)")
+    for program in programs:
+        if not program.is_file():
+            raise CliError(f"no existe {program}")
+    try:
+        compiler = select_compiler(args.cc)
+        result = build_cached(programs, options_from(args), compiler)
+    except BuildError as exc:
+        raise CliError(f"{exc}\n{exc.output}") from exc
+    except ToolchainError as exc:
+        raise CliError(str(exc)) from exc
+    if result.diagnostics:
+        print(result.diagnostics, file=sys.stderr)
+    if not result.reused:
+        print(f"compilado con {compiler.description}", file=sys.stderr)
+    return result.elf
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -50,7 +89,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         board = board.model_copy(
             update={"board": board.board.model_copy(update={"clock_hz": None})}
         )
-    machine = load_machine(args.elf, board)
+    machine = load_machine(resolve_program(args), board)
     if args.switches is not None:
         switches = machine.switches()
         if switches is None:

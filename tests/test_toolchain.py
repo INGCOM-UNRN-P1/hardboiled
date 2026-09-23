@@ -98,3 +98,37 @@ def test_cli_build(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert code == 0 and output.is_file()
     assert "compilado" in capsys.readouterr().out
     assert main(["build", str(tmp_path / "falta.c"), "--cc", "zig"]) == EXIT_USAGE
+
+
+@needs_zig
+def test_run_compiles_sources_with_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsysbinary: pytest.CaptureFixture[bytes],
+) -> None:
+    monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
+    source = tmp_path / "hola.c"
+    header = tmp_path / "valor.h"
+    header.write_text("#define VALOR 5\n")
+    source.write_text(
+        '#include "hardboiled.h"\n#include "valor.h"\n'
+        'int main(void) { uart_puts("hola"); return VALOR; }\n'
+    )
+    args = ["run", str(source), "--headless", "--cc", "zig"]
+    assert main(args) == 5
+    first = capsysbinary.readouterr()
+    assert first.out == b"hola" and b"compilado con" in first.err
+
+    assert main(args) == 5  # sin cambios: se reutiliza la caché
+    assert b"compilado con" not in capsysbinary.readouterr().err
+
+    header.write_text("#define VALOR 9\n")  # cambiar un encabezado invalida la caché
+    assert main(args) == 9
+    assert len(list((tmp_path / "cache" / "builds").iterdir())) == 2
+
+
+def test_run_rejects_mixed_inputs(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["run", "a.elf", "b.c", "--headless"]) == EXIT_USAGE
+    assert "mezclar" in capsys.readouterr().err
+    assert main(["run", "notas.txt", "--headless"]) == EXIT_USAGE
+    assert "no reconocido" in capsys.readouterr().err

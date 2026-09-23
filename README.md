@@ -59,6 +59,7 @@ para RISC-V en el `PATH` (`riscv64-unknown-elf-gcc`, `riscv32-unknown-elf-gcc`,
 ## Uso
 
 ```bash
+hardboiled run programa.c                   # compila (con caché) y abre la TUI
 hardboiled run programa.elf                 # TUI, detenida al inicio de main()
 hardboiled run programa.elf --headless      # sin TUI: UART a stdout, trampas a stderr
 hardboiled run traps.elf --headless --switches 0b0011 --max-instructions 100000
@@ -73,6 +74,13 @@ actual para editarla y `hardboiled board show` la imprime. Con `--headless` se
 ignora `clock_hz` (la ejecución no se demora) salvo que se pase `--realtime`.
 Con `--headless`, el código de salida es el valor devuelto por `main()` (módulo
 256), `3` si hubo una trampa y `2` ante errores de uso.
+
+`run` acepta un ELF o fuentes `.c`/`.s` (con las mismas opciones de
+compilación que `build`). Los fuentes se compilan en la caché del usuario
+(`~/.cache/hardboiled/builds` en Linux, o `HARDBOILED_CACHE_DIR`) y sólo se
+recompilan si cambian ellos, los encabezados de sus directorios, las opciones
+o el compilador. Los mensajes del compilador van a stderr, así que en
+`--headless` stdout contiene sólo la salida de la UART.
 
 Para probar la TUI: `uv run hardboiled run tests/fixtures/demo.elf`.
 
