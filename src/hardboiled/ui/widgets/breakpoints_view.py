@@ -49,8 +49,14 @@ class BreakpointsView(OptionList):
             *(PointRef("watch", expression=w.expression) for w in event.watches),
         ]
         prompts: list[Text] = []
+        conditions = {(c.source_file, c.line): c for c in event.conditions}
         for f, n in sorted(event.lines):
-            prompts.append(Text.assemble(("● ", "bold red"), f"{os.path.basename(f)}:{n}"))
+            condition = conditions.get((f, n))
+            marker = "◆ " if condition else "● "
+            prompt = Text.assemble((marker, "bold red"), f"{os.path.basename(f)}:{n}")
+            if condition is not None:
+                prompt.append(f"  {condition.describe()}", style="italic")
+            prompts.append(prompt)
         for a in sorted(event.addresses):
             prompts.append(Text.assemble(("● ", "bold red"), f"0x{a:08x}"))
         for w in event.watches:

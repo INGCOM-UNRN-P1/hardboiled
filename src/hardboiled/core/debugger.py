@@ -15,13 +15,30 @@ from hardboiled.core.cpu import Cpu, StopInfo, StopReason
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import VariableInfo
-from hardboiled.core.expressions import Evaluator, ExpressionError
+from hardboiled.core.expressions import Evaluator, ExpressionError, tokenize
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
 from hardboiled.core.variables import CType, Formatter, FrameContext, Storage, VariableTable
 
 
 class DebuggerError(Exception):
     pass
+
+
+@dataclass
+class BreakpointCondition:
+    """Condición C y/o cantidad de pasadas de un breakpoint."""
+
+    expression: str | None = None
+    hit_target: int | None = None  # detener recién en la pasada N (y las siguientes)
+    hits: int = 0
+
+    def describe(self) -> str:
+        parts = []
+        if self.expression:
+            parts.append(f"si {self.expression}")
+        if self.hit_target:
+            parts.append(f"desde la pasada {self.hit_target}")
+        return ", ".join(parts)
 
 
 @dataclass
@@ -53,6 +70,8 @@ class Debugger:
         self._watches: dict[int, Watchpoint] = {}
         self._line_breakpoints: dict[tuple[str, int], int] = {}
         self._address_breakpoints: set[int] = set()
+        self._conditions: dict[int, BreakpointCondition] = {}
+        self._breakpoint_note: str | None = None
         # Conjunto vivo: se consulta en cada instrucción y puede cambiar durante un Continue.
         self._active: set[int] = set()
 
@@ -61,6 +80,10 @@ class Debugger:
     @property
     def line_breakpoints(self) -> frozenset[tuple[str, int]]:
         return frozenset(self._line_breakpoints)
+
+    @property
+    def line_breakpoint_addresses(self) -> dict[tuple[str, int], int]:
+        return dict(self._line_breakpoints)
 
     @property
     def address_breakpoints(self) -> frozenset[int]:
@@ -79,13 +102,68 @@ class Debugger:
         file, effective_line, address = self.resolve_line(line, source_file)
         key = (file, effective_line)
         if key in self._line_breakpoints:
-            del self._line_breakpoints[key]
+            self._conditions.pop(self._line_breakpoints.pop(key), None)
             placed = False
         else:
             self._line_breakpoints[key] = address
             placed = True
         self._rebuild()
         return placed
+
+    @property
+    def conditions(self) -> dict[int, BreakpointCondition]:
+        return dict(self._conditions)
+
+    def set_condition(
+        self,
+        line: int,
+        source_file: str | None = None,
+        expression: str | None = None,
+        hit_target: int | None = None,
+    ) -> BreakpointCondition | None:
+        """Pone (o crea) un breakpoint condicional en una línea; sin condición la quita.
+
+        La expresión se valida ahora en el marco actual sólo si es sintácticamente
+        inválida; que use variables todavía no visibles es válido.
+        """
+        file, effective, address = self.resolve_line(line, source_file)
+        expression = (expression or "").strip() or None
+        if expression is not None:
+            try:
+                tokenize(expression)
+            except ExpressionError as exc:
+                raise DebuggerError(f"condición inválida: {exc}") from exc
+        if hit_target is not None and hit_target < 1:
+            raise DebuggerError("la cantidad de pasadas debe ser 1 o más")
+        self._line_breakpoints[(file, effective)] = address
+        self._rebuild()
+        if expression is None and hit_target is None:
+            self._conditions.pop(address, None)
+            return None
+        condition = BreakpointCondition(expression, hit_target)
+        self._conditions[address] = condition
+        return condition
+
+    def _breakpoint_fires(self, pc: int) -> bool:
+        """Se evalúa en el hook de la CPU al llegar a un breakpoint."""
+        condition = self._conditions.get(pc)
+        if condition is None:
+            self._breakpoint_note = None
+            return True
+        if condition.expression is not None:
+            try:
+                if not self.evaluator().integer(condition.expression):
+                    return False
+            except ExpressionError as exc:
+                self._breakpoint_note = f"no se pudo evaluar la condición: {exc}"
+                return True
+        condition.hits += 1
+        if condition.hit_target is not None and condition.hits < condition.hit_target:
+            return False
+        detail = [f"{condition.expression} es verdadera"] if condition.expression else []
+        detail.append(f"pasada {condition.hits}")
+        self._breakpoint_note = "breakpoint condicional: " + ", ".join(detail)
+        return True
 
     def resolve_line(self, line: int, source_file: str | None = None) -> tuple[str, int, int]:
         """(archivo, línea efectiva, dirección) de una línea, o la siguiente con código."""
@@ -98,6 +176,7 @@ class Debugger:
     def toggle_address_breakpoint(self, address: int) -> bool:
         if address in self._address_breakpoints:
             self._address_breakpoints.discard(address)
+            self._conditions.pop(address, None)
             placed = False
         else:
             self._address_breakpoints.add(address)
@@ -139,10 +218,7 @@ class Debugger:
         """Contexto para evaluar ubicaciones: el marco 0 ve todos los registros."""
         if frame is None or frame.index == 0:
             regs = {index: self.cpu.read_register(index) for index in range(32)}
-            cfa = frame.cfa if frame is not None else None
-            if frame is None:
-                frames = self.backtrace()
-                cfa = frames[0].cfa if frames else None
+            cfa = frame.cfa if frame is not None else self.unwinder.current_cfa(self.cpu)
             return FrameContext(self.cpu.pc, cfa, regs)
         return FrameContext(frame.site, frame.cfa, dict(frame.regs))
 
@@ -286,6 +362,8 @@ class Debugger:
     def _run(self, predicate: Callable[[int], bool]) -> StopInfo:
         stop = self._run_raw(predicate)
         stop = self._describe_watch_hit(stop)
+        if self._breakpoint_note and stop.reason is StopReason.BREAK and not stop.message:
+            stop = replace(stop, message=self._breakpoint_note)
         removed = self._prune_watchpoints()
         if removed and stop.reason is StopReason.BREAK:
             note = "watchpoint eliminado al salir de su función: " + ", ".join(removed)
@@ -306,8 +384,9 @@ class Debugger:
             if pc == start_pc and cpu.instructions == start_count:
                 predicate(pc)
                 return False
-            return pc in breakpoints or predicate(pc)
+            return (pc in breakpoints and self._breakpoint_fires(pc)) or predicate(pc)
 
+        self._breakpoint_note = None
         self.cpu.stop_check = check
         try:
             return self.cpu.run()

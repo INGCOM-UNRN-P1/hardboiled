@@ -159,6 +159,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `F7` / `i` | Stepi: una sola instrucción de máquina |
 | `F4` / `g` | Run to cursor: ejecuta hasta la línea del cursor sin dejar breakpoint |
 | `0`–`7` | Conmuta un switch (también: click en el botón) |
+| `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
 | `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
 | `r` | Reset de la placa |
 | `q` | Salir |
@@ -178,6 +179,10 @@ Los **watchpoints** (`w`) aceptan expresiones C: `results[1]`, `total`,
 escritura que cambió el valor e informa el valor anterior, el nuevo y la línea
 que escribió. Los de variables locales se eliminan cuando termina su función.
 La pestaña **Puntos** lista breakpoints y watchpoints (Supr los quita).
+
+Los **breakpoints condicionales** (`B`, marcados `◆`) detienen sólo si una
+expresión C es verdadera en ese punto y/o a partir de la pasada N (`#N`):
+evitan apretar F5 decenas de veces dentro de un bucle.
 
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o

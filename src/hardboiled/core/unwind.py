@@ -137,6 +137,14 @@ class Unwinder:
     def _in_stub(self, pc: int) -> bool:
         return self._stub is not None and self._stub[0] <= pc < self._stub[1]
 
+    def current_cfa(self, cpu: Cpu) -> int | None:
+        """CFA del marco en curso sin recorrer toda la pila (barato para condiciones)."""
+        pc = cpu.pc
+        row = self.cfi.lookup(pc)
+        if row is not None:
+            return (cpu.read_register(row.cfa_reg) + row.cfa_offset) & 0xFFFF_FFFF
+        return cpu.read_register(FP) if self.image.function_at(pc) is not None else None
+
     def unwind(self, cpu: Cpu) -> list[Frame]:
         regs = {index: cpu.read_register(index) for index in range(32)}
         pc = cpu.pc

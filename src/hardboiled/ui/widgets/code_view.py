@@ -52,6 +52,7 @@ class CodeView(ScrollView, can_focus=True):
         self._frame_line: int | None = None  # línea del marco elegido en la pila de llamadas
         self._cursor_line = 1
         self._breakpoints: frozenset[int] = frozenset()
+        self._conditional: frozenset[int] = frozenset()
 
     @property
     def cursor_line(self) -> int:
@@ -98,8 +99,11 @@ class CodeView(ScrollView, can_focus=True):
             self._ensure_visible(line)
         self.refresh()
 
-    def set_breakpoints(self, lines: frozenset[int]) -> None:
+    def set_breakpoints(
+        self, lines: frozenset[int], conditional: frozenset[int] = frozenset()
+    ) -> None:
         self._breakpoints = lines
+        self._conditional = conditional
         self.refresh()
 
     def _ensure_visible(self, line: int) -> None:
@@ -130,7 +134,13 @@ class CodeView(ScrollView, can_focus=True):
             background = None
 
         gutter = Text(no_wrap=True)
-        gutter.append("●" if number in self._breakpoints else " ", style="bold red")
+        if number in self._conditional:
+            marker = "◆"
+        elif number in self._breakpoints:
+            marker = "●"
+        else:
+            marker = " "
+        gutter.append(marker, style="bold red")
         gutter.append("▶" if active else "▷" if in_frame else " ", style="bold yellow")
         gutter.append(f"{number:>5} ", style="bold" if active else "dim")
         gutter.append("│ ", style="dim")

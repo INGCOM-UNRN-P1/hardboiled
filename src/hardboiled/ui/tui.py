@@ -24,6 +24,7 @@ from hardboiled.core.events import (
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
+    CmdSetBreakpointCondition,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -59,6 +60,19 @@ from hardboiled.userconfig import UiPrefs
 MAX_EVENTS_PER_FRAME = 5000
 
 
+def parse_condition(text: str) -> tuple[str | None, int | None]:
+    """`"i == 3 #5"` -> ("i == 3", 5). La cantidad de pasadas va al final con #."""
+    text = text.strip()
+    hits = None
+    if "#" in text:
+        text, _, count = text.rpartition("#")
+        text = text.strip()
+        if not count.strip().isdigit() or int(count) < 1:
+            raise ValueError(f"cantidad de pasadas inválida: #{count.strip()}")
+        hits = int(count)
+    return (text or None), hits
+
+
 class HardboiledApp(App[None]):
     TITLE = "hardboiled"
 
@@ -91,6 +105,8 @@ class HardboiledApp(App[None]):
         Binding("o", "step_out", show=False),
         Binding("g", "run_to_cursor", show=False),
         Binding("w", "watch", "Watch"),
+        Binding("B", "conditional_breakpoint", show=False),
+        Binding("ctrl+f9", "conditional_breakpoint", show=False),
         Binding("r", "reset", "Reset"),
         Binding("q", "quit", "Salir"),
         *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
@@ -110,6 +126,7 @@ class HardboiledApp(App[None]):
         self.worker = worker
         self._breakpoints: frozenset[tuple[str, int]] = frozenset()
         self._suspended: EvtCpuSuspended | None = None
+        self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     def compose(self) -> ComposeResult:
@@ -197,6 +214,9 @@ class HardboiledApp(App[None]):
                 )
             case EvtBreakpointsChanged():
                 self._breakpoints = event.lines
+                self._conditional = frozenset(
+                    (c.source_file, c.line) for c in event.conditions if c.line is not None
+                )
                 self._refresh_breakpoints()
                 self.query_one(BreakpointsView).update_points(event)
             case EvtTrap():
@@ -259,7 +279,10 @@ class HardboiledApp(App[None]):
 
     def _refresh_breakpoints(self) -> None:
         code = self.query_one(CodeView)
-        code.set_breakpoints(frozenset(line for f, line in self._breakpoints if f == code.file))
+        code.set_breakpoints(
+            frozenset(line for f, line in self._breakpoints if f == code.file),
+            frozenset(line for f, line in self._conditional if f == code.file),
+        )
 
     def _set_status(self, text: Text) -> None:
         self.query_one("#status", Static).update(text)
@@ -301,6 +324,32 @@ class HardboiledApp(App[None]):
         code = self.query_one(CodeView)
         if code.file is not None:
             self.send(CmdRunToLine(code.cursor_line, code.file))
+
+    def action_conditional_breakpoint(self) -> None:
+        code = self.query_one(CodeView)
+        if code.file is None:
+            return
+        file, line = code.file, code.cursor_line
+
+        def submit(text: str | None) -> None:
+            if text is None:
+                return
+            try:
+                condition, hits = parse_condition(text)
+            except ValueError as exc:
+                self.notify(str(exc), severity="error")
+                return
+            self.send(CmdSetBreakpointCondition(line, file, condition, hits))
+
+        self.push_screen(
+            Prompt(
+                f"Breakpoint condicional en la línea {line}:",
+                "i == 3     #5     n > 2 #2",
+                help="Una expresión C detiene sólo si es verdadera; #N detiene desde la "
+                "pasada N. Vacío: breakpoint común.",
+            ),
+            submit,
+        )
 
     def action_watch(self) -> None:
         def submit(expression: str | None) -> None:

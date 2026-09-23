@@ -22,6 +22,7 @@ from hardboiled.core.events import (
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
+    CmdSetBreakpointCondition,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -156,6 +157,10 @@ class RunnerThread(threading.Thread):
                     debugger.toggle_address_breakpoint(address)
                 case CmdToggleWatchpoint(expression=expression):
                     debugger.toggle_watchpoint(expression)
+                case CmdSetBreakpointCondition(
+                    line_number=line, source_file=source, condition=condition, hit_count=hits
+                ):
+                    debugger.set_condition(line, source, condition, hits)
                 case CmdToggleSwitch(pin_index=pin):
                     switches = self.machine.switches()
                     if switches is None:
@@ -217,8 +222,10 @@ class RunnerThread(threading.Thread):
             return
         self._emit(EvtCpuRunning())
         self._report(operation())
-        current = {w.expression for w in self.machine.debugger.watchpoints}
-        if current != self._known_watches:  # watchpoints eliminados al salir de alcance
+        debugger = self.machine.debugger
+        current = {w.expression for w in debugger.watchpoints}
+        # Watchpoints eliminados al salir de alcance o pasadas de breakpoints condicionales.
+        if current != self._known_watches or debugger.conditions:
             self._emit_breakpoints()
 
     def _report(self, stop: StopInfo, reason: str | None = None) -> None:

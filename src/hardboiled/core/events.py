@@ -67,6 +67,17 @@ class CmdToggleAddressBreakpoint:
 
 
 @dataclass(frozen=True)
+class CmdSetBreakpointCondition:
+    """Breakpoint en una línea que sólo detiene si `condition` es verdadera y/o
+    a partir de la pasada `hit_count`. Sin ninguna de las dos queda incondicional."""
+
+    line_number: int
+    source_file: str | None = None
+    condition: str | None = None
+    hit_count: int | None = None
+
+
+@dataclass(frozen=True)
 class CmdToggleWatchpoint:
     """Vigila (o deja de vigilar) una expresión C: `results[1]`, `f->color`, `total`."""
 
@@ -104,6 +115,7 @@ Command = (
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint
     | CmdToggleWatchpoint
+    | CmdSetBreakpointCondition
     | CmdToggleSwitch
     | CmdPause
     | CmdReset
@@ -221,10 +233,27 @@ class WatchInfo:
 
 
 @dataclass(frozen=True)
+class ConditionInfo:
+    source_file: str | None
+    line: int | None
+    address: int
+    condition: str | None
+    hit_count: int | None
+    hits: int
+
+    def describe(self) -> str:
+        parts = [f"si {self.condition}"] if self.condition else []
+        if self.hit_count:
+            parts.append(f"desde la pasada {self.hit_count}")
+        return ", ".join(parts) + f" ({self.hits} pasadas)"
+
+
+@dataclass(frozen=True)
 class EvtBreakpointsChanged:
     lines: frozenset[tuple[str, int]]
     addresses: frozenset[int]
     watches: tuple[WatchInfo, ...] = ()
+    conditions: tuple[ConditionInfo, ...] = ()
 
 
 @dataclass(frozen=True)
