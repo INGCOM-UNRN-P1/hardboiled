@@ -562,10 +562,10 @@ class Debugger:
         pic = self.cpu.pic
         lookup = self.lines.lookup
         start = self.location()
-        started_in_isr = pic.in_isr
+        start_depth = pic.depth
 
         def reached_new_line(pc: int) -> bool:
-            if pic.in_isr and not started_in_isr:
+            if pic.depth > start_depth:  # una IRQ empezó durante el paso
                 return False
             location = lookup(pc)
             return location is not None and location != start
@@ -586,7 +586,8 @@ class Debugger:
         function = frames[0].function or self.image.describe(frames[0].pc)
         if frames[1].irq_line is not None:
             pic = cpu.pic
-            stop = self._run(lambda pc: not pic.in_isr)
+            depth = pic.depth
+            stop = self._run(lambda pc: pic.depth < depth)
             return self._with_message(stop, f"fin de la interrupción ({function})")
         return_pc, cfa = frames[1].pc, frames[0].cfa
         stop = self._run(lambda pc: pc == return_pc and cpu.sp >= cfa)
@@ -614,12 +615,12 @@ class Debugger:
         lookup = self.lines.lookup
         call_sites = cpu.call_sites
         start = self.location()
-        started_in_isr = pic.in_isr
+        start_depth = pic.depth
         return_to: tuple[int, int] | None = None
 
         def reached_new_line(pc: int) -> bool:
             nonlocal return_to
-            if pic.in_isr and not started_in_isr:
+            if pic.depth > start_depth:  # una IRQ empezó durante el paso
                 return False
             if return_to is not None:
                 if pc != return_to[0] or cpu.sp < return_to[1]:

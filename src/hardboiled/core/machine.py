@@ -46,7 +46,9 @@ class Machine:
         self.lines = lines
         self.board = board
         self.bus = MmioBus(board.memory.mmio_size)
-        self.pic = InterruptController(offset=board.pic.offset)
+        self.pic = InterruptController(
+            offset=board.pic.offset, priorities=board.pic.priorities, nesting=board.pic.nesting
+        )
         self.bus.attach(self.pic)
         for cfg in board.peripherals:
             self.bus.attach(

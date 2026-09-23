@@ -134,6 +134,16 @@ class PeripheralConfig(_Model):
 
 class PicConfig(_Model):
     offset: HexInt = 0xF00
+    # Prioridad de cada línea (menor = más urgente). Por defecto, el número de línea.
+    priorities: tuple[int, ...] | None = None
+    # Si una IRQ más urgente puede interrumpir a una ISR en curso.
+    nesting: bool = False
+
+    @model_validator(mode="after")
+    def _check_priorities(self) -> Self:
+        if self.priorities is not None and len(self.priorities) != IRQ_LINES:
+            raise ValueError(f"pic.priorities debe tener {IRQ_LINES} valores (uno por línea)")
+        return self
 
 
 def _default_peripherals() -> tuple[PeripheralConfig, ...]:

@@ -24,6 +24,7 @@
  *   0xF00  PIC_ENABLE      máscara de IRQs habilitadas
  *   0xF04  PIC_PENDING     IRQs pendientes (escribir 1 para limpiar)
  *   0xF08  PIC_GLOBAL      bit 0 = interrupciones habilitadas globalmente
+ *   0xF0C  PIC_ACTIVE      línea en atención (0xFFFFFFFF si ninguna)
  */
 #ifndef HARDBOILED_H
 #define HARDBOILED_H
@@ -51,6 +52,7 @@
 #define PIC_ENABLE      HB_REG(0xF00)
 #define PIC_PENDING     HB_REG(0xF04)
 #define PIC_GLOBAL      HB_REG(0xF08)
+#define PIC_ACTIVE      HB_REG(0xF0C)
 
 #define TIMER_CTRL_ENABLE (1u << 0)
 #define TIMER_CTRL_IRQ    (1u << 1)

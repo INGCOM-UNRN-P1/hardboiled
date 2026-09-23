@@ -267,6 +267,7 @@ click) muestra su línea marcada con `▷` y sus variables locales.
 | `0xF00` | `PIC_ENABLE` | Máscara de IRQs habilitadas. |
 | `0xF04` | `PIC_PENDING` | IRQs pendientes (escribir 1 para limpiar). |
 | `0xF08` | `PIC_GLOBAL` | Bit 0: interrupciones habilitadas globalmente. |
+| `0xF0C` | `PIC_ACTIVE` | Línea que se está atendiendo (`0xFFFFFFFF` si ninguna). |
 
 ### Display de 7 segmentos
 
@@ -304,7 +305,18 @@ está pendiente, antes de la próxima instrucción la CPU virtual:
 2. salta a `__vector_table[línea]` (definida en `crt0.s`), que llama al handler;
 3. al llegar al `mret` final restaura el marco y retoma el programa.
 
-No hay anidamiento: mientras se atiende una IRQ las demás quedan pendientes.
+Por defecto no hay anidamiento: mientras se atiende una IRQ las demás quedan
+pendientes y se atiende primero la de línea más baja. En `board.toml` se puede
+cambiar:
+
+```toml
+[pic]
+priorities = [1, 0, 2, 3, 4, 5, 6, 7]  # prioridad de cada línea (menor = más urgente)
+nesting = true                         # una IRQ más urgente interrumpe a la ISR en curso
+```
+
+Con anidamiento, cada ISR interrumpida conserva su marco en la pila; `PIC_ACTIVE`
+indica la línea en atención y la pila de llamadas muestra cada nivel.
 `wait_for_interrupt()` (`wfi`) adelanta el reloj hasta la próxima interrupción.
 
 ### Trampas

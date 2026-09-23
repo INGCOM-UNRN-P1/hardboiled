@@ -129,7 +129,7 @@ class CpuSnapshot:
     instructions: int
     cycles: int
     halted: StopInfo | None
-    isr_frame: int | None
+    isr_frames: tuple[int, ...]
 
 
 @dataclass
@@ -182,7 +182,7 @@ class Cpu:
         self._special: dict[int, _Halt] = {}
         self._sp_writers: frozenset[int] = frozenset()
         self._vector_table: int | None = None
-        self._isr_frame: int | None = None
+        self._isr_frames: list[int] = []  # marcos guardados, el último es el más interno
         self._watches: dict[int, _Watch] = {}
         self._next_watch = 0
         self._watch_hit: WatchHit | None = None
@@ -258,7 +258,7 @@ class Cpu:
             instructions=self.instructions,
             cycles=self.clock.cycles,
             halted=self.halted,
-            isr_frame=self._isr_frame,
+            isr_frames=tuple(self._isr_frames),
         )
 
     def restore(self, snap: CpuSnapshot) -> None:
@@ -267,7 +267,7 @@ class Cpu:
         self.instructions = snap.instructions
         self.clock.cycles = snap.cycles
         self.halted = snap.halted
-        self._isr_frame = snap.isr_frame
+        self._isr_frames = list(snap.isr_frames)
         self._sp_dirty = False
         self._refresh_deadline()
 
@@ -275,7 +275,7 @@ class Cpu:
         self.halted = None
         self.instructions = 0
         self.clock.cycles = 0
-        self._isr_frame = None
+        self._isr_frames = []
         self._sp_dirty = False
         self._current_pc = 0
         self._pending_halt: _Halt | None = None
@@ -374,10 +374,7 @@ class Cpu:
     @property
     def isr_frames(self) -> tuple[tuple[int, int], ...]:
         """Marcos de interrupción activos: (dirección del marco en la pila, línea de IRQ)."""
-        line = self.pic.active_line
-        if self._isr_frame is None or line is None:
-            return ()
-        return ((self._isr_frame, line),)
+        return tuple(zip(self._isr_frames, self.pic.active, strict=False))
 
     def is_mmio(self, address: int) -> bool:
         base, size = self.memory.mmio_base, self.memory.mmio_size
@@ -596,19 +593,20 @@ class Cpu:
         self._uc.mem_write(frame, struct.pack(f"<{len(words)}I", *words))
         self.write_register(2, frame)
         self.set_pc(handler)
-        self._isr_frame = frame
+        self._isr_frames.append(frame)
         self.pic.acknowledge(line)
         return None
 
     def _return_from_isr(self, pc: int) -> StopInfo | None:
-        if not self.pic.in_isr or self._isr_frame is None:
+        if not self.pic.in_isr or not self._isr_frames:
             return self._trap(pc, "mret ejecutado fuera de una rutina de interrupción")
         frame = self.sp
-        if frame != self._isr_frame:
+        expected = self._isr_frames[-1]
+        if frame != expected:
             return self._trap(
                 pc,
                 f"la ISR dejó la pila desbalanceada: sp = 0x{frame:08x}, "
-                f"se esperaba 0x{self._isr_frame:08x}",
+                f"se esperaba 0x{expected:08x}",
             )
         raw = bytes(self._uc.mem_read(frame, ISR_FRAME_SIZE))
         saved_pc, *regs = struct.unpack(f"<{ISR_FRAME_SIZE // 4}I", raw)
@@ -616,7 +614,7 @@ class Cpu:
             self.write_register(index, value)
         self.write_register(2, frame + ISR_FRAME_SIZE)
         self.set_pc(saved_pc)
-        self._isr_frame = None
+        self._isr_frames.pop()
         self.pic.complete()
         return None
 

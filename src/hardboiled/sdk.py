@@ -97,6 +97,7 @@ def _pic_registers(board: BoardConfig) -> list[tuple[str, int, str]]:
         ("PIC_ENABLE", base, "máscara de IRQs habilitadas"),
         ("PIC_PENDING", base + 4, "IRQs pendientes (escribir 1 para limpiar)"),
         ("PIC_GLOBAL", base + 8, "bit 0 = interrupciones habilitadas globalmente"),
+        ("PIC_ACTIVE", base + 12, "línea en atención (0xFFFFFFFF si ninguna)"),
     ]
 
 
