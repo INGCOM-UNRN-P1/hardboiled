@@ -101,13 +101,19 @@ def cmd_test(args: argparse.Namespace) -> int:
     if args.json:
         print_json({"passed": passed, "total": len(results), "cases": [asdict(r) for r in results]})
         return status
+    return print_results(results, args.quiet)
+
+
+def print_results(results: list[CaseResult], quiet: bool = False) -> int:
+    """Informe de los casos para la terminal. Devuelve el código de salida."""
     for result in results:
-        if result.passed and args.quiet:
+        if result.passed and quiet:
             continue
         mark = "ok   " if result.passed else "FALLA"
         detail = f"código {result.exit_code}" if result.outcome == "exited" else result.outcome
         print(f"{mark} {result.name} ({detail}, {result.instructions:,} instrucciones)")
         for failure in result.failures:
             print("      " + failure.replace("\n", "\n      "))
+    passed = sum(result.passed for result in results)
     print(f"\n{passed}/{len(results)} casos correctos")
-    return status
+    return 0 if passed == len(results) else EXIT_FAILED

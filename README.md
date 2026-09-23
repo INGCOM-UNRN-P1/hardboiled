@@ -205,6 +205,24 @@ El programa se compila y carga una sola vez, y cada caso arranca de un Reset.
 256 del código de salida del proceso. Si un caso no espera una trampa, que
 ocurra una, o que se agote la cuota, cuenta como falla.
 
+### Tutorial guiado
+
+Siete lecciones progresivas que se corrigen solas: LEDs, switches, UART, timer
+por sondeo, interrupciones, botones con IRQ y, al final, un programa con tres
+errores para cazar con el depurador.
+
+```bash
+hardboiled tutorial                  # lista las lecciones
+hardboiled tutorial start 1          # copia leccion.md, main.c y casos.toml a leccion-01-leds/
+hardboiled run leccion-01-leds/main.c
+hardboiled tutorial check 1          # compila tu main.c y corre los casos de prueba
+```
+
+`check` usa la suite de la lección que viene con el paquete, así que editar
+la copia no cambia la corrección. Si un caso falla, muestra por qué: las
+diferencias en la UART, el valor de los LEDs o del display, o la trampa con su
+función y línea.
+
 ### Ejemplos incluidos
 
 ```bash

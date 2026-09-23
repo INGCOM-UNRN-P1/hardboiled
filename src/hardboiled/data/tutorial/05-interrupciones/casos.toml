@@ -1,0 +1,5 @@
+[[case]]
+name = "ocho ticks"
+expect_uart = "ticks: 8\n"
+expect_display = "8"
+expect_exit = 8

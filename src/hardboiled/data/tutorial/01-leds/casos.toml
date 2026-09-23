@@ -1,0 +1,4 @@
+[[case]]
+name = "patrón 0b10100101"
+expect_leds = 0b10100101
+expect_exit = 0

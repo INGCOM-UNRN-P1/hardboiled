@@ -185,6 +185,19 @@ class Grader:
         stop = machine.debugger.continue_()
         return self._judge(case, stop)
 
+    def _where(self, stop: StopInfo) -> str:
+        """` (en suma(), main.c:44)` para ubicar una trampa o una detención."""
+        if stop.reason is StopReason.EXITED:
+            return ""
+        debugger = self.machine.debugger
+        location = debugger.location(stop.pc)
+        function = debugger.function(stop.pc)
+        parts = [f"en {function}()" if function else ""]
+        if location is not None:
+            parts.append(f"{Path(location.file).name}:{location.line}")
+        shown = ", ".join(part for part in parts if part)
+        return f" ({shown})" if shown else ""
+
     def _judge(self, case: Case, stop: StopInfo) -> CaseResult:
         uart = self.machine.uart()
         output = bytes(uart.transmitted).decode("utf-8", "replace") if uart is not None else ""
@@ -206,16 +219,16 @@ class Grader:
             cycles=cpu.clock.cycles,
         )
         failures = result.failures
+        what = stop.message + self._where(stop)
         if case.expect_trap is not None:
             if result.trap is None:
-                failures.append(f"se esperaba la trampa {case.expect_trap}: {stop.message}")
+                failures.append(f"se esperaba la trampa {case.expect_trap}: {what}")
             elif case.expect_trap not in (result.trap, "*"):
                 failures.append(
-                    f"se esperaba la trampa {case.expect_trap} y ocurrió {result.trap}: "
-                    f"{stop.message}"
+                    f"se esperaba la trampa {case.expect_trap} y ocurrió {result.trap}: {what}"
                 )
         elif stop.reason is not StopReason.EXITED:
-            failures.append(f"el programa no terminó: {stop.message}")
+            failures.append(f"el programa no terminó: {what}")
         elif case.expect_exit is not None and stop.exit_code != case.expect_exit:
             failures.append(f"código de salida {stop.exit_code}, se esperaba {case.expect_exit}")
         expected = case.expect_uart

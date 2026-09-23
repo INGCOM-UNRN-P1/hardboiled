@@ -1,0 +1,17 @@
+[[case]]
+name = "Ada"
+uart_input = "Ada\n"
+expect_uart = "¿Cómo te llamás?\nHola, Ada!\n"
+expect_exit = 3
+
+[[case]]
+name = "nombre con espacio"
+uart_input = "Grace Hopper\n"
+expect_uart = "¿Cómo te llamás?\nHola, Grace Hopper!\n"
+expect_exit = 12
+
+[[case]]
+name = "línea vacía"
+uart_input = "\n"
+expect_uart = "¿Cómo te llamás?\nHola, desconocido!\n"
+expect_exit = 0

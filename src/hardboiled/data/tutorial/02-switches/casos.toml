@@ -1,0 +1,23 @@
+[[case]]
+name = "todos apagados"
+switches = 0b0000
+expect_leds = 0b1111_0000
+expect_exit = 0
+
+[[case]]
+name = "alternados"
+switches = 0b1010
+expect_leds = 0b0101_1010
+expect_exit = 2
+
+[[case]]
+name = "uno solo"
+switches = 0b0001
+expect_leds = 0b1110_0001
+expect_exit = 1
+
+[[case]]
+name = "todos encendidos"
+switches = 0b1111
+expect_leds = 0b0000_1111
+expect_exit = 4

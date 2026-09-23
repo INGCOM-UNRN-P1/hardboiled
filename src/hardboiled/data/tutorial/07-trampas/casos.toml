@@ -1,0 +1,4 @@
+[[case]]
+name = "resultado correcto y sin trampas"
+expect_uart = "maximo: 42\nsuma: 116\n99: no está\n"
+expect_exit = 0

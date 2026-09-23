@@ -21,6 +21,7 @@ from hardboiled.cli import (
     runtime,
     sdk,
     test,
+    tutorial,
     validate,
 )
 from hardboiled.cli.common import EXIT_INTERRUPTED, EXIT_TRAP, EXIT_USAGE, CliError
@@ -33,6 +34,7 @@ SUBCOMMANDS = (
     build,
     run,
     test,
+    tutorial,
     examples,
     info,
     validate,

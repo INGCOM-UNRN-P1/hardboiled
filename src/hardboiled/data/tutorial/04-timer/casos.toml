@@ -1,0 +1,5 @@
+[[case]]
+name = "cinco parpadeos"
+expect_uart = "**********\n"
+expect_leds = 0
+expect_exit = 10

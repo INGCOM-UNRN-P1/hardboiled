@@ -1,0 +1,29 @@
+[[case]]
+name = "de a uno"
+at = [
+    { cycle = 10_000, press = 0 },
+    { cycle = 40_000, press = 1 },
+    { cycle = 70_000, press = 0 },
+    { cycle = 100_000, press = 2 },
+    { cycle = 130_000, press = 3 },
+]
+expect_uart = "b0=2 b1=1 b2=1\n"
+expect_leds = 4
+expect_exit = 4
+
+[[case]]
+name = "varios a la vez"
+at = [
+    { cycle = 10_000, press = [0, 1, 2] },
+    { cycle = 40_000, press = 0 },
+    { cycle = 80_000, press = 3 },
+]
+expect_uart = "b0=2 b1=1 b2=1\n"
+expect_exit = 4
+
+[[case]]
+name = "sin pulsaciones"
+at = [{ cycle = 10_000, press = 3 }]
+expect_uart = "b0=0 b1=0 b2=0\n"
+expect_leds = 0
+expect_exit = 0
