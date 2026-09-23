@@ -260,6 +260,7 @@ Algunas decisiones de implementación:
 ## Desarrollo
 
 ```bash
+uv run python scripts/smoke_install.py # instala el wheel con uv tool en un entorno aislado
 uv run pytest                          # tests (incluye la TUI con el pilot de Textual)
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                            # modo estricto
