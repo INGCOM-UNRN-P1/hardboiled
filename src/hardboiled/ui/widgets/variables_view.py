@@ -79,7 +79,7 @@ class VariablesView(Tree[VariableInfo | None]):
                 self._add(section, variable, key)
 
     def _add(self, parent: TreeNode[VariableInfo | None], variable: VariableInfo, key: str) -> None:
-        label = Text(variable.name, style="bold cyan")
+        label = Text.assemble((variable.name, "bold cyan"))
         label.append(f": {variable.type_name}", style="dim")
         changed = self._previous and self._previous.get(f"{key}:{variable.path}") not in (
             None,

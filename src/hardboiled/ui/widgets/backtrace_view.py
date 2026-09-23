@@ -38,7 +38,7 @@ class BacktraceView(OptionList):
     def _prompt(frame: FrameInfo) -> Text:
         if frame.irq_line is not None:
             return Text(f"── {frame.label} ──", style="bold magenta")
-        text = Text(f"#{frame.index} ", style="dim")
+        text = Text.assemble((f"#{frame.index} ", "dim"))
         text.append(frame.label, style="bold")
         if frame.source_file is not None:
             text.append(f"  {os.path.basename(frame.source_file)}:{frame.source_line}")

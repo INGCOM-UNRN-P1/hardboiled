@@ -27,7 +27,7 @@ class LedBarView(Static):
         self.refresh()
 
     def render(self) -> Text:
-        text = Text(f"{self.info.name:<9}", style="bold")
+        text = Text.assemble((f"{self.info.name:<9}", "bold"))
         # El bit más significativo a la izquierda, como en un número binario.
         for bit in reversed(range(self.info.width_bits)):
             on = bool(self.value >> bit & 1)
@@ -98,7 +98,7 @@ class TimerView(Static):
         self.refresh()
 
     def render(self) -> Text:
-        text = Text(f"{self.info.name:<9}", style="bold")
+        text = Text.assemble((f"{self.info.name:<9}", "bold"))
         if self.ctrl & 1:
             irq = " + IRQ" if self.ctrl & 2 else ""
             text.append(f"activo, período {self.reload} ciclos{irq}", style="green")

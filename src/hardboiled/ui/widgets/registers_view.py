@@ -29,7 +29,7 @@ class RegistersView(Static):
         key = f"x{index}"
         value = self._current.get(key, 0)
         changed = self._previous and self._previous.get(key) != value
-        text = Text(f"{key:>3} ", style="dim")
+        text = Text.assemble((f"{key:>3} ", "dim"))
         text.append(f"{ABI_NAMES[index]:<5}", style="cyan")
         text.append(f"{value:08x}", style="bold yellow" if changed else "")
         return text
