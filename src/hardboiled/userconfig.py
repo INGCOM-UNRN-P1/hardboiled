@@ -23,7 +23,7 @@ TEMPLATE = """\
 [build]
 # compiler = "auto"        # auto, gcc, zig o una ruta (como --cc)
 # opt_level = "0"          # como -O
-# march = "rv32i"          # rv32i, rv32im, rv32ic, rv32imc
+# march = "rv32i"          # por defecto, el isa de la placa
 
 [run]
 # clock_hz = 1_000_000     # reemplaza el clock_hz de la placa en la TUI
@@ -58,7 +58,7 @@ class _Model(BaseModel):
 class BuildPrefs(_Model):
     compiler: str | None = None
     opt_level: str = "0"
-    march: str = "rv32i"
+    march: str | None = None  # por defecto, el isa de la placa
 
 
 class RunPrefs(_Model):

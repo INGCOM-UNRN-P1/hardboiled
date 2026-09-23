@@ -68,6 +68,13 @@ hardboiled build main.c util.c -o main.elf -O1 --march rv32im -v
 | `hardboiled.ld` | Linker script alineado con el mapa de memoria de la placa. |
 | `include/hardboiled.h` | SDK: `led_set()`, `switch_get()`, `uart_puts()`, `timer_start()`, `attach_irq()`, … |
 
+La placa declara su conjunto de instrucciones con `isa` en `[board]`
+(`"rv32i"` por defecto o `"rv32im"`, con multiplicación y división por
+hardware). `build` lo usa como `--march` por defecto, y al cargar un programa
+se verifica con el atributo `Tag_RISCV_arch` del ELF que no use extensiones
+que la placa no tiene. Con `rv32im` desaparecen las llamadas a `__mulsi3` y
+compañía, que "ensucian" el Step Into.
+
 El compilador se elige así: `--cc` (`auto`, `gcc`, `zig` o una ruta), si no la
 variable `HARDBOILED_CC`, y si no el primero disponible entre una toolchain GNU
 para RISC-V en el `PATH` (`riscv64-unknown-elf-gcc`, `riscv32-unknown-elf-gcc`,

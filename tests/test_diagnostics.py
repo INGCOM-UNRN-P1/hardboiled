@@ -59,7 +59,7 @@ def test_m_extension_div_instruction(tmp_path: Path) -> None:
     elf = build(
         [source], tmp_path / "div.elf", BuildOptions(march="rv32im"), select_compiler("zig")
     ).output
-    machine = Machine.from_elf(elf)
+    machine = Machine.from_elf(elf, BoardConfig.model_validate({"board": {"isa": "rv32im"}}))
     stop = machine.debugger.continue_()
     assert stop.exit_code == -1  # así lo define RISC-V
     (warning,) = machine.cpu.take_diagnostics()

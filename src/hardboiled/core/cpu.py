@@ -190,8 +190,10 @@ class Cpu:
         misaligned: str = "trap",
         div_by_zero: str = "warn",
         uninitialized: str = "warn",
+        isa: str = "rv32i",
     ) -> None:
         self.memory = memory
+        self.isa = isa
         self.uninitialized = uninitialized
         # Memoria "sombra": 1 = byte de la SRAM ya escrito. None si la verificación está apagada.
         self._shadow: bytearray | None = (
@@ -345,8 +347,29 @@ class Cpu:
         self._deadline = _NO_DEADLINE
         self._pace_origin = (time.monotonic(), 0)
 
+    def check_isa(self, image: ElfImage) -> None:
+        """Rechaza programas que usan extensiones que la CPU de la placa no tiene."""
+        supported = set(self.isa.removeprefix("rv32i"))
+        missing = sorted(image.extensions - supported)
+        if not missing:
+            return
+        names = {
+            "m": "M (multiplicación/división)",
+            "c": "C (comprimidas)",
+            "a": "A (atómicas)",
+            "f": "F (punto flotante)",
+            "d": "D (doble precisión)",
+        }
+        listed = ", ".join(names.get(ext, ext.upper()) for ext in missing)
+        arch = f" ({image.arch})" if image.arch else ""
+        raise ElfLoadError(
+            f"{image.path.name} usa la extensión {listed}{arch}, pero la placa es {self.isa}: "
+            f"compilá con --march {self.isa} o declará isa en [board] de board.toml"
+        )
+
     def load(self, image: ElfImage) -> None:
         """Mapea los segmentos PT_LOAD en su dirección física (LMA) e indexa el código."""
+        self.check_isa(image)
         for seg in image.segments:
             if not seg.data:
                 continue

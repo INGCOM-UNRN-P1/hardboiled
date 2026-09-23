@@ -132,3 +132,38 @@ def test_run_rejects_mixed_inputs(capsys: pytest.CaptureFixture[str]) -> None:
     assert "mezclar" in capsys.readouterr().err
     assert main(["run", "notas.txt", "--headless"]) == EXIT_USAGE
     assert "no reconocido" in capsys.readouterr().err
+
+
+def test_extensions_from_arch_attribute() -> None:
+    from hardboiled.core.elf import ElfImage, _extensions
+
+    assert _extensions("rv32i2p1_m2p0_a2p1_c2p0_zicsr2p0") == {"m", "a", "c"}
+    assert _extensions("rv32imac") == {"m", "a", "c"}
+    assert _extensions(None) == set()
+    image = ElfImage.load(FIXTURES / "basic.elf")
+    assert image.arch == "rv32i2p1" and image.extensions == frozenset()
+
+
+@needs_zig
+def test_board_isa_is_checked_and_used_by_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from hardboiled.config import BoardConfig
+    from hardboiled.core.elf import ElfLoadError
+
+    source = tmp_path / "mul.c"
+    source.write_text(
+        '#include "hardboiled.h"\nint main(void) { volatile int a = 6; return a * 7; }\n'
+    )
+    zig = select_compiler("zig")
+    with_m = toolchain.build([source], tmp_path / "m.elf", BuildOptions(march="rv32im"), zig)
+    with pytest.raises(ElfLoadError, match="extensión M"):
+        Machine.from_elf(with_m.output)
+    board = BoardConfig.model_validate({"board": {"isa": "rv32im"}})
+    assert Machine.from_elf(with_m.output, board).debugger.continue_().exit_code == 42
+    # Sin --march, build usa el isa de ./board.toml.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "board.toml").write_text('[board]\nisa = "rv32im"\n')
+    assert main(["build", "mul.c", "-o", "auto.elf", "--cc", "zig", "-v"]) == 0
+    assert "-mcpu=generic_rv32+m" in capsys.readouterr().err

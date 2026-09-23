@@ -33,7 +33,7 @@ def options_from(args: argparse.Namespace) -> BuildOptions:
     return BuildOptions(
         runtime=runtime_for(board, paths.cache_dir()),
         opt_level=args.opt_level or prefs.opt_level,
-        march=args.march or prefs.march,
+        march=args.march or prefs.march or board.board.isa,
         defines=tuple(args.defines),
         include_dirs=tuple(Path(d) for d in args.include_dirs),
         extra_flags=tuple(shlex.split(args.cflags)),
