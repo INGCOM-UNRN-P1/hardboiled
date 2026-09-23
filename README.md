@@ -54,6 +54,16 @@ para RISC-V en el `PATH` (`riscv64-unknown-elf-gcc`, `riscv32-unknown-elf-gcc`,
 `--march` (`rv32i`, `rv32im`, `rv32ic`, `rv32imc`), `-D`, `-I`, `--cflags` y
 `-v` para ver el comando completo.
 
+Para compilar a mano o desde un Makefile propio, `hardboiled runtime` imprime
+las rutas del runtime instalado:
+
+```bash
+riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -g -O0 -ffreestanding \
+    -nostdlib -nostartfiles -I"$(hardboiled runtime --include)" \
+    -T"$(hardboiled runtime --linker-script)" "$(hardboiled runtime --crt0)" \
+    programa.c -lgcc -o programa.elf
+```
+
 `tests/fixtures/build.py` recompila con este mismo módulo los ELF de prueba.
 
 ## Uso

@@ -91,3 +91,14 @@ def test_board_init_copies_template(
     assert "--force" in capsys.readouterr().err
     assert main(["board", "init", "--force"]) == 0
     assert main(["validate"]) == 0
+
+
+def test_runtime_paths(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["runtime", "--include"]) == 0
+    include = Path(capsys.readouterr().out.strip())
+    assert (include / "hardboiled.h").is_file()
+    assert main(["runtime", "--linker-script"]) == 0
+    assert capsys.readouterr().out.strip().endswith("hardboiled.ld")
+    assert main(["runtime"]) == 0
+    out = capsys.readouterr().out
+    assert "include" in out and "crt0" in out
