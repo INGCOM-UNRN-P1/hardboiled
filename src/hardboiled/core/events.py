@@ -124,6 +124,11 @@ class CmdToggleSwitch:
 
 
 @dataclass(frozen=True)
+class CmdProfile:
+    """Pide el perfil de ejecución (instrucciones por línea y por función)."""
+
+
+@dataclass(frozen=True)
 class CmdPause:
     """Interrumpe una ejecución en curso (Continue o un step largo)."""
 
@@ -156,6 +161,7 @@ Command = (
     | CmdPressButton
     | CmdSetClock
     | CmdToggleSwitch
+    | CmdProfile
     | CmdPause
     | CmdReset
     | CmdShutdown
@@ -383,6 +389,15 @@ class EvtMessage:
     text: str
 
 
+@dataclass(frozen=True)
+class EvtProfile:
+    """Instrucciones ejecutadas desde el último Reset, por línea y por función."""
+
+    total: int
+    lines: tuple[tuple[str, int, int], ...]  # (archivo, línea, cantidad)
+    functions: tuple[tuple[str, int], ...]  # (función, cantidad), de mayor a menor
+
+
 Event = (
     EvtProgramLoaded
     | EvtCpuRunning
@@ -398,6 +413,7 @@ Event = (
     | EvtMessage
     | EvtClockChanged
     | EvtWarning
+    | EvtProfile
 )
 
 

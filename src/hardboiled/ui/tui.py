@@ -23,6 +23,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdPressButton,
+    CmdProfile,
     CmdReadMemory,
     CmdReset,
     CmdRunToLine,
@@ -51,6 +52,7 @@ from hardboiled.core.events import (
     EvtHardwareUpdated,
     EvtMemoryDump,
     EvtMessage,
+    EvtProfile,
     EvtProgramExited,
     EvtProgramLoaded,
     EvtTrap,
@@ -89,6 +91,7 @@ DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
     ("run_to_cursor", "f4,g", "Hasta cursor"),
     ("watch", "w", "Watch"),
     ("toggle_disassembly", "d", "ASM"),
+    ("toggle_profile", "h", "Perfil"),
     ("open_file", "f", "Archivos"),
     ("search", "slash", "Buscar"),
     ("search_next", "f3", ""),
@@ -196,6 +199,8 @@ class HardboiledApp(App[None]):
         self._clock_hz: int | None = None
         self._last_clock_hz = DEFAULT_CLOCK_HZ
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
+        self._profiling = False  # mapa de calor en la vista de código
+        self._profile_note = True  # el primer perfil se resume en una notificación
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     def compose(self) -> ComposeResult:
@@ -301,6 +306,8 @@ class HardboiledApp(App[None]):
             case EvtCpuRunning():
                 self._set_status(Text("▶ ejecutando…  (F6 pausa)", style="bold green"))
             case EvtCpuProgress():
+                if self._profiling:
+                    self.send(CmdProfile())  # mapa de calor en vivo (cada ~0,2 s)
                 status = Text()
                 status.append("▶ ejecutando ", style="bold green")
                 status.append(event.function or "??", style="bold")
@@ -352,6 +359,8 @@ class HardboiledApp(App[None]):
                     self._last_clock_hz = event.hz
                 self._clock_hz = event.hz
                 self._update_clock_title()
+            case EvtProfile():
+                self._show_profile(event)
             case EvtMessage():
                 self.notify(event.text, severity="warning")
             case EvtUartOutput():
@@ -359,6 +368,8 @@ class HardboiledApp(App[None]):
 
     def _on_suspended(self, event: EvtCpuSuspended) -> None:
         self._suspended = event
+        if self._profiling:
+            self.send(CmdProfile())
         self._show_location(event.source_file, event.source_line)
         trap, self._pending_trap = self._pending_trap, None
         code = self.query_one(CodeView)
@@ -608,6 +619,34 @@ class HardboiledApp(App[None]):
 
     def action_toggle_disassembly(self) -> None:
         self.query_one(DisassemblyView).toggle_class("visible")
+
+    def action_toggle_profile(self) -> None:
+        self._profiling = not self._profiling
+        if self._profiling:
+            self._profile_note = True
+            self.send(CmdProfile())
+        else:
+            self.query_one(CodeView).set_profile(None)
+            self.notify("mapa de calor oculto", timeout=2)
+
+    def _show_profile(self, event: EvtProfile) -> None:
+        if not self._profiling:
+            return
+        self.query_one(CodeView).set_profile(
+            {(file, line): count for file, line, count in event.lines}
+        )
+        if self._profile_note:
+            self._profile_note = False
+            top = ", ".join(
+                f"{name} {100 * count / event.total:.0f}%"
+                for name, count in event.functions[:4]
+                if event.total
+            )
+            self.notify(
+                f"{event.total:,} instrucciones desde el reset" + (f"\n{top}" if top else ""),
+                title="Perfil (h lo oculta)",
+                timeout=6,
+            )
 
     def on_disassembly_view_address_breakpoint_requested(
         self, message: DisassemblyView.AddressBreakpointRequested

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from rich.segment import Segment
@@ -18,6 +19,17 @@ from textual.strip import Strip
 from hardboiled.ui.palette import current_palette
 
 GUTTER_WIDTH = 10  # "●▶ 1234 │ "
+HEAT_WIDTH = 8  # " 12.3k▆ " antes del número de línea, con el mapa de calor
+HEAT_BARS = "▁▂▃▄▅▆▇█"
+
+
+def compact_count(count: int) -> str:
+    """1234 -> "1.2k", 5_600_000 -> "5.6M" (entra en 5 caracteres)."""
+    for unit, scale in (("G", 1e9), ("M", 1e6), ("k", 1e3)):
+        if count >= scale:
+            value = count / scale
+            return f"{value:.1f}{unit}" if value < 100 else f"{value:.0f}{unit}"
+    return str(count)
 
 
 def _without_background(text: Text) -> Text:
@@ -73,6 +85,27 @@ class CodeView(ScrollView, can_focus=True):
         self._breakpoints: frozenset[int] = frozenset()
         self._search: str | None = None
         self._conditional: frozenset[int] = frozenset()
+        # Mapa de calor: (archivo, línea) -> instrucciones ejecutadas; None = apagado.
+        self._profile: dict[tuple[str, int], int] | None = None
+        self._heat: dict[int, int] = {}
+        self._heat_max = 0
+
+    @property
+    def gutter_width(self) -> int:
+        return GUTTER_WIDTH + (HEAT_WIDTH if self._profile is not None else 0)
+
+    def set_profile(self, lines: dict[tuple[str, int], int] | None) -> None:
+        """Muestra (o con None oculta) cuántas instrucciones ejecutó cada línea."""
+        self._profile = lines
+        self._update_heat()
+        self.refresh()
+
+    def _update_heat(self) -> None:
+        profile = self._profile or {}
+        self._heat = {line: count for (file, line), count in profile.items() if file == self.file}
+        self._heat_max = max(self._heat.values(), default=0)
+        longest = max((line.cell_len for line in self._lines), default=0)
+        self.virtual_size = Size(self.gutter_width + longest + 1, len(self._lines))
 
     @property
     def cursor_line(self) -> int:
@@ -101,8 +134,7 @@ class CodeView(ScrollView, can_focus=True):
                 highlighted = _without_background(Syntax(code, lexer, theme=theme).highlight(code))
                 highlighted.rstrip()
                 self._lines = list(highlighted.split("\n", allow_blank=True))
-        longest = max((line.cell_len for line in self._lines), default=0)
-        self.virtual_size = Size(GUTTER_WIDTH + longest + 1, len(self._lines))
+        self._update_heat()
         self.scroll_to(0, 0, animate=False)
         self.refresh()
 
@@ -204,6 +236,8 @@ class CodeView(ScrollView, can_focus=True):
         else:
             marker = " "
         gutter.append(marker, style=palette.breakpoint)
+        if self._profile is not None:
+            gutter.append_text(self._heat_cell(number))
         if trapped:
             gutter.append("✖", style="bold bright_red")
         else:
@@ -220,8 +254,9 @@ class CodeView(ScrollView, can_focus=True):
             code.stylize(background)
 
         console = self.app.console
-        gutter_strip = Strip(gutter.render(console), GUTTER_WIDTH)
-        code_width = max(0, width - GUTTER_WIDTH)
+        gutter_width = self.gutter_width
+        gutter_strip = Strip(gutter.render(console), gutter_width)
+        code_width = max(0, width - gutter_width)
         segments: list[Segment] = list(code.render(console))
         code_strip = (
             Strip(segments)
@@ -230,6 +265,18 @@ class CodeView(ScrollView, can_focus=True):
         )
         # El estilo del widget (fondo del tema) queda debajo de los colores de sintaxis.
         return Strip.join([gutter_strip, code_strip]).apply_style(self.rich_style)
+
+    def _heat_cell(self, number: int) -> Text:
+        """Cantidad de instrucciones ejecutadas y una barra de intensidad (escala log)."""
+        count = self._heat.get(number, 0)
+        if not count:
+            return Text(" " * HEAT_WIDTH)
+        level = math.log1p(count) / math.log1p(self._heat_max) if self._heat_max else 0
+        bar = HEAT_BARS[min(int(level * len(HEAT_BARS)), len(HEAT_BARS) - 1)]
+        style = "bold red" if level > 0.75 else "yellow" if level > 0.4 else "dim"
+        cell = Text(f"{compact_count(count):>6}", style=style)
+        cell.append(bar + " ", style=style)
+        return cell
 
     # ---------------------------------------------------------------- input
 
@@ -249,5 +296,5 @@ class CodeView(ScrollView, can_focus=True):
             return
         self._cursor_line = line
         self.refresh()
-        if offset.x < GUTTER_WIDTH:
+        if offset.x < self.gutter_width:
             self.post_message(self.BreakpointRequested(self.file, line))

@@ -21,6 +21,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdPressButton,
+    CmdProfile,
     CmdReadMemory,
     CmdReset,
     CmdRunToLine,
@@ -51,6 +52,7 @@ from hardboiled.core.events import (
     EvtHardwareUpdated,
     EvtMemoryDump,
     EvtMessage,
+    EvtProfile,
     EvtProgramExited,
     EvtProgramLoaded,
     EvtTrap,
@@ -60,6 +62,7 @@ from hardboiled.core.events import (
 )
 from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine, MachineSnapshot
+from hardboiled.core.profile import build_profile
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import ButtonBank, LedBar, SwitchBank
@@ -226,6 +229,9 @@ class RunnerThread(threading.Thread):
                 case CmdSetClock(hz=hz):
                     self.machine.cpu.set_clock(hz)
                     self._emit(EvtClockChanged(hz))
+                    return
+                case CmdProfile():  # también mientras corre: mapa de calor en vivo
+                    self._emit(profile_event(self.machine))
                     return
                 case CmdUartInput(data=data):
                     uart = self.machine.uart()
@@ -477,6 +483,15 @@ def warning_events(machine: Machine) -> list[EvtWarning]:
             )
         )
     return events
+
+
+def profile_event(machine: Machine) -> EvtProfile:
+    profile = build_profile(machine)
+    return EvtProfile(
+        profile.total,
+        tuple((cost.file, cost.line, cost.count) for cost in profile.lines),
+        tuple((cost.name, cost.count) for cost in profile.functions),
+    )
 
 
 def trap_event(machine: Machine, stop: StopInfo) -> EvtTrap:

@@ -387,6 +387,11 @@ class Cpu:
         self._deadline = _NO_DEADLINE
         self._pace_origin = (time.monotonic(), 0)
         self._next_poll = 0
+        # Perfil: ejecuciones por PC (paso a paso) y por bloque (modo rápido), menos
+        # los tramos de bloques que no llegaron a ejecutarse enteros.
+        self._pc_hits: dict[int, int] = {}
+        self._block_hits: dict[tuple[int, int], int] = {}
+        self._unexecuted: dict[tuple[int, int], int] = {}
         self._block_pc = 0
         self._block_base = 0
         self._block_cycles = 0
@@ -842,6 +847,8 @@ class Cpu:
             return
         if self.tracer is not None:
             self.tracer.step(address)
+        hits = self._pc_hits
+        hits[address] = hits.get(address, 0) + 1
         self._sp_dirty = address in self._sp_writers
         self.instructions += 1
         clock = self.clock
@@ -927,6 +934,35 @@ class Cpu:
         self.clock.cycles -= self.instructions - done
         self.instructions = done
         self._current_pc = pc
+        self._not_executed(pc)
+
+    def _not_executed(self, pc: int) -> None:
+        """El bloque en curso se cortó en `pc`: desde ahí no se ejecutó (para el perfil)."""
+        end = self._block_pc + self._block_size
+        if self._block_pc <= pc < end:
+            key = (pc, end)
+            self._unexecuted[key] = self._unexecuted.get(key, 0) + 1
+
+    def _addresses_in(self, start: int, end: int) -> range | list[int]:
+        addresses = self._insn_addresses
+        if addresses is None:
+            return range(start, end, 4)
+        return addresses[bisect_left(addresses, start) : bisect_left(addresses, end)]
+
+    def execution_counts(self) -> dict[int, int]:
+        """Cuántas veces se ejecutó cada instrucción desde el último Reset."""
+        counts = dict(self._pc_hits)
+        for (start, size), times in self._block_hits.items():
+            for address in self._addresses_in(start, start + size):
+                counts[address] = counts.get(address, 0) + times
+        for (start, end), times in self._unexecuted.items():
+            for address in self._addresses_in(start, end):
+                left = counts.get(address, 0) - times
+                if left > 0:
+                    counts[address] = left
+                else:
+                    counts.pop(address, None)
+        return counts
 
     def _on_block(self, uc: Uc, address: int, size: int, _data: Any) -> None:
         if self._pending_halt is not None:
@@ -950,6 +986,8 @@ class Cpu:
         count = self._block_counts.get(key)
         if count is None:
             count = self._block_counts[key] = self._count(address, size)
+        blocks = self._block_hits
+        blocks[key] = blocks.get(key, 0) + 1
         self.instructions += count
         clock = self.clock
         self._block_cycles = clock.cycles
@@ -973,6 +1011,7 @@ class Cpu:
             self.instructions = full
             return
         self.clock.cycles = self._block_cycles + before
+        self._not_executed(address)
         self._halt_counted(uc, halt)
 
     def _point_halt(self, uc: Uc, address: int) -> _Halt | None:
@@ -1185,6 +1224,7 @@ class Cpu:
             )
         if self.tracer is not None:
             self.tracer.step(pc)
+        self._pc_hits[pc] = self._pc_hits.get(pc, 0) + 1
         raw = bytes(self._uc.mem_read(frame, ISR_FRAME_SIZE))
         saved_pc, *regs = struct.unpack(f"<{ISR_FRAME_SIZE // 4}I", raw)
         for index, value in zip(ISR_SAVED_REGS, regs, strict=False):
@@ -1201,6 +1241,7 @@ class Cpu:
         """`wfi`: adelanta el reloj hasta que haya una IRQ habilitada pendiente."""
         if self.tracer is not None:
             self.tracer.step(pc)
+        self._pc_hits[pc] = self._pc_hits.get(pc, 0) + 1
         for _ in range(1024):
             if self.pic.wake_pending():
                 break

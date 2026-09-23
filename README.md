@@ -147,6 +147,28 @@ interrupción figura como evento (`IRQ 0`) en la primera instrucción de la ISR,
 defecto) corta la traza, pero el programa sigue hasta terminar. Trazar corre
 instrucción por instrucción, a unas 65 000 por segundo.
 
+### Perfil de ejecución
+
+`run --headless --profile` informa por stderr las funciones y líneas que más
+instrucciones ejecutaron, con su porcentaje. Sirve para ver el costo de un
+bucle o de una recursión, o que el tiempo se va en `__mulsi3` en una placa
+sin la extensión M:
+
+```
+Perfil: 520,067 instrucciones ejecutadas
+  funciones:
+     64.6%      335,824  main
+     35.4%      183,937  fib
+  líneas más ejecutadas:
+     64.2%      334,000  bench.c:8 │ for (int i = 0; i < 64; i++) { ... }
+```
+
+En la TUI, `h` agrega al margen del código la cantidad de instrucciones que
+ejecutó cada línea, con una barra de intensidad en escala logarítmica
+(`▁`…`█`). Se actualiza en vivo mientras el programa corre. Con `--json`, el
+perfil completo va en `profile`. Contarlo no hace más lenta la ejecución: en
+modo rápido se cuenta por bloque.
+
 ### Corrección automática: `hardboiled test`
 
 Ejecuta el programa sin interfaz con entradas fijas y compara lo que se
@@ -238,6 +260,7 @@ valores cambiados subrayados.
 | `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
 | `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
 | `d` | Muestra u oculta el desensamblado mixto (C + RV32I) |
+| `h` | Mapa de calor: instrucciones ejecutadas por línea desde el último Reset |
 | `x` | Cambia el formato de los registros: hex, con signo, sin signo, ASCII, símbolo |
 | `f` | Abre otro archivo fuente del programa (para poner breakpoints antes de llegar) |
 | `?` | Ayuda: atajos vigentes, marcadores y mapa de memoria de la placa |

@@ -26,6 +26,7 @@ ACTION_HELP: dict[str, str] = {
     "run_to_cursor": "Ejecuta hasta la línea del cursor",
     "watch": "Watchpoint: detiene cuando cambia una expresión",
     "toggle_disassembly": "Muestra u oculta el desensamblado",
+    "toggle_profile": "Mapa de calor: instrucciones ejecutadas por línea",
     "register_format": "Cambia el formato de los registros",
     "open_file": "Abre otro archivo fuente",
     "search": "Busca en el código",

@@ -24,6 +24,7 @@ from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.events import Command, Event, EvtUartOutput, collapse_frames
 from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine
+from hardboiled.core.profile import build_profile, format_profile
 from hardboiled.core.runner import frame_infos, trap_event, warning_events
 from hardboiled.core.session import BreakpointStore
 from hardboiled.core.trace import TraceError, TraceWriter
@@ -72,6 +73,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--json",
         action="store_true",
         help="con --headless, informar el resultado en JSON (la UART queda incluida)",
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="con --headless, informar las funciones y líneas más ejecutadas",
     )
     parser.add_argument(
         "--trace",
@@ -156,6 +162,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise CliError("--json requiere --headless")
     if args.trace and not args.headless:
         raise CliError("--trace requiere --headless")
+    if args.profile and not args.headless:
+        raise CliError("--profile requiere --headless (en la TUI, la tecla h muestra el perfil)")
     elf = resolve_program(args)
     machine = load_machine(elf, board)
     if args.switches is not None:
@@ -176,13 +184,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.headless:
         tracer = start_trace(machine, args.trace, args.trace_limit) if args.trace else None
         if args.json:
-            return run_headless_json(machine, tracer)
+            return run_headless_json(machine, tracer, args.profile)
         try:
             return run_headless(machine)
         finally:
             if tracer is not None:
                 tracer.close()
                 print(trace_summary(tracer), file=sys.stderr)
+            if args.profile:
+                print(f"\n{format_profile(build_profile(machine))}", file=sys.stderr)
 
     from hardboiled.core.runner import RunnerThread
     from hardboiled.ui.tui import HardboiledApp
@@ -251,7 +261,9 @@ def exit_status(stop: StopInfo) -> int:
     return EXIT_TRAP
 
 
-def run_headless_json(machine: Machine, tracer: TraceWriter | None = None) -> int:
+def run_headless_json(
+    machine: Machine, tracer: TraceWriter | None = None, profile: bool = False
+) -> int:
     """Como run_headless, pero todo (UART incluida) en un objeto JSON por stdout."""
     try:
         stop = machine.debugger.continue_()
@@ -281,6 +293,7 @@ def run_headless_json(machine: Machine, tracer: TraceWriter | None = None) -> in
             "trace": None
             if tracer is None
             else {"path": str(tracer.path), "rows": tracer.rows, "truncated": tracer.truncated},
+            "profile": build_profile(machine).as_dict() if profile else None,
         }
     )
     return exit_status(stop)
