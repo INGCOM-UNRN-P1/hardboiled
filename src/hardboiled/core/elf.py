@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bisect
+import struct
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,36 @@ class Symbol:
     address: int
     size: int
     kind: str  # "func" | "object" | "other"
+
+
+STT_OBJECT = 1
+STT_FUNC = 2
+STT_SECTION = 3
+STT_FILE = 4
+
+
+def _read_symbols(elf: ELFFile) -> list[Symbol]:
+    """Lee .symtab desempaquetando Elf32_Sym directamente.
+
+    pyelftools crea un objeto por símbolo, y compiler-rt aporta miles: leer los
+    registros de 16 bytes con struct es decenas de veces más rápido.
+    """
+    symtab = elf.get_section_by_name(".symtab")
+    if not isinstance(symtab, SymbolTableSection):
+        return []
+    strtab = symtab.stringtable.data()
+    symbols = []
+    for name_offset, value, size, info, _other, _shndx in struct.iter_unpack(
+        "<IIIBBH", symtab.data()
+    ):
+        sym_type = info & 0xF
+        if name_offset == 0 or sym_type in (STT_SECTION, STT_FILE):
+            continue
+        end = strtab.index(b"\0", name_offset)
+        name = strtab[name_offset:end].decode("utf-8", "replace")
+        kind = "func" if sym_type == STT_FUNC else "object" if sym_type == STT_OBJECT else "other"
+        symbols.append(Symbol(name, value, size, kind))
+    return symbols
 
 
 class ElfImage:
@@ -102,15 +133,7 @@ class ElfImage:
                     for seg in elf.iter_segments()
                     if seg["p_type"] == "PT_LOAD"
                 ]
-                symbols: list[Symbol] = []
-                symtab = elf.get_section_by_name(".symtab")
-                if isinstance(symtab, SymbolTableSection):
-                    for sym in symtab.iter_symbols():
-                        if not sym.name:
-                            continue
-                        sym_type = sym["st_info"]["type"]
-                        kind = {"STT_FUNC": "func", "STT_OBJECT": "object"}.get(sym_type, "other")
-                        symbols.append(Symbol(sym.name, sym["st_value"], sym["st_size"], kind))
+                symbols = _read_symbols(elf)
                 entry = elf["e_entry"]
         except (OSError, ELFError) as exc:
             raise ElfLoadError(f"no se pudo leer {path}: {exc}") from exc

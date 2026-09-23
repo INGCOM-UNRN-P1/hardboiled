@@ -75,13 +75,17 @@ class LineTable:
             ]
             ranges: list[_Range] = []
             for cu in dwarf.iter_CUs():
-                program = dwarf.line_program_for_CU(cu)
-                if program is None:
-                    continue
                 top = cu.get_top_DIE()
                 comp_dir_attr = top.attributes.get("DW_AT_comp_dir")
                 comp_dir = _text(comp_dir_attr.value) if comp_dir_attr else ""
                 base = path.parent / comp_dir if not os.path.isabs(comp_dir) else Path(comp_dir)
+                if not _is_user_unit(top, base):
+                    # Bibliotecas (compiler-rt, libgcc): decodificar su programa de
+                    # líneas es lo más caro de la carga y nunca se muestran.
+                    continue
+                program = dwarf.line_program_for_CU(cu)
+                if program is None:
+                    continue
                 ranges.extend(
                     r
                     for r in _ranges_for_program(program, base)
@@ -138,6 +142,17 @@ class LineTable:
 
     def lines_with_code(self, file: str) -> frozenset[int]:
         return frozenset(r.line for r in self._ranges if r.file == file and r.is_stmt)
+
+
+def _is_user_unit(top: Any, base: Path) -> bool:
+    """¿La unidad de compilación proviene de un fuente C/asm disponible?"""
+    name_attr = top.attributes.get("DW_AT_name")
+    if name_attr is None:
+        return False
+    name = Path(_text(name_attr.value))
+    if name.suffix not in USER_SOURCE_SUFFIXES:
+        return False
+    return (name if name.is_absolute() else base / name).is_file()
 
 
 def _ranges_for_program(program: Any, base: Path) -> list[_Range]:
