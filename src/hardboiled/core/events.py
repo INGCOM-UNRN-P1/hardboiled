@@ -205,6 +205,8 @@ class EvtProgramLoaded:
     entry_point: int
     source_files: tuple[str, ...]
     peripherals: tuple[PeripheralInfo, ...]
+    # (nombre, base, tamaño) de flash, sram y mmio.
+    memory: tuple[tuple[str, int, int], ...] = ()
 
 
 @dataclass(frozen=True)

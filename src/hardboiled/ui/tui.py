@@ -57,6 +57,7 @@ from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.disasm_view import DisassemblyView
 from hardboiled.ui.widgets.file_picker import FilePicker
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
+from hardboiled.ui.widgets.help_screen import HelpScreen
 from hardboiled.ui.widgets.memory_inspector import MemoryInspector
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.prompt import Prompt
@@ -126,6 +127,7 @@ class HardboiledApp(App[None]):
         Binding("x", "register_format", show=False),
         Binding("B", "conditional_breakpoint", show=False),
         Binding("ctrl+f9", "conditional_breakpoint", show=False),
+        Binding("question_mark", "help", "Ayuda"),
         Binding("r", "reset", "Reset"),
         Binding("q", "quit", "Salir"),
         *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
@@ -148,6 +150,7 @@ class HardboiledApp(App[None]):
         self._pending_trap: EvtTrap | None = None
         self._source_files: tuple[str, ...] = ()
         self._last_search = ""
+        self._program: EvtProgramLoaded | None = None
         self._conditional: frozenset[tuple[str | None, int]] = frozenset()
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -221,6 +224,7 @@ class HardboiledApp(App[None]):
     def handle_event(self, event: Event) -> None:
         match event:
             case EvtProgramLoaded():
+                self._program = event
                 self._source_files = event.source_files
                 self.sub_title = f"{os.path.basename(event.elf_path)} · {event.board_name}"
                 self.query_one(HardwareView).configure(event.peripherals)
@@ -403,6 +407,18 @@ class HardboiledApp(App[None]):
 
     def on_memory_inspector_dump_requested(self, message: MemoryInspector.DumpRequested) -> None:
         self.send(CmdReadMemory(message.where))
+
+    def current_keys(self) -> dict[str, list[str]]:
+        """Teclas vigentes por acción (incluidas las reasignadas por el usuario)."""
+        keys: dict[str, list[str]] = {}
+        for key, active in self.active_bindings.items():
+            action = active.binding.action
+            if active.node is self:
+                keys.setdefault(action, []).append(key)
+        return keys
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen(self.current_keys(), self._program))
 
     def action_search(self) -> None:
         def submit(text: str | None) -> None:

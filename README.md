@@ -165,6 +165,7 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `d` | Muestra u oculta el desensamblado mixto (C + RV32I) |
 | `x` | Cambia el formato de los registros: hex, con signo, sin signo, ASCII, símbolo |
 | `f` | Abre otro archivo fuente del programa (para poner breakpoints antes de llegar) |
+| `?` | Ayuda: atajos vigentes, marcadores y mapa de memoria de la placa |
 | `r` | Reset de la placa |
 | `q` | Salir |
 

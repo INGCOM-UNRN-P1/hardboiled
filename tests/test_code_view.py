@@ -29,3 +29,12 @@ async def test_find_wraps_and_goto() -> None:
         assert code.find("texto que no está") is None
         assert code.goto_line(3) and code.cursor_line == 3
         assert not code.goto_line(10_000)
+
+
+def test_help_key_labels() -> None:
+    from hardboiled.ui.widgets.help_screen import _key_label
+
+    assert _key_label("shift+f11") == "Shift+F11"
+    assert _key_label("ctrl+f9") == "Ctrl+F9"
+    assert _key_label("slash") == "/"
+    assert _key_label("n") == "n"

@@ -181,6 +181,18 @@ async def test_tui_drives_runner() -> None:
         app.screen.dismiss(mmio_c)
         await settle(lambda: code.file == mmio_c)
 
+        # Ayuda: lista las teclas vigentes y el mapa de memoria de la placa.
+        from hardboiled.ui.widgets.help_screen import HelpScreen
+
+        await pilot.press("question_mark")
+        await settle(lambda: isinstance(app.screen, HelpScreen))
+        help_screen = app.screen
+        assert isinstance(help_screen, HelpScreen)
+        assert "f5" in help_screen.keys["continue"]
+        assert help_screen.program is not None and help_screen.program.memory
+        await pilot.press("escape")
+        await settle(lambda: not isinstance(app.screen, HelpScreen))
+
         # Desensamblado mixto: `d` lo muestra, con la instrucción del PC marcada.
         from hardboiled.ui.widgets.disasm_view import DisassemblyView
 

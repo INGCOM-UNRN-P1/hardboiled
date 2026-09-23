@@ -111,6 +111,10 @@ class RunnerThread(threading.Thread):
                 entry_point=machine.image.entry,
                 source_files=machine.lines.user_files,
                 peripherals=machine.peripheral_info(),
+                memory=tuple(
+                    (name, base, size)
+                    for name, (base, size) in machine.board.memory.regions().items()
+                ),
             )
         )
 
