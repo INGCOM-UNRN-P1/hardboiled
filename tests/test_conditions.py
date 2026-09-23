@@ -6,8 +6,14 @@ import pytest
 
 from hardboiled.core.cpu import StopReason
 from hardboiled.core.debugger import DebuggerError
+from hardboiled.core.events import (
+    CmdContinue,
+    CmdSetBreakpointCondition,
+    EvtBreakpointsChanged,
+    EvtCpuSuspended,
+)
 from hardboiled.ui.tui import parse_condition
-from tests.conftest import MachineFactory, line_of
+from tests.conftest import HarnessFactory, MachineFactory, line_of
 
 
 def test_condition_on_loop_variable(make_machine: MachineFactory) -> None:
@@ -68,3 +74,21 @@ def test_parse_condition() -> None:
     assert parse_condition("  ") == (None, None)
     with pytest.raises(ValueError):
         parse_condition("i > 0 #cero")
+
+
+def test_runner_reports_conditions_and_hits(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdSetBreakpointCondition(line_of("basic.c", "sum_call"), "basic.c", "i == 2"))
+    changed = h.wait_for(EvtBreakpointsChanged)
+    (condition,) = changed.conditions
+    assert (condition.line, condition.condition, condition.hits) == (
+        line_of("basic.c", "sum_call"),
+        "i == 2",
+        0,
+    )
+    assert condition.source_file is not None and condition.source_file.endswith("basic.c")
+    h.cmd.put(CmdContinue())
+    h.wait_for(EvtCpuSuspended)
+    after = h.wait_for(EvtBreakpointsChanged)
+    assert after.conditions[0].hits == 1

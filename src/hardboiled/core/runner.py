@@ -34,6 +34,7 @@ from hardboiled.core.events import (
     CmdToggleSwitch,
     CmdToggleWatchpoint,
     Command,
+    ConditionInfo,
     Event,
     EvtBreakpointsChanged,
     EvtCpuRunning,
@@ -208,8 +209,22 @@ class RunnerThread(threading.Thread):
         self._known_watches = {w.expression for w in watches}
         if self.store is not None:
             self.store.save(debugger)
+        by_address = {address: key for key, address in debugger.line_breakpoint_addresses.items()}
+        conditions = tuple(
+            ConditionInfo(
+                by_address[address][0] if address in by_address else None,
+                by_address[address][1] if address in by_address else None,
+                address,
+                condition.expression,
+                condition.hit_target,
+                condition.hits,
+            )
+            for address, condition in debugger.conditions.items()
+        )
         self._emit(
-            EvtBreakpointsChanged(debugger.line_breakpoints, debugger.address_breakpoints, watches)
+            EvtBreakpointsChanged(
+                debugger.line_breakpoints, debugger.address_breakpoints, watches, conditions
+            )
         )
 
     def _poll(self) -> bool:
