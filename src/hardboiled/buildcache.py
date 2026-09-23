@@ -35,7 +35,7 @@ def _hash_file(digest: hashlib._Hash, path: Path) -> None:
     digest.update(b"\0")
 
 
-def _dependencies(sources: Sequence[Path], include_dirs: Iterable[Path]) -> list[Path]:
+def dependencies(sources: Sequence[Path], include_dirs: Iterable[Path]) -> list[Path]:
     """Fuentes más los encabezados que plausiblemente incluyen."""
     found = {source.resolve() for source in sources}
     for directory in {s.resolve().parent for s in sources} | {d.resolve() for d in include_dirs}:
@@ -51,7 +51,7 @@ def cache_key(sources: Sequence[Path], options: BuildOptions, compiler: Compiler
     runtime = options.runtime
     for path in (runtime.crt0, runtime.linker_script, *sorted(runtime.include_dir.iterdir())):
         _hash_file(digest, path)
-    for path in _dependencies(sources, options.include_dirs):
+    for path in dependencies(sources, options.include_dirs):
         _hash_file(digest, path)
     return digest.hexdigest()[:20]
 

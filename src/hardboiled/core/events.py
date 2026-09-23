@@ -129,6 +129,13 @@ class CmdProfile:
 
 
 @dataclass(frozen=True)
+class CmdReload:
+    """Carga de nuevo el programa (recompilado), conservando breakpoints y watchpoints."""
+
+    elf_path: str
+
+
+@dataclass(frozen=True)
 class CmdPause:
     """Interrumpe una ejecución en curso (Continue o un step largo)."""
 
@@ -162,6 +169,7 @@ Command = (
     | CmdSetClock
     | CmdToggleSwitch
     | CmdProfile
+    | CmdReload
     | CmdPause
     | CmdReset
     | CmdShutdown

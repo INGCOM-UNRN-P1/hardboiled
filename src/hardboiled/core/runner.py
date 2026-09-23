@@ -4,7 +4,11 @@ Mientras la CPU corre (Continue o un step largo) el hilo no puede bloquearse
 en `cmd_queue.get()`, así que la CPU consulta periódicamente `_poll()`: ahí se
 aplican en vivo los comandos que no requieren detener la CPU (switches,
 breakpoints) y se atienden Pause/Shutdown. Los comandos de ejecución que
-llegan mientras la CPU corre se descartan; Reset se posterga hasta que pare.
+llegan mientras la CPU corre se descartan; Reset y Reload se postergan hasta
+que pare.
+
+Con un `ProgramWatcher`, el hilo vigila el programa (también mientras corre):
+si se recompila, lo recarga conservando breakpoints y watchpoints.
 """
 
 from __future__ import annotations
@@ -17,12 +21,14 @@ from collections.abc import Callable
 
 from hardboiled.core.cpu import StopInfo, StopReason
 from hardboiled.core.debugger import DebuggerError
+from hardboiled.core.elf import ElfLoadError
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdPressButton,
     CmdProfile,
     CmdReadMemory,
+    CmdReload,
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
@@ -63,12 +69,14 @@ from hardboiled.core.events import (
 from hardboiled.core.hints import hint_for
 from hardboiled.core.machine import Machine, MachineSnapshot
 from hardboiled.core.profile import build_profile
-from hardboiled.core.session import BreakpointStore
+from hardboiled.core.session import BreakpointStore, apply_points, capture_points
 from hardboiled.core.unwind import Frame
 from hardboiled.hardware import ButtonBank, LedBar, SwitchBank
+from hardboiled.watch import ProgramWatcher, WatchError
 
 PROGRESS_INTERVAL = 0.2  # segundos entre EvtCpuProgress
 DEFAULT_HISTORY = 200  # 200 instantáneas de 64 KB de SRAM: ~13 MB
+WATCH_INTERVAL = 0.5  # segundos entre consultas al vigilante del programa
 
 
 class RunnerThread(threading.Thread):
@@ -80,9 +88,12 @@ class RunnerThread(threading.Thread):
         stop_at_main: bool = True,
         store: BreakpointStore | None = None,
         history_size: int = DEFAULT_HISTORY,
+        watcher: ProgramWatcher | None = None,
     ) -> None:
         super().__init__(name="hardboiled-runner", daemon=True)
         self.machine = machine
+        self.watcher = watcher
+        self._last_watch = time.monotonic()
         self.store = store
         self.cmd_queue = cmd_queue
         self.evt_queue = evt_queue
@@ -95,6 +106,10 @@ class RunnerThread(threading.Thread):
         self._history: deque[MachineSnapshot] = deque(maxlen=max(history_size, 0) or None)
         self._history_enabled = history_size > 0
         self._shutdown = False
+        self._attach(machine)
+
+    def _attach(self, machine: Machine) -> None:
+        self.machine = machine
         machine.set_event_sink(self._emit)
         machine.cpu.poll = self._poll
         machine.cpu.interactive = True  # wfi puede esperar lo que escriba el usuario
@@ -110,7 +125,15 @@ class RunnerThread(threading.Thread):
         self._restore_breakpoints()
         self._boot()
         while not self._shutdown:
-            command = self._deferred.popleft() if self._deferred else self.cmd_queue.get()
+            if self._deferred:
+                command = self._deferred.popleft()
+            else:
+                try:
+                    timeout = WATCH_INTERVAL if self.watcher is not None else None
+                    command = self.cmd_queue.get(timeout=timeout)
+                except queue.Empty:
+                    self._check_program()
+                    continue
             self._dispatch(command)
 
     def _announce(self) -> None:
@@ -191,6 +214,8 @@ class RunnerThread(threading.Thread):
                 self.machine.reset()
                 self._emit(EvtMessage("placa reiniciada"))
                 self._boot()
+            case CmdReload(elf_path=path):
+                self._reload(path)
             case CmdPause():
                 pass  # la CPU ya está detenida
             case CmdReadMemory(where=where, length=length):
@@ -302,6 +327,10 @@ class RunnerThread(threading.Thread):
     def _poll(self) -> bool:
         """Llamado desde el hook de la CPU: True pide pausar la ejecución."""
         self._progress()
+        if self._program_changed():
+            # Se recompila y recarga con la CPU detenida (en el bucle principal).
+            self._deferred.append(CmdReload(""))
+            return True
         for warning in warning_events(self.machine):
             self._emit(warning)
         pause = False
@@ -316,7 +345,7 @@ class RunnerThread(threading.Thread):
                 case CmdShutdown():
                     self._shutdown = True
                     pause = True
-                case CmdReset():
+                case CmdReset() | CmdReload():
                     self._deferred.append(command)
                     pause = True
                 case (
@@ -329,6 +358,55 @@ class RunnerThread(threading.Thread):
                     pass  # ya está corriendo
                 case _:
                     self._apply_live(command)
+
+    # --------------------------------------------------------------- recarga
+
+    def _program_changed(self) -> bool:
+        if self.watcher is None:
+            return False
+        now = time.monotonic()
+        if now - self._last_watch < WATCH_INTERVAL:
+            return False
+        self._last_watch = now
+        return self.watcher.changed()
+
+    def _check_program(self) -> None:
+        if self._program_changed():
+            self._reload("")
+
+    def _reload(self, path: str) -> None:
+        """Carga el programa nuevo (`path`, o el que dé el vigilante) en una placa igual."""
+        if not path:
+            if self.watcher is None:
+                return
+            if self.watcher.builds:
+                self._emit(EvtMessage("cambió el código: recompilando…"))
+            try:
+                path = str(self.watcher.rebuild())
+            except WatchError as exc:
+                self._emit(EvtMessage(f"no se recargó: {exc}"))
+                return
+        old = self.machine
+        try:
+            new = Machine.from_elf(path, old.board)
+        except (ElfLoadError, OSError) as exc:
+            self._emit(EvtMessage(f"no se recargó {path}: {exc}"))
+            return
+        points = capture_points(old.debugger)
+        new.cpu.set_clock(old.cpu.clock_hz)
+        switches, new_switches = old.switches(), new.switches()
+        if switches is not None and new_switches is not None:
+            new_switches.set_value(switches.value)  # las entradas quedan como estaban
+        old.cpu.poll = None
+        self._attach(new)
+        self._history.clear()
+        failed = apply_points(new.debugger, points)
+        self._announce()
+        self._warn_about_build()
+        self._emit_breakpoints()
+        note = f"; no se pudieron reubicar: {', '.join(failed)}" if failed else ""
+        self._emit(EvtMessage(f"programa recargado ({len(points)} puntos conservados){note}"))
+        self._boot()
 
     # -------------------------------------------------------------- ejecución
 

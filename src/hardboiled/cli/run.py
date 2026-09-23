@@ -8,7 +8,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from hardboiled.buildcache import SOURCE_SUFFIXES, build_cached
+from hardboiled.buildcache import SOURCE_SUFFIXES, CachedBuild, build_cached
 from hardboiled.cli.build import add_build_options, compiler_preference, options_from
 from hardboiled.cli.common import (
     EXIT_TRAP,
@@ -30,6 +30,7 @@ from hardboiled.core.session import BreakpointStore
 from hardboiled.core.trace import TraceError, TraceWriter
 from hardboiled.script import ScriptError, attach_script
 from hardboiled.toolchain import BuildError, ToolchainError, select_compiler
+from hardboiled.watch import ProgramWatcher, WatchError
 
 
 def register(sub: Subparsers) -> None:
@@ -63,6 +64,11 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         "--script",
         metavar="ARCHIVO",
         help="guion TOML de estímulos (switches, UART, botones) en ciclos dados",
+    )
+    parser.add_argument(
+        "--no-watch",
+        action="store_true",
+        help="no recargar el programa cuando se recompila o cambian sus fuentes",
     )
     parser.add_argument(
         "--no-save-breakpoints",
@@ -109,14 +115,14 @@ def read_uart_input(source: str) -> bytes:
         raise CliError(f"no se pudo leer {source}: {exc}") from exc
 
 
-def resolve_program(args: argparse.Namespace) -> Path:
-    """Devuelve el ELF a ejecutar, compilando los fuentes si hace falta."""
+def is_elf(args: argparse.Namespace) -> bool:
+    """¿Se ejecuta un ELF (y no fuentes)? Valida la combinación de archivos."""
     programs = [Path(p) for p in args.program]
     suffixes = {p.suffix.lower() for p in programs}
     if suffixes == {".elf"}:
         if len(programs) > 1:
             raise CliError("se puede ejecutar un único ELF por vez")
-        return programs[0]
+        return True
     if ".elf" in suffixes:
         raise CliError("no se pueden mezclar un ELF y archivos fuente")
     unknown = sorted(suffixes - set(SOURCE_SUFFIXES))
@@ -125,18 +131,46 @@ def resolve_program(args: argparse.Namespace) -> Path:
     for program in programs:
         if not program.is_file():
             raise CliError(f"no existe {program}")
+    return False
+
+
+def build_program(args: argparse.Namespace) -> tuple[CachedBuild, str]:
+    """Compila los fuentes (con caché). Devuelve el resultado y el compilador usado."""
     try:
         compiler = select_compiler(compiler_preference(args))
-        result = build_cached(programs, options_from(args), compiler)
+        result = build_cached([Path(p) for p in args.program], options_from(args), compiler)
     except BuildError as exc:
         raise CliError(f"{exc}\n{exc.output}") from exc
     except ToolchainError as exc:
         raise CliError(str(exc)) from exc
+    return result, compiler.description
+
+
+def resolve_program(args: argparse.Namespace) -> Path:
+    """Devuelve el ELF a ejecutar, compilando los fuentes si hace falta."""
+    if is_elf(args):
+        return Path(args.program[0])
+    result, compiler = build_program(args)
     if result.diagnostics:
         print(result.diagnostics, file=sys.stderr)
     if not result.reused:
-        print(f"compilado con {compiler.description}", file=sys.stderr)
+        print(f"compilado con {compiler}", file=sys.stderr)
     return result.elf
+
+
+def program_watcher(args: argparse.Namespace, elf: Path) -> ProgramWatcher:
+    """Vigila el ELF, o los fuentes (y recompila con las mismas opciones)."""
+    if is_elf(args):
+        return ProgramWatcher.for_elf(elf)
+
+    def rebuild() -> Path:
+        try:
+            return build_program(args)[0].elf
+        except CliError as exc:
+            raise WatchError(str(exc)) from exc
+
+    include_dirs = [Path(d) for d in args.include_dirs]
+    return ProgramWatcher.for_sources([Path(p) for p in args.program], include_dirs, rebuild)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -204,7 +238,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     if prefs.save_breakpoints and not args.no_save_breakpoints:
         # Junto a lo que escribió el alumno: el ELF o el primer fuente (no la caché).
         store = BreakpointStore.for_program(Path(args.program[0]))
-    runner = RunnerThread(machine, cmd_queue, evt_queue, stop_at_main, store, prefs.history)
+    watcher = None if args.no_watch else program_watcher(args, elf)
+    runner = RunnerThread(
+        machine, cmd_queue, evt_queue, stop_at_main, store, prefs.history, watcher
+    )
     config = user_config(args)
     HardboiledApp(cmd_queue, evt_queue, runner, config.ui, config.keys).run()
     return 0

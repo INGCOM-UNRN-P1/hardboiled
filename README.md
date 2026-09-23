@@ -309,6 +309,15 @@ primer fuente, con rutas relativas y ubicados por archivo:línea (sobreviven a
 recompilar). Se desactiva con `--no-save-breakpoints` o `save_breakpoints =
 false` en `config.toml`.
 
+**Recarga automática**: mientras la TUI está abierta, si el programa se
+recompila, se vuelve a cargar solo. Con `run main.c`, alcanza con guardar un
+fuente o un encabezado del proyecto: se recompila con las mismas opciones.
+Con `run main.elf`, se recarga al cambiar el ELF (por ejemplo, tras un `make`
+en otra terminal). Breakpoints, condiciones y watchpoints de globales se
+reubican por archivo:línea, y los switches quedan como estaban. Si la
+compilación falla, se muestra el error y sigue el programa anterior.
+`--no-watch` lo desactiva.
+
 El **desensamblado** (`d`) muestra la función en curso intercalando cada
 línea de C con sus instrucciones RV32I (con pseudoinstrucciones como `li`,
 `mv`, `ret` o `call` y los destinos de saltos con su símbolo); la instrucción

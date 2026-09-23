@@ -31,6 +31,54 @@ class SavedPoint:
     hit_count: int | None = None
 
 
+def capture_points(debugger: Debugger) -> list[SavedPoint]:
+    """Breakpoints y watchpoints actuales (rutas absolutas), para volver a ponerlos."""
+    conditions = debugger.conditions
+    points: list[SavedPoint] = []
+    for (file, line), address in sorted(debugger.line_breakpoint_addresses.items()):
+        condition = conditions.get(address)
+        points.append(
+            SavedPoint(
+                "line",
+                file=file,
+                line=line,
+                condition=condition.expression if condition else None,
+                hit_count=condition.hit_target if condition else None,
+            )
+        )
+    points += [SavedPoint("address", address=a) for a in sorted(debugger.address_breakpoints)]
+    # Los watchpoints de locales dependen de un marco concreto: no se conservan.
+    points += [
+        SavedPoint("watch", expression=w.expression)
+        for w in debugger.watchpoints
+        if w.scope_cfa is None
+    ]
+    return points
+
+
+def apply_points(debugger: Debugger, points: list[SavedPoint]) -> list[str]:
+    """Pone los puntos (por archivo:línea); devuelve los que ya no se pudieron ubicar."""
+    failed = []
+    for point in points:
+        try:
+            if point.kind == "line" and point.line is not None:
+                if point.condition or point.hit_count:
+                    debugger.set_condition(point.line, point.file, point.condition, point.hit_count)
+                else:
+                    _, line, _ = debugger.resolve_line(point.line, point.file)
+                    if (point.file, line) not in debugger.line_breakpoints:
+                        debugger.toggle_line_breakpoint(point.line, point.file)
+            elif point.kind == "address" and point.address is not None:
+                if point.address not in debugger.address_breakpoints:
+                    debugger.toggle_address_breakpoint(point.address)
+            elif point.kind == "watch" and point.expression:
+                debugger.add_watchpoint(point.expression)
+        except DebuggerError:
+            where = point.expression or f"{Path(point.file or '?').name}:{point.line}"
+            failed.append(where)
+    return failed
+
+
 class BreakpointStore:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -63,27 +111,7 @@ class BreakpointStore:
 
     def restore(self, debugger: Debugger) -> list[str]:
         """Aplica lo guardado; devuelve descripciones de lo que ya no se pudo ubicar."""
-        failed = []
-        for point in self.load():
-            try:
-                if point.kind == "line" and point.line is not None:
-                    if point.condition or point.hit_count:
-                        debugger.set_condition(
-                            point.line, point.file, point.condition, point.hit_count
-                        )
-                    else:
-                        _, line, _ = debugger.resolve_line(point.line, point.file)
-                        if (point.file, line) not in debugger.line_breakpoints:
-                            debugger.toggle_line_breakpoint(point.line, point.file)
-                elif point.kind == "address" and point.address is not None:
-                    if point.address not in debugger.address_breakpoints:
-                        debugger.toggle_address_breakpoint(point.address)
-                elif point.kind == "watch" and point.expression:
-                    debugger.add_watchpoint(point.expression)
-            except DebuggerError:
-                where = point.expression or f"{Path(point.file or '?').name}:{point.line}"
-                failed.append(where)
-        return failed
+        return apply_points(debugger, self.load())
 
     # ----------------------------------------------------------- escritura
 
@@ -94,25 +122,11 @@ class BreakpointStore:
             return file
 
     def save(self, debugger: Debugger) -> None:
-        conditions = debugger.conditions
-        points: list[SavedPoint] = []
-        for (file, line), address in sorted(debugger.line_breakpoint_addresses.items()):
-            condition = conditions.get(address)
-            points.append(
-                SavedPoint(
-                    "line",
-                    file=self._relative(file),
-                    line=line,
-                    condition=condition.expression if condition else None,
-                    hit_count=condition.hit_target if condition else None,
-                )
-            )
-        points += [SavedPoint("address", address=a) for a in sorted(debugger.address_breakpoints)]
-        # Los watchpoints de locales dependen de un marco concreto: no se guardan.
-        points += [
-            SavedPoint("watch", expression=w.expression)
-            for w in debugger.watchpoints
-            if w.scope_cfa is None
+        points = [
+            SavedPoint(**{**asdict(point), "file": self._relative(point.file)})
+            if point.file is not None
+            else point
+            for point in capture_points(debugger)
         ]
         if not points and not self.path.exists():
             return
