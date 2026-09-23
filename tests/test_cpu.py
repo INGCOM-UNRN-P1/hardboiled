@@ -315,3 +315,21 @@ def test_misaligned_access_can_be_allowed() -> None:
     assert stop.reason is StopReason.EXITED
     # not_code = {0x00000013, ...}: la palabra desde el byte 1 es 0x13000000 >> 8.
     assert stop.exit_code == 0x13000000
+
+
+def test_reset_reuses_the_engine(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("mmio", switches=2)
+    cpu = machine.cpu
+    engine = cpu._uc
+    first = machine.debugger.continue_()
+    uart = machine.uart()
+    assert uart is not None
+    output = bytes(uart.transmitted)
+    for _ in range(3):
+        machine.reset()
+        assert cpu._uc is engine
+        assert cpu.pc == machine.image.entry and cpu.sp == 0 and cpu.clock.cycles == 0
+        assert cpu.read_memory(machine.board.memory.sram_base, 16) == bytes(16)
+        assert uart.transmitted == b""
+        again = machine.debugger.continue_()
+        assert again == first and bytes(uart.transmitted) == output

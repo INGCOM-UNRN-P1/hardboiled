@@ -261,6 +261,8 @@ class Cpu:
         self._hooks: list[int] = []
         self._hook_key: tuple[object, ...] | None = None
         self._stepping = True
+        # Estado de encendido (registros y SRAM tras cargar el programa) para Reset.
+        self._power_on: tuple[Any, bytes] | None = None
         self._uc = self._create_engine()
         self._reset_run_state()
 
@@ -281,8 +283,6 @@ class Cpu:
             end = mem.sram_base + mem.sram_size - 1
             uc.hook_add(UC_HOOK_MEM_WRITE, self._on_sram_write, begin=mem.sram_base, end=end)
             uc.hook_add(UC_HOOK_MEM_READ, self._on_sram_read, begin=mem.sram_base, end=end)
-        for watch in getattr(self, "_watches", {}).values():  # tras un reset
-            watch.handle = self._install_watch(uc, watch)
         return uc
 
     # ------------------------------------------------------------ watchpoints
@@ -421,6 +421,11 @@ class Cpu:
         self.stack_floor = self._compute_stack_floor(image)
         self._vector_table = image.symbol_address("__vector_table")
         self._uc.reg_write(_PC, image.entry)
+        mem = self.memory
+        self._power_on = (
+            self._uc.context_save(),
+            bytes(self._uc.mem_read(mem.sram_base, mem.sram_size)),
+        )
 
     def _compute_stack_floor(self, image: ElfImage) -> int:
         """Hasta dónde puede bajar sp: el fin de .bss (o __stack_limit), o la SRAM.
@@ -438,12 +443,18 @@ class Cpu:
         return base
 
     def reset(self) -> None:
-        """Placa recién encendida: memoria limpia, registros en cero, periféricos reseteados."""
-        self._uc = self._create_engine()
+        """Placa recién encendida: memoria limpia, registros en cero, periféricos reseteados.
+
+        No se recrea el motor ni se vuelve a indexar el código: la Flash es de
+        sólo lectura, así que alcanza con restaurar registros y SRAM al estado
+        guardado al cargar. Los hooks (watchpoints incluidos) siguen instalados.
+        """
         self._reset_run_state()
         self.bus.reset()
-        if self._image is not None:
-            self.load(self._image)
+        if self._power_on is not None:
+            context, sram = self._power_on
+            self._uc.context_restore(context)
+            self._uc.mem_write(self.memory.sram_base, sram)
 
     def _index_code(self, image: ElfImage) -> None:
         special: dict[int, _Halt] = {}
