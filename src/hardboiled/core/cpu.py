@@ -1193,6 +1193,8 @@ class Cpu:
         self.set_pc(saved_pc)
         self._isr_frames.pop()
         self.pic.complete()
+        self.instructions += 1  # mret también es una instrucción ejecutada
+        self.clock.cycles += 1
         return None
 
     def _wait_for_interrupt(self, pc: int) -> StopInfo | None:

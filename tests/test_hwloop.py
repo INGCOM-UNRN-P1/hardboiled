@@ -7,7 +7,6 @@ que muestran las salidas (lazo cerrado).
 
 from __future__ import annotations
 
-import itertools
 from collections.abc import Callable
 
 from hardboiled.core.cpu import StopReason
@@ -48,10 +47,14 @@ def test_display_counts_every_tick_without_skipping(hardware_loop: LoopFactory) 
     # Cada tick despierta al lazo antes del siguiente: el display pasa por todos.
     assert counts == list(range(counts[0], counts[-1] + 1))
     assert counts[-1] >= 11
-    # Y a ritmo del timer: `wfi` adelanta el reloj justo hasta cada vencimiento.
-    # (La última muestra es la del cierre, al recibir la 'q', no un tick.)
+    # Y a ritmo del timer: `wfi` adelanta el reloj justo hasta cada vencimiento, y
+    # el banco muestrea al despertar o en el sondeo periódico (cada ~1024
+    # instrucciones). La última muestra es la del cierre (la 'q'), no un tick.
     changes = [s.cycle for s in loop.trace if s.display.strip().isdigit()][:-1]
-    assert {b - a for a, b in itertools.pairwise(changes)} == {TICK}
+    resolution = 1100
+    for change in changes:
+        phase = (change - changes[0]) % TICK
+        assert phase <= resolution or phase >= TICK - resolution
 
 
 def test_closed_loop_reacts_to_outputs(hardware_loop: LoopFactory) -> None:
