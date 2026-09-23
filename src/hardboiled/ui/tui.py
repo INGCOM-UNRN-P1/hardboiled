@@ -69,6 +69,46 @@ from hardboiled.userconfig import UiPrefs
 MAX_EVENTS_PER_FRAME = 5000
 
 
+# (acción, teclas por defecto, descripción en el pie o "" para no mostrarla).
+DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
+    ("continue", "f5,c", "Continue"),
+    ("pause", "f6,p", "Pause"),
+    ("toggle_breakpoint", "f9,b", "Breakpoint"),
+    ("step_over", "f10,n", "Step Over"),
+    ("step_into", "f11,s", "Step Into"),
+    ("step_out", "shift+f11,o", "Step Out"),
+    ("step_instruction", "f7,i", "Stepi"),
+    ("step_back", "f8,u", "Atrás"),
+    ("run_to_cursor", "f4,g", "Hasta cursor"),
+    ("watch", "w", "Watch"),
+    ("toggle_disassembly", "d", "ASM"),
+    ("open_file", "f", "Archivos"),
+    ("search", "slash", "Buscar"),
+    ("search_next", "f3", ""),
+    ("search_previous", "shift+f3", ""),
+    ("goto_line", "colon", ""),
+    ("register_format", "x", ""),
+    ("conditional_breakpoint", "B,ctrl+f9", ""),
+    ("help", "question_mark", "Ayuda"),
+    ("reset", "r", "Reset"),
+    ("quit", "q", "Salir"),
+)
+KEY_ACTIONS = frozenset(action for action, _, _ in DEFAULT_KEYS) | {
+    f"switch_{pin}" for pin in range(8)
+}
+
+# Nombres amigables para config.toml ("/" en lugar de "slash").
+KEY_ALIASES = {"/": "slash", ":": "colon", "?": "question_mark"}
+
+
+def normalize_keys(keys: str) -> str:
+    return ",".join(
+        KEY_ALIASES.get(k.strip(), k.strip().lower() if len(k.strip()) > 1 else k.strip())
+        for k in keys.split(",")
+        if k.strip()
+    )
+
+
 def parse_condition(text: str) -> tuple[str | None, int | None]:
     """`"i == 3 #5"` -> ("i == 3", 5). La cantidad de pasadas va al final con #."""
     text = text.strip()
@@ -99,38 +139,12 @@ class HardboiledApp(App[None]):
     """
 
     BINDINGS = [  # noqa: RUF012 - convención de Textual
-        Binding("f5", "continue", "Continue"),
-        Binding("f6", "pause", "Pause"),
-        Binding("f9", "toggle_breakpoint", "Breakpoint"),
-        Binding("f10", "step_over", "Step Over"),
-        Binding("f11", "step_into", "Step Into"),
-        Binding("shift+f11", "step_out", "Step Out"),
-        Binding("f7", "step_instruction", "Stepi"),
-        Binding("f8", "step_back", "Atrás"),
-        Binding("f4", "run_to_cursor", "Hasta cursor"),
-        Binding("c", "continue", show=False),
-        Binding("p", "pause", show=False),
-        Binding("b", "toggle_breakpoint", show=False),
-        Binding("n", "step_over", show=False),
-        Binding("s", "step_into", show=False),
-        Binding("i", "step_instruction", show=False),
-        Binding("o", "step_out", show=False),
-        Binding("u", "step_back", show=False),
-        Binding("g", "run_to_cursor", show=False),
-        Binding("w", "watch", "Watch"),
-        Binding("d", "toggle_disassembly", "ASM"),
-        Binding("f", "open_file", "Archivos"),
-        Binding("slash", "search", "Buscar"),
-        Binding("f3", "search_next", show=False),
-        Binding("shift+f3", "search_previous", show=False),
-        Binding("colon", "goto_line", show=False),
-        Binding("x", "register_format", show=False),
-        Binding("B", "conditional_breakpoint", show=False),
-        Binding("ctrl+f9", "conditional_breakpoint", show=False),
-        Binding("question_mark", "help", "Ayuda"),
-        Binding("r", "reset", "Reset"),
-        Binding("q", "quit", "Salir"),
-        *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
+        # El id de cada binding es el nombre que se usa en [keys] de config.toml.
+        *(
+            Binding(keys, action, description, show=bool(description), id=action)
+            for action, keys, description in DEFAULT_KEYS
+        ),
+        *(Binding(str(pin), f"switch({pin})", show=False, id=f"switch_{pin}") for pin in range(8)),
     ]
 
     def __init__(
@@ -139,9 +153,11 @@ class HardboiledApp(App[None]):
         evt_queue: queue.Queue[Event],
         worker: threading.Thread | None = None,
         prefs: UiPrefs | None = None,
+        keymap: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
         self.prefs = prefs or UiPrefs()
+        self.user_keymap = dict(keymap or {})
         self.cmd_queue = cmd_queue
         self.evt_queue = evt_queue
         self.worker = worker
@@ -180,6 +196,7 @@ class HardboiledApp(App[None]):
 
     def on_mount(self) -> None:
         self.theme = "textual-light" if self.prefs.theme == "light" else "textual-dark"
+        self._apply_keymap()
         self.query_one("#code").border_title = "Código"
         self.query_one("#uart").border_title = "Consola UART"
         self.query_one("#hardware").border_title = "Placa"
@@ -191,6 +208,23 @@ class HardboiledApp(App[None]):
 
     def on_unmount(self) -> None:
         self.cmd_queue.put(CmdShutdown())
+
+    def _apply_keymap(self) -> None:
+        """Aplica [keys] de config.toml; las acciones desconocidas se informan."""
+        if not self.user_keymap:
+            return
+        unknown = sorted(set(self.user_keymap) - KEY_ACTIONS)
+        valid = {
+            action: normalize_keys(keys)
+            for action, keys in self.user_keymap.items()
+            if action in KEY_ACTIONS and normalize_keys(keys)
+        }
+        self.set_keymap(valid)
+        if unknown:
+            self.notify(
+                "acciones desconocidas en [keys]: " + ", ".join(unknown) + " (ver ? para la lista)",
+                severity="warning",
+            )
 
     def send(self, command: Command) -> None:
         self.cmd_queue.put(command)

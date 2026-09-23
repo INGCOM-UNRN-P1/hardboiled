@@ -169,6 +169,11 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 | `r` | Reset de la placa |
 | `q` | Salir |
 
+Si la terminal captura alguna tecla (F10 abre el menú en GNOME Terminal, F11
+pasa a pantalla completa), los atajos se reasignan en `[keys]` de
+`config.toml`, por ejemplo `step_over = "f2,n"`; la ayuda (`?`) muestra los
+vigentes.
+
 `↑`/`↓`/`PgUp`/`PgDn` mueven el cursor en el código; `/` busca (F3 y
 Shift+F3 van a la coincidencia siguiente y anterior, resaltadas) y `:` va a
 una línea.

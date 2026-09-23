@@ -38,3 +38,11 @@ def test_help_key_labels() -> None:
     assert _key_label("ctrl+f9") == "Ctrl+F9"
     assert _key_label("slash") == "/"
     assert _key_label("n") == "n"
+
+
+def test_normalize_keys() -> None:
+    from hardboiled.ui.tui import normalize_keys
+
+    assert normalize_keys("F8, n") == "f8,n"
+    assert normalize_keys("/,?") == "slash,question_mark"
+    assert normalize_keys("B") == "B"  # una letra conserva mayúsculas (Shift)

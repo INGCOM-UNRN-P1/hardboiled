@@ -316,3 +316,24 @@ def test_runner_memory_dump(harness: HarnessFactory) -> None:
     assert "no_existe" in (h.wait_for(EvtMemoryDump).error or "")
     h.cmd.put(CmdReadMemory("main"))  # símbolo de código: la Flash también se puede ver
     assert h.wait_for(EvtMemoryDump).address >= 0x10000
+
+
+async def test_tui_user_keymap() -> None:
+    h = Harness("basic")
+    app = HardboiledApp(h.cmd, h.evt, h.runner, keymap={"step_over": "f2", "no_existe": "z"})
+    async with app.run_test(size=(140, 45)) as pilot:
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if app._suspended is not None:
+                break
+        keys = app.current_keys()
+        assert keys["step_over"] == ["f2"]  # reemplaza f10 y n
+        first = app._suspended
+        await pilot.press("f2")
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if app._suspended is not first:
+                break
+        assert app._suspended is not first and app._suspended is not None
+        assert app._suspended.source_line == line_of("basic.c", "main_store")
+        await pilot.press("q")
