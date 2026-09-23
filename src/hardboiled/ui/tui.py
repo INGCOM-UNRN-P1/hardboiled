@@ -23,6 +23,7 @@ from hardboiled.core.events import (
     CmdPause,
     CmdReset,
     CmdShutdown,
+    CmdStepInstruction,
     CmdStepInto,
     CmdStepOver,
     CmdToggleBreakpoint,
@@ -67,11 +68,13 @@ class HardboiledApp(App[None]):
         Binding("f9", "toggle_breakpoint", "Breakpoint"),
         Binding("f10", "step_over", "Step Over"),
         Binding("f11", "step_into", "Step Into"),
+        Binding("f7", "step_instruction", "Stepi"),
         Binding("c", "continue", show=False),
         Binding("p", "pause", show=False),
         Binding("b", "toggle_breakpoint", show=False),
         Binding("n", "step_over", show=False),
         Binding("s", "step_into", show=False),
+        Binding("i", "step_instruction", show=False),
         Binding("r", "reset", "Reset"),
         Binding("q", "quit", "Salir"),
         *(Binding(str(pin), f"switch({pin})", show=False) for pin in range(8)),
@@ -220,6 +223,9 @@ class HardboiledApp(App[None]):
 
     def action_step_into(self) -> None:
         self.send(CmdStepInto())
+
+    def action_step_instruction(self) -> None:
+        self.send(CmdStepInstruction())
 
     def action_reset(self) -> None:
         self.query_one("#uart", Log).clear()

@@ -229,3 +229,31 @@ def test_line_table_roundtrip() -> None:
     assert location is not None and (location.file, location.line) == (source, line)
     assert image.function_at(address) == "square"
     assert lines.resolve_file(BASIC) == source
+
+
+def test_step_instruction_executes_exactly_one(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("basic")
+    cpu = machine.cpu
+    machine.debugger.run_to_main()
+    for _ in range(5):
+        before_pc, before_count = cpu.pc, cpu.instructions
+        stop = machine.debugger.step_instruction()
+        assert stop.reason is StopReason.BREAK
+        assert cpu.instructions == before_count + 1
+        assert cpu.pc != before_pc
+
+
+def test_step_instruction_on_self_loop(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("traps", switches=4)  # for (;;) {} compila a `j .`
+    debugger = machine.debugger
+    debugger.run_to_main()
+    for _ in range(40):
+        debugger.step_instruction()
+    loop_pc = machine.cpu.pc
+    count = machine.cpu.instructions
+    debugger.step_instruction()
+    assert machine.cpu.pc == loop_pc and machine.cpu.instructions == count + 1
+    # Un breakpoint sobre el propio salto vuelve a detener en cada vuelta.
+    debugger.toggle_address_breakpoint(loop_pc)
+    assert debugger.continue_().reason is StopReason.BREAK
+    assert machine.cpu.instructions == count + 2

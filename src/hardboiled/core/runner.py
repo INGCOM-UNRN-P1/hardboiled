@@ -21,6 +21,7 @@ from hardboiled.core.events import (
     CmdPause,
     CmdReset,
     CmdShutdown,
+    CmdStepInstruction,
     CmdStepInto,
     CmdStepOver,
     CmdToggleAddressBreakpoint,
@@ -106,6 +107,8 @@ class RunnerThread(threading.Thread):
                 self._execute(debugger.step_over)
             case CmdContinue():
                 self._execute(debugger.continue_)
+            case CmdStepInstruction():
+                self._execute(debugger.step_instruction)
             case CmdReset():
                 self.machine.reset()
                 self._emit(EvtMessage("placa reiniciada"))
@@ -153,7 +156,7 @@ class RunnerThread(threading.Thread):
                 case CmdReset():
                     self._deferred.append(command)
                     pause = True
-                case CmdStepInto() | CmdStepOver() | CmdContinue():
+                case CmdStepInto() | CmdStepOver() | CmdContinue() | CmdStepInstruction():
                     pass  # ya está corriendo
                 case _:
                     self._apply_live(command)

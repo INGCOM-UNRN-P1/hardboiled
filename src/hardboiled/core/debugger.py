@@ -99,17 +99,18 @@ class Debugger:
 
     def _run(self, predicate: Callable[[int], bool]) -> StopInfo:
         breakpoints = self._active
-        start_pc = self.cpu.pc
-        leaving_start = True
+        cpu = self.cpu
+        start_pc = cpu.pc
+        start_count = cpu.instructions
 
         def check(pc: int) -> bool:
-            nonlocal leaving_start
-            # No volver a detenerse en el breakpoint desde el que se reanuda.
-            if leaving_start:
-                if pc == start_pc:
-                    predicate(pc)
-                    return False
-                leaving_start = False
+            # No volver a detenerse en el breakpoint desde el que se reanuda: la
+            # primera instrucción se evalúa (Step Over detecta llamadas) pero no
+            # detiene. Se decide por el contador y no por el PC para que un
+            # `j .` (salto a sí mismo) no quede eximido para siempre.
+            if pc == start_pc and cpu.instructions == start_count:
+                predicate(pc)
+                return False
             return pc in breakpoints or predicate(pc)
 
         self.cpu.stop_check = check
@@ -133,6 +134,12 @@ class Debugger:
         if stop.reason is StopReason.BREAK and self.location() is not None:
             stop = self.step_into()  # saltea el prólogo (la línea de la llave de apertura)
         return stop
+
+    def step_instruction(self) -> StopInfo:
+        """Ejecuta exactamente una instrucción de máquina (si llega una IRQ, se entra a ella)."""
+        cpu = self.cpu
+        start = cpu.instructions
+        return self._run(lambda pc: cpu.instructions > start)
 
     def step_into(self) -> StopInfo:
         """Ejecuta hasta llegar a otra línea de C (entrando en las funciones llamadas)."""

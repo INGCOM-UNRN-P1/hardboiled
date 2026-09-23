@@ -29,6 +29,11 @@ class CmdContinue:
 
 
 @dataclass(frozen=True)
+class CmdStepInstruction:
+    """Ejecuta una única instrucción de máquina (stepi)."""
+
+
+@dataclass(frozen=True)
 class CmdToggleBreakpoint:
     """Breakpoint por línea de C. Sin `source_file` se usa el archivo actual."""
 
@@ -65,6 +70,7 @@ Command = (
     CmdStepInto
     | CmdStepOver
     | CmdContinue
+    | CmdStepInstruction
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint
     | CmdToggleSwitch
