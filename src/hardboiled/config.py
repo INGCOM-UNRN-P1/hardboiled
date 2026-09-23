@@ -66,6 +66,8 @@ class BoardInfo(_Model):
     misaligned: Literal["trap", "allow"] = "trap"
     # División o resto por cero: "warn" avisa y sigue, "break" detiene, "off" ignora.
     div_by_zero: Literal["warn", "break", "off"] = "warn"
+    # Lecturas de memoria sin inicializar (variables locales sin valor): igual que arriba.
+    uninitialized: Literal["warn", "break", "off"] = "warn"
 
 
 class MemoryConfig(_Model):

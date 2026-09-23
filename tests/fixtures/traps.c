@@ -45,6 +45,13 @@ int main(void)
         int divisor = (int)switch_get() - 11;
         return dividendo / divisor; /* @div0 */
     }
+    case 12: { /* variable local sin inicializar */
+        int suma;
+        for (int i = 0; i < 3; i++) {
+            suma += i; /* @uninit */
+        }
+        return suma;
+    }
     default:
         return 0;
     }

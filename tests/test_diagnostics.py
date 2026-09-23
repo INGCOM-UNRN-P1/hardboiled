@@ -13,7 +13,7 @@ from hardboiled.core.cpu import StopReason
 from hardboiled.core.events import CmdContinue, CmdToggleSwitch, EvtCpuSuspended, EvtWarning
 from hardboiled.core.machine import Machine
 from hardboiled.toolchain import BuildOptions, build, select_compiler
-from tests.conftest import FIXTURES, HarnessFactory, fixture_path, line_of
+from tests.conftest import FIXTURES, HarnessFactory, MachineFactory, fixture_path, line_of
 
 needs_zig = pytest.mark.skipif(
     importlib.util.find_spec("ziglang") is None, reason="requiere el extra [zig]"
@@ -118,3 +118,50 @@ def test_info_and_headless_mention_build_problems(
     assert "aviso: el programa parece compilado con optimización" in capsys.readouterr().err
     assert main(["info", str(FIXTURES / "basic.elf")]) == 0
     assert "apto para depurar" in capsys.readouterr().out
+
+
+UNINIT = 12  # caso de traps.c
+
+
+def uninit_machine(mode: str = "warn") -> Machine:
+    board = BoardConfig.model_validate({"board": {"uninitialized": mode}})
+    machine = Machine.from_elf(FIXTURES / "traps.elf", board)
+    machine.switches().set_value(UNINIT)  # type: ignore[union-attr]
+    return machine
+
+
+def test_uninitialized_local_is_named() -> None:
+    machine = uninit_machine()
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.EXITED
+    (warning,) = machine.cpu.take_diagnostics()
+    assert warning.kind == "uninit" and "`suma`" in warning.message
+    location = machine.debugger.location(warning.pc)
+    assert location is not None and location.line == line_of("traps.c", "uninit")
+
+
+def test_uninitialized_break_and_off() -> None:
+    machine = uninit_machine("break")
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.BREAK and "sin inicializar" in stop.message
+    machine = uninit_machine("off")
+    machine.debugger.continue_()
+    assert machine.cpu.take_diagnostics() == []
+
+
+def test_initialized_programs_do_not_warn(make_machine: MachineFactory) -> None:
+    for name in ("basic", "mmio", "types"):
+        machine, _ = make_machine(name)
+        machine.debugger.continue_()
+        assert machine.cpu.take_diagnostics() == [], name
+
+
+def test_step_back_restores_shadow_memory() -> None:
+    machine = uninit_machine("break")
+    before = machine.snapshot()
+    machine.debugger.continue_()
+    machine.restore(before)
+    machine.cpu.take_diagnostics()
+    machine.cpu._warned.clear()  # volver a avisar en el mismo lugar
+    stop = machine.debugger.continue_()
+    assert stop.reason is StopReason.BREAK and "`suma`" in stop.message

@@ -69,6 +69,7 @@ class Debugger:
         self.variables = variables or VariableTable.empty()
         self.formatter = Formatter(self._read_for_display, self.describe_address)
         self._watches: dict[int, Watchpoint] = {}
+        cpu.name_address = self._name_address
         self._line_breakpoints: dict[tuple[str, int], int] = {}
         self._address_breakpoints: set[int] = set()
         self._conditions: dict[int, BreakpointCondition] = {}
@@ -264,6 +265,21 @@ class Debugger:
             self.formatter.variable(decl.name, decl.ctype, self.variables.storage(decl, None), {})
             for decl in self.variables.globals
         )
+
+    def _name_address(self, address: int) -> str | None:
+        """Variable (local del marco actual o global) que ocupa `address`."""
+        try:
+            context = self.frame_context()
+            for decl in self.variables.locals_at(context.pc):
+                storage = self.variables.storage(decl, context)
+                if storage is None or storage.address is None:
+                    continue
+                offset = address - storage.address
+                if 0 <= offset < max(decl.ctype.size, 1):
+                    return decl.name if offset == 0 else f"{decl.name}+{offset}"
+        except Exception:
+            return None
+        return self.describe_address(address) if self.image.function_at(address) is None else None
 
     def describe_address(self, address: int) -> str | None:
         """Nombre de lo que hay en una dirección: función, variable global o elemento."""

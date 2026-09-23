@@ -75,6 +75,7 @@ class Machine:
             board.board.stack_guard,
             board.board.misaligned,
             board.board.div_by_zero,
+            board.board.uninitialized,
         )
         self.cpu.load(image)
         self.debugger = Debugger(self.cpu, image, lines, cfi, variables)

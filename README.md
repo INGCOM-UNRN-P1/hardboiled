@@ -351,6 +351,14 @@ por software el resultado depende de la biblioteca). Cada aviso se configura en
 `[board]` como `"warn"` (por defecto), `"break"` (detiene ahí) u `"off"`:
 `div_by_zero = "break"`.
 
+Las **lecturas sin inicializar** también se avisan, con el nombre de la
+variable: `lectura de `suma` sin inicializar`. Una memoria "sombra" marca los
+bytes escritos de la SRAM y, cada vez que se reserva pila, lo reservado vuelve
+a quedar sin valor (así se detecta una local sin inicializar aunque ese lugar
+lo haya usado antes otra función). Se configura con `uninitialized` en
+`[board]`; cuesta aproximadamente un tercio de velocidad en código con muchos
+accesos a memoria.
+
 Agotar la cuota de instrucciones (`max_instructions`) no es una trampa: la CPU
 se suspende con un aviso y, si se continúa (F5), se habilita otra cuota igual;
 no todo programa largo es un bucle infinito. En `--headless` termina con código

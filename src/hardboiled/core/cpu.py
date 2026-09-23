@@ -25,6 +25,7 @@ from unicorn import (
     UC_ARCH_RISCV,
     UC_HOOK_CODE,
     UC_HOOK_MEM_INVALID,
+    UC_HOOK_MEM_READ,
     UC_HOOK_MEM_WRITE,
     UC_MEM_FETCH_PROT,
     UC_MEM_FETCH_UNMAPPED,
@@ -133,6 +134,8 @@ class CpuSnapshot:
     cycles: int
     halted: StopInfo | None
     isr_frames: tuple[int, ...]
+    shadow: bytes | None = None
+    last_sp: int = 0
 
 
 @dataclass(frozen=True)
@@ -186,8 +189,17 @@ class Cpu:
         stack_guard: str = "globals",
         misaligned: str = "trap",
         div_by_zero: str = "warn",
+        uninitialized: str = "warn",
     ) -> None:
         self.memory = memory
+        self.uninitialized = uninitialized
+        # Memoria "sombra": 1 = byte de la SRAM ya escrito. None si la verificación está apagada.
+        self._shadow: bytearray | None = (
+            bytearray(memory.sram_size) if uninitialized != "off" else None
+        )
+        self._last_sp = memory.sram_end
+        # Nombra una dirección (p. ej. la variable local que vive ahí); lo provee el depurador.
+        self.name_address: Callable[[int], str | None] | None = None
         self.misaligned = misaligned
         self.div_by_zero = div_by_zero
         self.bus = bus
@@ -234,6 +246,10 @@ class Cpu:
         uc.mmio_map(mem.mmio_base, mem.mmio_size, self._mmio_read, None, self._mmio_write, None)
         uc.hook_add(UC_HOOK_CODE, self._on_code)
         uc.hook_add(UC_HOOK_MEM_INVALID, self._on_invalid)
+        if getattr(self, "uninitialized", "off") != "off":
+            end = mem.sram_base + mem.sram_size - 1
+            uc.hook_add(UC_HOOK_MEM_WRITE, self._on_sram_write, begin=mem.sram_base, end=end)
+            uc.hook_add(UC_HOOK_MEM_READ, self._on_sram_read, begin=mem.sram_base, end=end)
         for watch in getattr(self, "_watches", {}).values():  # tras un reset
             watch.handle = self._install_watch(uc, watch)
         return uc
@@ -293,6 +309,8 @@ class Cpu:
             cycles=self.clock.cycles,
             halted=self.halted,
             isr_frames=tuple(self._isr_frames),
+            shadow=bytes(self._shadow) if self._shadow is not None else None,
+            last_sp=self._last_sp,
         )
 
     def restore(self, snap: CpuSnapshot) -> None:
@@ -302,10 +320,16 @@ class Cpu:
         self.clock.cycles = snap.cycles
         self.halted = snap.halted
         self._isr_frames = list(snap.isr_frames)
+        if snap.shadow is not None and self._shadow is not None:
+            self._shadow[:] = snap.shadow
+            self._last_sp = snap.last_sp
         self._sp_dirty = False
         self._refresh_deadline()
 
     def _reset_run_state(self) -> None:
+        if getattr(self, "_shadow", None) is not None:
+            self._shadow = bytearray(self.memory.sram_size)
+        self._last_sp = self.memory.sram_end
         self.diagnostics = []
         self._warned = set()
         self.halted = None
@@ -637,9 +661,13 @@ class Cpu:
         if self.instructions >= self.max_instructions:
             self._halt(uc, _Halt.QUOTA)
             return
-        if self._sp_dirty and uc.reg_read(_SP) < self.stack_floor:
-            self._halt(uc, _Halt.STACK)
-            return
+        if self._sp_dirty:
+            sp = uc.reg_read(_SP)
+            if sp < self.stack_floor:
+                self._halt(uc, _Halt.STACK)
+                return
+            if self._shadow is not None:
+                self._track_stack(sp)
         if not self.instructions & POLL_INTERVAL_MASK and self._pace_and_poll():
             self._halt(uc, _Halt.PAUSE)
             return
@@ -682,6 +710,46 @@ class Cpu:
             "programa sigue como si nada",
             self.div_by_zero,
         )
+
+    # ------------------------------------------------------ memoria sombra
+
+    def _mark(self, address: int, size: int, value: int) -> None:
+        if self._shadow is None:
+            return
+        start = address - self.memory.sram_base
+        stop = min(start + size, len(self._shadow))
+        if start >= 0:
+            self._shadow[start:stop] = bytes([value]) * (stop - start)
+
+    def _on_sram_write(
+        self, uc: Uc, access: int, address: int, size: int, value: int, _data: Any
+    ) -> None:
+        self._mark(address, size, 1)
+
+    def _on_sram_read(
+        self, uc: Uc, access: int, address: int, size: int, value: int, _data: Any
+    ) -> None:
+        shadow = self._shadow
+        if shadow is None:
+            return
+        start = address - self.memory.sram_base
+        if all(shadow[start : start + size]):
+            return
+        pc = self._current_pc
+        name = self.name_address(address) if self.name_address is not None else None
+        what = f"`{name}`" if name else f"memoria de la pila en 0x{address:08x}"
+        message = (
+            f"lectura de {what} sin inicializar: su valor es indefinido "
+            "(suele ser lo que dejó una llamada anterior)"
+        )
+        if self._diagnose("uninit", pc, message, self.uninitialized):
+            self._halt(uc, _Halt.DIAGNOSTIC)
+
+    def _track_stack(self, sp: int) -> None:
+        """Al reservar pila (sp baja), lo reservado todavía no tiene valores."""
+        if sp < self._last_sp:
+            self._mark(sp, self._last_sp - sp, 0)
+        self._last_sp = sp
 
     def _diagnose(self, kind: str, site: int, message: str, mode: str) -> bool:
         """Anota un aviso (una vez por lugar). True si el modo pide detenerse."""
@@ -763,6 +831,8 @@ class Cpu:
         words = [pc, *(self.read_register(r) for r in ISR_SAVED_REGS)]
         words += [0] * (ISR_FRAME_SIZE // 4 - len(words))
         self._uc.mem_write(frame, struct.pack(f"<{len(words)}I", *words))
+        self._mark(frame, ISR_FRAME_SIZE, 1)  # la CPU guardó el contexto: está inicializado
+        self._last_sp = frame
         self.write_register(2, frame)
         self.set_pc(handler)
         self._isr_frames.append(frame)
