@@ -75,6 +75,9 @@ class Uart(Peripheral):
         elif self._lower_irq is not None:
             self._lower_irq(self.irq_line)
 
+    def inspect(self) -> dict[str, int]:
+        return {"rx_pending": len(self.received), "overrun": self.overrun, "ctrl": self.ctrl}
+
     def can_wake(self) -> bool:
         """¿Puede despertar a la CPU con datos que todavía no llegaron?"""
         return bool(self.ctrl & CTRL_RX_IRQ) and self.irq_line is not None

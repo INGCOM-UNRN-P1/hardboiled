@@ -238,3 +238,18 @@ def test_board_rejects_irq_on_non_timer_and_bad_memory() -> None:
         BoardConfig.model_validate({"memory": {"flash_base": "0x0"}})
     with pytest.raises(ValidationError, match="entero inválido"):
         BoardConfig.model_validate({"memory": {"sram_base": "cero"}})
+
+
+def test_devices_state_in_snapshot(make_machine: MachineFactory) -> None:
+    from hardboiled.core.runner import snapshot
+
+    machine, _ = make_machine("mmio")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("mmio.c", "isr_body"), "mmio.c")
+    debugger.continue_()
+    debugger.continue_()
+    devices = {name: dict(items) for name, items in snapshot(machine).devices}
+    timer = devices["timer0"]
+    assert timer["ctrl"] == 0b11 and timer["reload"] == 500
+    assert timer["expirations"] == 2 and 0 < timer["count"] <= 500
+    assert devices["uart0"]["rx_pending"] == 0

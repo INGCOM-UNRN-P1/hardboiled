@@ -75,6 +75,10 @@ class Peripheral(ABC):
         """¿Puede pedir una interrupción por un estímulo externo (teclado, botón)?"""
         return False
 
+    def inspect(self) -> dict[str, int]:
+        """Estado interno para mostrar en la interfaz (vacío si no hay nada útil)."""
+        return {}
+
     # Atributos que no son estado del dispositivo sino su conexión con el resto.
     _TRANSIENT: ClassVar[frozenset[str]] = frozenset({"clock", "emit", "_raise_irq", "_lower_irq"})
 

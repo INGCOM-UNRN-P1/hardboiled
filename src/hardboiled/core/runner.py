@@ -379,6 +379,11 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         disassembly=disassembly_lines(machine, pc),
         register_symbols=register_symbols(machine, registers),
         stack_slots=tuple(machine.debugger.stack_slots(frames)),
+        devices=tuple(
+            (dev.name, tuple(state.items()))
+            for dev in machine.peripherals
+            if (state := dev.inspect())
+        ),
     )
 
 

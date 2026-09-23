@@ -88,6 +88,7 @@ class ButtonBankView(Horizontal):
     ButtonBankView Label { width: 9; text-style: bold; }
     ButtonBankView Button { min-width: 7; width: 7; margin: 0 1 0 0; }
     ButtonBankView Button.pressed { background: $warning; }
+    ButtonBankView Button.pending { text-style: bold underline; }
     """
 
     class Pressed(Message):
@@ -104,6 +105,21 @@ class ButtonBankView(Horizontal):
         yield Label(self.info.name)
         for pin in reversed(range(self.info.width_bits)):
             yield Button(f"▣ {pin}", id=f"btn-{pin}", compact=True)
+
+    def set_detail(self, state: dict[str, int]) -> None:
+        pending = state.get("pending", 0)
+        presses = state.get("presses", 0)
+        try:
+            label = self.query_one(Label)
+        except NoMatches:
+            return  # todavía no se montó
+        label.tooltip = f"pulsaciones: {presses}, flancos pendientes: {pending:04b}"
+        for pin in range(self.info.width_bits):
+            try:
+                button = self.query_one(f"#btn-{pin}", Button)
+            except NoMatches:
+                return
+            button.set_class(bool(pending >> pin & 1), "pending")
 
     def set_value(self, value: int) -> None:
         self.value = value
@@ -188,6 +204,7 @@ class TimerView(Static):
         self.info = info
         self.ctrl = 0
         self.reload = 0
+        self.state: dict[str, int] = {}
 
     def set_register(self, offset: int, value: int) -> None:
         if offset == 0:
@@ -196,13 +213,24 @@ class TimerView(Static):
             self.reload = value
         self.refresh()
 
+    def set_state(self, state: dict[str, int]) -> None:
+        self.state = state
+        self.ctrl = state.get("ctrl", self.ctrl)
+        self.reload = state.get("reload", self.reload)
+        self.refresh()
+
     def render(self) -> Text:
         text = Text.assemble((f"{self.info.name:<9}", "bold"))
         if self.ctrl & 1:
             irq = " + IRQ" if self.ctrl & 2 else ""
-            text.append(f"activo, período {self.reload} ciclos{irq}", style="green")
+            text.append(f"período {self.reload}{irq}", style="green")
+            if "count" in self.state:
+                text.append(f"  faltan {self.state['count']}", style="bold")
         else:
             text.append("detenido", style="dim")
+        expirations = self.state.get("expirations")
+        if expirations:
+            text.append(f"  vencimientos: {expirations}", style="dim")
         return text
 
 
@@ -226,6 +254,18 @@ class HardwareView(Vertical):
             elif info.kind == "sevenseg":
                 widgets.append(SevenSegView(info))
         self.mount_all(widgets)
+
+    def update_states(self, devices: tuple[tuple[str, tuple[tuple[str, int], ...]], ...]) -> None:
+        """Estado interno de los periféricos en cada detención (timer, UART, botones)."""
+        states = {name: dict(items) for name, items in devices}
+        for widget in self.children:
+            info = getattr(widget, "info", None)
+            if info is None or info.name not in states:
+                continue
+            if isinstance(widget, TimerView):
+                widget.set_state(states[info.name])
+            elif isinstance(widget, ButtonBankView):
+                widget.set_detail(states[info.name])
 
     def update_device(self, name: str, offset: int, value: int) -> None:
         for widget in self.children:

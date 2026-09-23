@@ -261,6 +261,8 @@ class EvtCpuSuspended:
     disassembly: tuple[DisasmLine, ...] = field(default=())
     # La pila por marcos (desde un poco por debajo de sp hacia arriba).
     stack_slots: tuple[StackSlot, ...] = field(default=())
+    # Estado interno de cada periférico: (nombre, ((clave, valor), ...)).
+    devices: tuple[tuple[str, tuple[tuple[str, int], ...]], ...] = field(default=())
     # Registros que contienen una dirección con nombre: {"x1": "main+0x2c", ...}.
     register_symbols: dict[str, str] = field(default_factory=dict)
 

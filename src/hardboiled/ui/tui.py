@@ -326,6 +326,14 @@ class HardboiledApp(App[None]):
         if trap is not None:
             self.push_screen(TrapScreen(trap, event.frames))
         self.query_one(BacktraceView).set_frames(event.frames)
+        self.query_one(HardwareView).update_states(event.devices)
+        uart_state = next(
+            (dict(items) for name, items in event.devices if "rx_pending" in dict(items)), {}
+        )
+        pending = uart_state.get("rx_pending", 0)
+        self.query_one("#uart").border_title = (
+            f"Consola UART ({pending} bytes recibidos sin leer)" if pending else "Consola UART"
+        )
         self.query_one(DisassemblyView).show(event.disassembly, event.pc)
         self.query_one(MemoryInspector).refresh_request()
         function = event.frames[0].label if event.frames else event.function

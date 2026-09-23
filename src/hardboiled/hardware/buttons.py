@@ -85,6 +85,9 @@ class ButtonBank(Peripheral):
         elif self._lower_irq is not None:
             self._lower_irq(self.irq_line)
 
+    def inspect(self) -> dict[str, int]:
+        return {"pending": self.pending, "irq_enable": self.irq_enable, "presses": self.presses}
+
     def can_wake(self) -> bool:
         return bool(self.irq_enable) and self.irq_line is not None
 

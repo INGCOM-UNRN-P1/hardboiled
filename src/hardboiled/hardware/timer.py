@@ -80,6 +80,15 @@ class Timer(Peripheral):
             raise self.fault(reg, "registro inexistente")
         self.emit(EvtHardwareUpdated(self.name, reg, self.ctrl if reg == CTRL else self.reload))
 
+    def inspect(self) -> dict[str, int]:
+        return {
+            "ctrl": self.ctrl,
+            "reload": self.reload,
+            "count": self.read(COUNT),
+            "expirations": self.expirations,
+            "status": self.status,
+        }
+
     def next_deadline(self) -> int | None:
         return self._next_fire
 
