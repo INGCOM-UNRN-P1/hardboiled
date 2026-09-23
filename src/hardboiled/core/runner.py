@@ -38,6 +38,7 @@ from hardboiled.core.events import (
     EvtProgramExited,
     EvtProgramLoaded,
     EvtTrap,
+    FrameInfo,
 )
 from hardboiled.core.machine import Machine
 from hardboiled.hardware import LedBar, SwitchBank
@@ -213,4 +214,26 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         reason=reason,
         function=machine.debugger.function(pc),
         stack=cpu.stack_words(),
+        frames=frame_infos(machine),
     )
+
+
+def frame_infos(machine: Machine) -> tuple[FrameInfo, ...]:
+    infos = []
+    for frame in machine.debugger.backtrace():
+        if frame.irq_line is not None:
+            label = f"interrupción IRQ {frame.irq_line}"
+        else:
+            label = frame.function or machine.image.describe(frame.site)
+        location = frame.location
+        infos.append(
+            FrameInfo(
+                frame.index,
+                frame.pc,
+                label,
+                location.file if location else None,
+                location.line if location else None,
+                frame.irq_line,
+            )
+        )
+    return tuple(infos)

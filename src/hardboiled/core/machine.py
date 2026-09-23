@@ -11,12 +11,19 @@ from hardboiled.core.dwarf import LineTable
 from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import PeripheralInfo
 from hardboiled.core.pic import InterruptController
+from hardboiled.core.unwind import CallFrameTable
 from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, build_peripheral
 from hardboiled.hardware.bus import EventSink
 
 
 class Machine:
-    def __init__(self, image: ElfImage, lines: LineTable, board: BoardConfig) -> None:
+    def __init__(
+        self,
+        image: ElfImage,
+        lines: LineTable,
+        board: BoardConfig,
+        cfi: CallFrameTable | None = None,
+    ) -> None:
         self.image = image
         self.lines = lines
         self.board = board
@@ -37,11 +44,16 @@ class Machine:
             board.board.clock_hz,
         )
         self.cpu.load(image)
-        self.debugger = Debugger(self.cpu, image, lines)
+        self.debugger = Debugger(self.cpu, image, lines, cfi)
 
     @classmethod
     def from_elf(cls, elf_path: str | Path, board: BoardConfig | None = None) -> Machine:
-        return cls(ElfImage.load(elf_path), LineTable.from_elf(elf_path), board or BoardConfig())
+        return cls(
+            ElfImage.load(elf_path),
+            LineTable.from_elf(elf_path),
+            board or BoardConfig(),
+            CallFrameTable.from_elf(elf_path),
+        )
 
     @property
     def peripherals(self) -> tuple[Peripheral, ...]:

@@ -163,6 +163,10 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 
 `↑`/`↓`/`PgUp`/`PgDn` mueven el cursor en el código.
 
+El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
+square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
+click) muestra su línea marcada con `▷`.
+
 ## La placa
 
 ### Mapa de memoria
@@ -235,6 +239,7 @@ Vista (ui/)            ── cmd_queue: CmdStepInto, CmdContinue, CmdToggleSwit
 | `core/events.py` | Protocolo: dataclasses inmutables de comandos y eventos. |
 | `core/cpu.py` | Wrapper de Unicorn: memoria, hook de ciclo, trampas, stack guard, entrada/salida de ISR, `wfi`. |
 | `core/debugger.py` | Breakpoints por línea o dirección, Step Into, Step Over, Continue. |
+| `core/unwind.py` | Pila de llamadas: CFI de DWARF, frame pointer y marcos de interrupción. |
 | `core/dwarf.py` / `core/elf.py` | Tabla de líneas DWARF (PC ⇄ archivo:línea), segmentos y símbolos. |
 | `core/pic.py` | Controlador de interrupciones virtual. |
 | `core/machine.py` | Arma la placa a partir de `board.toml`. |

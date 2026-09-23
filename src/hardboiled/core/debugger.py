@@ -13,6 +13,7 @@ from collections.abc import Callable
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
+from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
 
 
 class DebuggerError(Exception):
@@ -20,10 +21,13 @@ class DebuggerError(Exception):
 
 
 class Debugger:
-    def __init__(self, cpu: Cpu, image: ElfImage, lines: LineTable) -> None:
+    def __init__(
+        self, cpu: Cpu, image: ElfImage, lines: LineTable, cfi: CallFrameTable | None = None
+    ) -> None:
         self.cpu = cpu
         self.image = image
         self.lines = lines
+        self.unwinder = Unwinder(image, lines, cfi or CallFrameTable.empty())
         self._line_breakpoints: dict[tuple[str, int], int] = {}
         self._address_breakpoints: set[int] = set()
         # Conjunto vivo: se consulta en cada instrucción y puede cambiar durante un Continue.
@@ -98,6 +102,10 @@ class Debugger:
 
     def function(self, pc: int | None = None) -> str | None:
         return self.image.function_at(self.cpu.pc if pc is None else pc)
+
+    def backtrace(self) -> list[Frame]:
+        """Pila de llamadas: el marco 0 es la función en curso."""
+        return self.unwinder.unwind(self.cpu)
 
     # ------------------------------------------------------------- ejecución
 

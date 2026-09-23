@@ -61,6 +61,19 @@ class ElfImage:
             (s for s in symbols if s.kind == "func" and s.size > 0), key=lambda s: s.address
         )
         self._function_starts = [s.address for s in self._functions]
+        code = [seg for seg in segments if seg.executable]
+        self._labels = sorted(
+            (
+                s
+                for s in symbols
+                if s.kind in ("func", "other")
+                and not s.name.startswith((".L", "$"))
+                and any(seg.vaddr <= s.address < seg.vaddr + seg.memsz for seg in code)
+            ),
+            # A igual dirección, la función queda última y bisect_right la prefiere.
+            key=lambda s: (s.address, s.kind == "func"),
+        )
+        self._label_starts = [s.address for s in self._labels]
 
     @classmethod
     def load(cls, path: str | Path) -> ElfImage:
@@ -115,6 +128,22 @@ class ElfImage:
             return None
         func = self._functions[idx]
         return func.name if address < func.address + func.size else None
+
+    def nearest_symbol(self, address: int) -> tuple[str, int] | None:
+        """Símbolo (incluidas etiquetas de ensamblador) más cercano por debajo: (nombre, offset)."""
+        idx = bisect.bisect_right(self._label_starts, address) - 1
+        if idx < 0:
+            return None
+        label = self._labels[idx]
+        return label.name, address - label.address
+
+    def describe(self, address: int) -> str:
+        """`funcion+0x1c` para mostrar direcciones de código."""
+        found = self.nearest_symbol(address)
+        if found is None:
+            return f"0x{address:08x}"
+        name, offset = found
+        return f"{name}+0x{offset:x}" if offset else name
 
     def code_words(self) -> Iterator[tuple[int, int]]:
         """Palabras de 32 bits alineadas de los segmentos ejecutables (dirección de ejecución)."""

@@ -261,6 +261,18 @@ class Cpu:
         regs["pc"] = self.pc
         return regs
 
+    @property
+    def isr_frames(self) -> tuple[tuple[int, int], ...]:
+        """Marcos de interrupción activos: (dirección del marco en la pila, línea de IRQ)."""
+        line = self.pic.active_line
+        if self._isr_frame is None or line is None:
+            return ()
+        return ((self._isr_frame, line),)
+
+    def read_word(self, address: int) -> int | None:
+        data = self.read_memory(address, 4)
+        return int.from_bytes(data, "little") if data is not None else None
+
     def read_memory(self, address: int, size: int) -> bytes | None:
         """Lee Flash/SRAM sin efectos laterales (nunca toca el espacio MMIO)."""
         if self._region_of(address, size) not in ("flash", "sram"):

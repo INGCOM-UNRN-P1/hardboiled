@@ -41,6 +41,7 @@ from hardboiled.core.events import (
     EvtTrap,
     EvtUartOutput,
 )
+from hardboiled.ui.widgets.backtrace_view import BacktraceView
 from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
@@ -96,6 +97,7 @@ class HardboiledApp(App[None]):
         self.evt_queue = evt_queue
         self.worker = worker
         self._breakpoints: frozenset[tuple[str, int]] = frozenset()
+        self._suspended: EvtCpuSuspended | None = None
         self._uart_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     def compose(self) -> ComposeResult:
@@ -106,6 +108,7 @@ class HardboiledApp(App[None]):
                 yield Log(id="uart", highlight=False)
             with VerticalScroll(id="right"):
                 yield HardwareView(id="hardware")
+                yield BacktraceView(id="backtrace")
                 yield RegistersView(id="registers")
                 yield MemoryView(id="stack")
         yield Static(id="status")
@@ -185,13 +188,9 @@ class HardboiledApp(App[None]):
                 self._write_uart(bytes([event.char_code]))
 
     def _on_suspended(self, event: EvtCpuSuspended) -> None:
-        code = self.query_one(CodeView)
-        if event.source_file is not None:
-            code.show_file(event.source_file)
-            self._refresh_breakpoints()
-            code.set_active_line(event.source_line)
-        else:
-            code.set_active_line(None)
+        self._suspended = event
+        self._show_location(event.source_file, event.source_line)
+        self.query_one(BacktraceView).set_frames(event.frames)
         self.query_one(RegistersView).set_registers(event.registers)
         self.query_one(MemoryView).set_stack(
             event.stack, event.registers.get("x2", 0), event.registers.get("x8", 0)
@@ -205,6 +204,32 @@ class HardboiledApp(App[None]):
         if event.reason:
             status.append(f"  · {event.reason}", style="italic")
         self._set_status(status)
+
+    def _show_location(self, source_file: str | None, line: int | None) -> None:
+        """Muestra la línea en ejecución (marco 0)."""
+        code = self.query_one(CodeView)
+        if source_file is not None:
+            code.show_file(source_file)
+            self._refresh_breakpoints()
+            code.set_frame_line(None)
+            code.set_active_line(line)
+        else:
+            code.set_active_line(None)
+
+    def on_backtrace_view_frame_chosen(self, message: BacktraceView.FrameChosen) -> None:
+        frame = message.frame
+        if frame.index == 0 and self._suspended is not None:
+            self._show_location(self._suspended.source_file, self._suspended.source_line)
+            return
+        if frame.source_file is None:
+            self.notify(f"{frame.label}: sin código fuente", severity="warning")
+            return
+        code = self.query_one(CodeView)
+        code.show_file(frame.source_file)
+        self._refresh_breakpoints()
+        if self._suspended is not None and self._suspended.source_file == frame.source_file:
+            code.set_active_line(self._suspended.source_line)
+        code.set_frame_line(frame.source_line)
 
     def _refresh_breakpoints(self) -> None:
         code = self.query_one(CodeView)

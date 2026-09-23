@@ -102,6 +102,19 @@ class PeripheralInfo:
 
 
 @dataclass(frozen=True)
+class FrameInfo:
+    """Un marco de la pila de llamadas (el 0 es la función en curso)."""
+
+    index: int
+    pc: int
+    label: str  # "square" o, sin información, "_start+0x40"
+    source_file: str | None
+    source_line: int | None
+    # Entrada de interrupción: el marco siguiente es el código interrumpido.
+    irq_line: int | None = None
+
+
+@dataclass(frozen=True)
 class EvtProgramLoaded:
     elf_path: str
     board_name: str
@@ -126,6 +139,7 @@ class EvtCpuSuspended:
     function: str | None = None
     # Palabras (dirección, valor) alrededor de sp, de direcciones bajas a altas.
     stack: tuple[tuple[int, int], ...] = field(default=())
+    frames: tuple[FrameInfo, ...] = field(default=())
 
 
 @dataclass(frozen=True)

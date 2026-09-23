@@ -180,6 +180,18 @@ async def test_tui_drives_runner() -> None:
         await pilot.press("f10")
         await settle(lambda: code._active_line == line_of("mmio.c", "leds_0f"))
 
+        # Pila de llamadas: al elegir el marco de main se marca su línea.
+        from hardboiled.ui.widgets.backtrace_view import BacktraceView
+
+        backtrace = app.query_one(BacktraceView)
+        await settle(lambda: len(backtrace.frames) >= 2)
+        assert backtrace.frames[0].label == "main"
+        crt0 = backtrace.frames[1]
+        backtrace.post_message(BacktraceView.FrameChosen(crt0))
+        await settle(lambda: code._frame_line == crt0.source_line)
+        backtrace.post_message(BacktraceView.FrameChosen(backtrace.frames[0]))
+        await settle(lambda: code._frame_line is None)
+
         await pilot.press("f5")
         uart = app.query_one("#uart", Log)
         await settle(lambda: "hola" in "".join(str(line) for line in uart.lines))
