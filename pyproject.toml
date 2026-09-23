@@ -7,6 +7,21 @@ authors = [
     { name = "Martín René", email = "martinvilu@gmail.com" }
 ]
 requires-python = ">=3.12"
+keywords = ["risc-v", "rv32i", "emulator", "debugger", "education", "embedded", "tui"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: Education",
+    "Natural Language :: Spanish",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Emulators",
+]
 dependencies = [
     "pydantic>=2",
     "pyelftools>=0.33",

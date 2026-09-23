@@ -26,6 +26,9 @@ Después de instalar, `hardboiled doctor` verifica Python, el emulador, el
 runtime, la configuración, el compilador (compila y ejecuta un programa de
 prueba) y la terminal. Es lo primero que conviene adjuntar en una consulta.
 
+Para probar sin instalar nada: `uvx hardboiled doctor`. Para actualizar:
+`uv tool upgrade hardboiled`. Cómo se publica una versión: `docs/publicar.md`.
+
 El extra `[zig]` instala el paquete `ziglang` dentro del entorno aislado de la
 herramienta: no toca el sistema ni requiere `sudo`, pero pesa decenas de MB.
 
