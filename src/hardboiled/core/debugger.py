@@ -11,11 +11,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from hardboiled.core.cpu import Cpu, StopInfo, StopReason
+from hardboiled.core.cpu import ABI_NAMES, ISR_FRAME_SIZE, ISR_SAVED_REGS, Cpu, StopInfo, StopReason
 from hardboiled.core.disasm import Instruction, decode, disassemble
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
-from hardboiled.core.events import VariableInfo
+from hardboiled.core.events import StackSlot, VariableInfo
 from hardboiled.core.expressions import Evaluator, ExpressionError, tokenize
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
 from hardboiled.core.variables import CType, Formatter, FrameContext, Storage, VariableTable
@@ -283,6 +283,82 @@ class Debugger:
                     return f"{decl.name}[{index}]" + (f"+{rest}" if rest else "")
                 return f"{decl.name}+{offset}"
         return None
+
+    # ----------------------------------------------------------------- pila
+
+    def stack_slots(
+        self, frames: list[Frame] | None = None, max_words: int = 96, below: int = 4
+    ) -> list[StackSlot]:
+        """Palabras de la pila desde un poco por debajo de sp, rotuladas por marco."""
+        frames = self.backtrace() if frames is None else frames
+        sram = self.cpu.memory
+        sp = self.cpu.sp & ~3
+        start = max(sp - 4 * below, sram.sram_base)
+        top = min(sp + 4 * max_words, sram.sram_end)
+        # Límites de cada marco: [sp del marco, cfa) y lo que guardó.
+        bounds: list[tuple[int, int, int, str]] = []
+        notes: dict[int, list[str]] = {}
+        for frame in frames:
+            label = (
+                f"interrupción IRQ {frame.irq_line}"
+                if frame.irq_line is not None
+                else frame.function or self.image.describe(frame.pc)
+            )
+            low = frame.regs.get(2, sp)
+            if frame.isr_frame is not None:
+                high = frame.isr_frame + ISR_FRAME_SIZE
+                self._note(notes, frame.isr_frame, f"IRQ {frame.irq_line}: pc interrumpido")
+                for slot, register in enumerate(ISR_SAVED_REGS, start=1):
+                    self._note(
+                        notes, frame.isr_frame + 4 * slot, f"IRQ: {ABI_NAMES[register]} guardado"
+                    )
+                for padding in range(frame.isr_frame + 4 * (len(ISR_SAVED_REGS) + 1), high, 4):
+                    self._note(notes, padding, "IRQ: relleno (alineación a 16)")
+                bounds.append((frame.index, frame.isr_frame, high, label))
+                continue
+            high = frame.cfa if frame.cfa is not None else top
+            bounds.append((frame.index, low, high, label))
+            for address, register in frame.saved_slots.items():
+                note = f"{ABI_NAMES[register]} guardado"
+                if register == 1:
+                    value = self.cpu.read_word(address)
+                    if value is not None:
+                        note += f" → {self.image.describe(value)}"
+                self._note(notes, address, note)
+            if frame.function is None:
+                continue
+            context = self.frame_context(frame)
+            for decl in self.variables.locals_at(frame.site):
+                storage = self.variables.storage(decl, context)
+                if storage is not None and storage.address is not None:
+                    self._note(notes, storage.address & ~3, decl.name)
+                    for extra in range(4, (decl.ctype.size + 3) & ~3, 4):
+                        self._note(notes, (storage.address & ~3) + extra, f"{decl.name} (cont.)")
+        data = self.cpu.read_memory(start, top - start) or b""
+        slots = []
+        for offset in range(0, len(data), 4):
+            address = start + offset
+            owner = next(
+                ((i, label) for i, low, high, label in bounds if low <= address < high), None
+            )
+            slots.append(
+                StackSlot(
+                    address,
+                    int.from_bytes(data[offset : offset + 4], "little"),
+                    owner[0] if owner and address >= sp else None,
+                    owner[1] if owner and address >= sp else None,
+                    ", ".join(notes.get(address, [])) or None,
+                )
+            )
+            if bounds and address >= bounds[-1][2] - 4:
+                break  # hasta el último marco conocido
+        return slots
+
+    @staticmethod
+    def _note(notes: dict[int, list[str]], address: int, text: str) -> None:
+        entries = notes.setdefault(address, [])
+        if text not in entries:
+            entries.append(text)
 
     # ----------------------------------------------------------- watchpoints
 

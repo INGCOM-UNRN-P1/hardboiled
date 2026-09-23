@@ -175,6 +175,17 @@ class DisasmLine:
 
 
 @dataclass(frozen=True)
+class StackSlot:
+    """Una palabra de la pila con su marco y lo que contiene."""
+
+    address: int
+    value: int
+    frame_index: int | None  # None: por debajo de sp (libre)
+    frame_label: str | None
+    note: str | None  # "ra guardado → main+0x28", "total", "IRQ 0: pc guardado"
+
+
+@dataclass(frozen=True)
 class FrameInfo:
     """Un marco de la pila de llamadas (el 0 es la función en curso)."""
 
@@ -218,6 +229,8 @@ class EvtCpuSuspended:
     global_vars: tuple[VariableInfo, ...] = field(default=())
     # Instrucciones de la función en curso (o alrededor del PC si no hay función).
     disassembly: tuple[DisasmLine, ...] = field(default=())
+    # La pila por marcos (desde un poco por debajo de sp hacia arriba).
+    stack_slots: tuple[StackSlot, ...] = field(default=())
     # Registros que contienen una dirección con nombre: {"x1": "main+0x2c", ...}.
     register_symbols: dict[str, str] = field(default_factory=dict)
 

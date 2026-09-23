@@ -328,6 +328,7 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         global_vars=machine.debugger.global_variables(),
         disassembly=disassembly_lines(machine, pc),
         register_symbols=register_symbols(machine, registers),
+        stack_slots=tuple(machine.debugger.stack_slots(frames)),
     )
 
 

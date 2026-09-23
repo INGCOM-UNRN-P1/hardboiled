@@ -114,6 +114,10 @@ class Frame:
     regs: dict[int, int] = field(default_factory=dict)
     # Entrada de interrupción: el marco siguiente es el código interrumpido.
     irq_line: int | None = None
+    # Dónde guardó este marco los registros del llamador: {dirección: registro}.
+    saved_slots: dict[int, int] = field(default_factory=dict)
+    # Marco de interrupción guardado por la CPU virtual (sólo en entradas de IRQ).
+    isr_frame: int | None = None
 
 
 class Unwinder:
@@ -157,7 +161,17 @@ class Unwinder:
             if self._in_stub(pc) and isr_stack:
                 frame_addr, line = isr_stack.pop()
                 frames.append(
-                    Frame(len(frames), pc, pc, None, None, None, {SP: regs[SP]}, irq_line=line)
+                    Frame(
+                        len(frames),
+                        pc,
+                        pc,
+                        None,
+                        None,
+                        None,
+                        {SP: regs[SP]},
+                        irq_line=line,
+                        isr_frame=frame_addr,
+                    )
                 )
                 raw = cpu.read_memory(frame_addr, ISR_FRAME_SIZE)
                 if raw is None:
@@ -172,6 +186,7 @@ class Unwinder:
             function = self.image.function_at(lookup)
             cfa: int | None = None
             new_regs = dict(regs)
+            slots: dict[int, int] = {}
             if row is not None:
                 cfa = (regs[row.cfa_reg] + row.cfa_offset) & 0xFFFF_FFFF
                 for reg, offset in row.saved.items():
@@ -179,10 +194,12 @@ class Unwinder:
                     if value is None:
                         break
                     new_regs[reg] = value
+                    slots[cfa + offset] = reg
             elif function is not None and cpu.read_word(regs[FP] - 4) is not None:
                 cfa = regs[FP]
                 new_regs[RA] = cpu.read_word(cfa - 4) or 0
                 new_regs[FP] = cpu.read_word(cfa - 8) or 0
+                slots = {cfa - 4: RA, cfa - 8: FP}
 
             frames.append(
                 Frame(
@@ -193,6 +210,7 @@ class Unwinder:
                     self.lines.lookup(lookup),
                     cfa,
                     {SP: regs[SP], FP: regs[FP], **{r: regs[r] for r in range(18, 28)}},
+                    saved_slots=slots,
                 )
             )
             if cfa is None:

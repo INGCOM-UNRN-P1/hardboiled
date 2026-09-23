@@ -123,3 +123,31 @@ def test_step_out_without_caller(make_machine: MachineFactory) -> None:
     machine, _ = make_machine("basic")  # en _start, sin llamador
     with pytest.raises(DebuggerError):
         machine.debugger.step_out()
+
+
+def test_stack_slots_annotate_frames_locals_and_saved_registers(
+    make_machine: MachineFactory,
+) -> None:
+    machine, _ = make_machine("basic")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("basic.c", "square_body"), "basic.c")
+    debugger.continue_()
+    slots = debugger.stack_slots()
+    notes = {slot.note for slot in slots if slot.note}
+    assert {"x", "total", "i", "n", "a", "b"} <= notes
+    assert any(n.startswith("ra guardado → sum_squares+") for n in notes)
+    owners = {slot.frame_label for slot in slots if slot.frame_index is not None}
+    assert {"square", "sum_squares", "main"} <= owners
+    # Por debajo de sp la memoria está libre.
+    assert all(s.frame_index is None for s in slots if s.address < machine.cpu.sp)
+
+
+def test_stack_slots_show_interrupt_context(make_machine: MachineFactory) -> None:
+    machine, _ = make_machine("mmio")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("mmio.c", "isr_body"), "mmio.c")
+    debugger.continue_()
+    notes = [slot.note for slot in debugger.stack_slots() if slot.note]
+    assert "IRQ 0: pc interrumpido" in notes
+    assert "IRQ: a0 guardado" in notes
+    assert "IRQ: relleno (alineación a 16)" in notes

@@ -174,8 +174,11 @@ curso (respetando el alcance de los bloques, como el `int i` de un `for`) y
 las globales, con su tipo C: enteros, `char`, `_Bool`, `enum`, punteros (con
 el texto si apuntan a una cadena y lo apuntado expandible como `*p`),
 arreglos multidimensionales, estructuras, uniones y campos de bits. Los
-valores que cambiaron desde la última detención se resaltan. Las pestañas
-**Registros** y **Pila** muestran el estado crudo.
+valores que cambiaron desde la última detención se resaltan. La pestaña
+**Registros** muestra el estado crudo y **Pila** la pila separada por marcos:
+qué función ocupa cada palabra, dónde guardó `ra` (con el destino de retorno)
+y `s0`, dónde vive cada variable local y, si hubo una interrupción, el
+contexto que guardó la CPU registro por registro.
 
 Los **watchpoints** (`w`) aceptan expresiones C: `results[1]`, `total`,
 `f->color`, `*p`, `matriz[i][j]`. La ejecución se detiene justo después de la

@@ -263,7 +263,7 @@ class HardboiledApp(App[None]):
         self.query_one(VariablesView).set_variables(event.locals, event.global_vars, function)
         self.query_one(RegistersView).set_registers(event.registers, event.register_symbols)
         self.query_one(MemoryView).set_stack(
-            event.stack, event.registers.get("x2", 0), event.registers.get("x8", 0)
+            event.stack_slots, event.registers.get("x2", 0), event.registers.get("x8", 0)
         )
         status = Text()
         status.append("⏸ ", style="bold yellow")
