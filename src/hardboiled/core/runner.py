@@ -21,6 +21,7 @@ from hardboiled.core.events import (
     CmdPause,
     CmdReset,
     CmdRunToLine,
+    CmdSelectFrame,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -34,6 +35,7 @@ from hardboiled.core.events import (
     EvtBreakpointsChanged,
     EvtCpuRunning,
     EvtCpuSuspended,
+    EvtFrameVariables,
     EvtHardwareUpdated,
     EvtMessage,
     EvtProgramExited,
@@ -42,6 +44,7 @@ from hardboiled.core.events import (
     FrameInfo,
 )
 from hardboiled.core.machine import Machine
+from hardboiled.core.unwind import Frame
 from hardboiled.hardware import LedBar, SwitchBank
 
 
@@ -130,6 +133,13 @@ class RunnerThread(threading.Thread):
                 self._boot()
             case CmdPause():
                 pass  # la CPU ya está detenida
+            case CmdSelectFrame(index=index):
+                frames = debugger.backtrace()
+                if 0 <= index < len(frames):
+                    frame = frames[index]
+                    label = frame.function or self.machine.image.describe(frame.site)
+                    locals_ = debugger.locals_of(frame) if frame.irq_line is None else ()
+                    self._emit(EvtFrameVariables(index, label, locals_))
             case _:
                 self._apply_live(command)
 
@@ -211,6 +221,7 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
     cpu = machine.cpu
     pc = cpu.pc
     location = machine.debugger.location(pc)
+    frames = machine.debugger.backtrace()
     return EvtCpuSuspended(
         pc=pc,
         source_file=location.file if location else None,
@@ -220,13 +231,15 @@ def snapshot(machine: Machine, reason: str = "") -> EvtCpuSuspended:
         reason=reason,
         function=machine.debugger.function(pc),
         stack=cpu.stack_words(),
-        frames=frame_infos(machine),
+        frames=frame_infos(machine, frames),
+        locals=machine.debugger.locals_of(frames[0] if frames else None),
+        global_vars=machine.debugger.global_variables(),
     )
 
 
-def frame_infos(machine: Machine) -> tuple[FrameInfo, ...]:
+def frame_infos(machine: Machine, frames: list[Frame]) -> tuple[FrameInfo, ...]:
     infos = []
-    for frame in machine.debugger.backtrace():
+    for frame in frames:
         if frame.irq_line is not None:
             label = f"interrupción IRQ {frame.irq_line}"
         else:

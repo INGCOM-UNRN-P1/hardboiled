@@ -14,7 +14,9 @@ from dataclasses import replace
 from hardboiled.core.cpu import Cpu, StopInfo, StopReason
 from hardboiled.core.dwarf import LineTable, SourceLocation
 from hardboiled.core.elf import ElfImage
+from hardboiled.core.events import VariableInfo
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
+from hardboiled.core.variables import Formatter, FrameContext, VariableTable
 
 
 class DebuggerError(Exception):
@@ -23,12 +25,19 @@ class DebuggerError(Exception):
 
 class Debugger:
     def __init__(
-        self, cpu: Cpu, image: ElfImage, lines: LineTable, cfi: CallFrameTable | None = None
+        self,
+        cpu: Cpu,
+        image: ElfImage,
+        lines: LineTable,
+        cfi: CallFrameTable | None = None,
+        variables: VariableTable | None = None,
     ) -> None:
         self.cpu = cpu
         self.image = image
         self.lines = lines
         self.unwinder = Unwinder(image, lines, cfi or CallFrameTable.empty())
+        self.variables = variables or VariableTable.empty()
+        self.formatter = Formatter(self._read_for_display, self.describe_address)
         self._line_breakpoints: dict[tuple[str, int], int] = {}
         self._address_breakpoints: set[int] = set()
         # Conjunto vivo: se consulta en cada instrucción y puede cambiar durante un Continue.
@@ -107,6 +116,56 @@ class Debugger:
     def backtrace(self) -> list[Frame]:
         """Pila de llamadas: el marco 0 es la función en curso."""
         return self.unwinder.unwind(self.cpu)
+
+    # ------------------------------------------------------------- variables
+
+    def _read_for_display(self, address: int, size: int) -> bytes | None:
+        return self.cpu.read_memory(address, size)
+
+    def frame_context(self, frame: Frame | None = None) -> FrameContext:
+        """Contexto para evaluar ubicaciones: el marco 0 ve todos los registros."""
+        if frame is None or frame.index == 0:
+            regs = {index: self.cpu.read_register(index) for index in range(32)}
+            cfa = frame.cfa if frame is not None else None
+            if frame is None:
+                frames = self.backtrace()
+                cfa = frames[0].cfa if frames else None
+            return FrameContext(self.cpu.pc, cfa, regs)
+        return FrameContext(frame.site, frame.cfa, dict(frame.regs))
+
+    def locals_of(self, frame: Frame | None = None) -> tuple[VariableInfo, ...]:
+        context = self.frame_context(frame)
+        return tuple(
+            self.formatter.variable(
+                decl.name, decl.ctype, self.variables.storage(decl, context), context.regs
+            )
+            for decl in self.variables.locals_at(context.pc)
+        )
+
+    def global_variables(self) -> tuple[VariableInfo, ...]:
+        return tuple(
+            self.formatter.variable(decl.name, decl.ctype, self.variables.storage(decl, None), {})
+            for decl in self.variables.globals
+        )
+
+    def describe_address(self, address: int) -> str | None:
+        """Nombre de lo que hay en una dirección: función, variable global o elemento."""
+        if self.image.function_at(address) is not None:
+            return self.image.describe(address)
+        for decl in self.variables.globals:
+            storage = self.variables.storage(decl, None)
+            if storage is None or storage.address is None:
+                continue
+            offset = address - storage.address
+            if 0 <= offset < max(decl.ctype.size, 1):
+                if offset == 0:
+                    return decl.name
+                element = decl.ctype.target
+                if decl.ctype.kind == "array" and element is not None and element.size:
+                    index, rest = divmod(offset, element.size)
+                    return f"{decl.name}[{index}]" + (f"+{rest}" if rest else "")
+                return f"{decl.name}+{offset}"
+        return None
 
     # ------------------------------------------------------------- ejecución
 

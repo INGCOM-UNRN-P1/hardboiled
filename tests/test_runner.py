@@ -16,6 +16,7 @@ from hardboiled.core.events import (
     CmdPause,
     CmdReset,
     CmdRunToLine,
+    CmdSelectFrame,
     CmdShutdown,
     CmdStepOver,
     CmdToggleBreakpoint,
@@ -25,6 +26,7 @@ from hardboiled.core.events import (
     EvtBreakpointsChanged,
     EvtCpuRunning,
     EvtCpuSuspended,
+    EvtFrameVariables,
     EvtHardwareUpdated,
     EvtMessage,
     EvtProgramExited,
@@ -192,6 +194,12 @@ async def test_tui_drives_runner() -> None:
         backtrace.post_message(BacktraceView.FrameChosen(backtrace.frames[0]))
         await settle(lambda: code._frame_line is None)
 
+        # Variables: la global `ticks` aparece en el árbol.
+        from hardboiled.ui.widgets.variables_view import VariablesView
+
+        variables = app.query_one(VariablesView)
+        await settle(lambda: any(v.name == "ticks" for v in variables._globals))
+
         await pilot.press("f5")
         uart = app.query_one("#uart", Log)
         await settle(lambda: "hola" in "".join(str(line) for line in uart.lines))
@@ -231,3 +239,19 @@ def test_runner_run_to_line_without_code_does_not_start(harness: HarnessFactory)
     h.cmd.put(CmdRunToLine(line_of("basic.c", "main_fact")))
     h.wait_for(EvtCpuRunning)
     assert h.wait_for(EvtCpuSuspended).source_line == line_of("basic.c", "main_fact")
+
+
+def test_runner_frame_variables(harness: HarnessFactory) -> None:
+    h = harness("basic")
+    h.wait_for(EvtCpuSuspended)
+    h.cmd.put(CmdToggleBreakpoint(line_of("basic.c", "square_body")))
+    h.cmd.put(CmdContinue())
+    hit = h.wait_for(EvtCpuSuspended)
+    while hit.function != "square":
+        hit = h.wait_for(EvtCpuSuspended)
+    assert [v.name for v in hit.locals] == ["x"]
+    assert {v.name for v in hit.global_vars} == {"counter", "results"}
+    h.cmd.put(CmdSelectFrame(1))
+    frame = h.wait_for(EvtFrameVariables)
+    assert frame.label == "sum_squares"
+    assert [v.name for v in frame.locals] == ["n", "total", "i"]

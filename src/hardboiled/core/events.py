@@ -55,6 +55,13 @@ class CmdRunToLine:
 
 
 @dataclass(frozen=True)
+class CmdSelectFrame:
+    """Pide las variables locales de un marco de la pila de llamadas."""
+
+    index: int
+
+
+@dataclass(frozen=True)
 class CmdToggleAddressBreakpoint:
     address: int
 
@@ -86,6 +93,7 @@ Command = (
     | CmdStepInstruction
     | CmdStepOut
     | CmdRunToLine
+    | CmdSelectFrame
     | CmdToggleBreakpoint
     | CmdToggleAddressBreakpoint
     | CmdToggleSwitch
@@ -105,6 +113,19 @@ class PeripheralInfo:
     kind: str
     offset: int
     width_bits: int
+
+
+@dataclass(frozen=True)
+class VariableInfo:
+    """Valor de una variable (o de un elemento/miembro) listo para mostrar."""
+
+    name: str
+    type_name: str
+    value: str
+    address: int | None
+    children: tuple[VariableInfo, ...] = ()
+    # Ruta estable ("datos.pos[1].x") para conservar qué nodos están expandidos.
+    path: str = ""
 
 
 @dataclass(frozen=True)
@@ -146,6 +167,18 @@ class EvtCpuSuspended:
     # Palabras (dirección, valor) alrededor de sp, de direcciones bajas a altas.
     stack: tuple[tuple[int, int], ...] = field(default=())
     frames: tuple[FrameInfo, ...] = field(default=())
+    # Variables locales del marco 0 y globales del programa.
+    locals: tuple[VariableInfo, ...] = field(default=())
+    global_vars: tuple[VariableInfo, ...] = field(default=())
+
+
+@dataclass(frozen=True)
+class EvtFrameVariables:
+    """Variables locales del marco pedido con CmdSelectFrame."""
+
+    frame_index: int
+    label: str
+    locals: tuple[VariableInfo, ...]
 
 
 @dataclass(frozen=True)
@@ -188,6 +221,7 @@ Event = (
     EvtProgramLoaded
     | EvtCpuRunning
     | EvtCpuSuspended
+    | EvtFrameVariables
     | EvtHardwareUpdated
     | EvtUartOutput
     | EvtTrap

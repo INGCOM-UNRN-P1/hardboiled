@@ -16,13 +16,14 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Footer, Header, Log, Static
+from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
 
 from hardboiled.core.events import (
     CmdContinue,
     CmdPause,
     CmdReset,
     CmdRunToLine,
+    CmdSelectFrame,
     CmdShutdown,
     CmdStepInstruction,
     CmdStepInto,
@@ -35,6 +36,7 @@ from hardboiled.core.events import (
     EvtBreakpointsChanged,
     EvtCpuRunning,
     EvtCpuSuspended,
+    EvtFrameVariables,
     EvtHardwareUpdated,
     EvtMessage,
     EvtProgramExited,
@@ -47,6 +49,7 @@ from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.hardware_view import HardwareView, SwitchBankView
 from hardboiled.ui.widgets.memory_view import MemoryView
 from hardboiled.ui.widgets.registers_view import RegistersView
+from hardboiled.ui.widgets.variables_view import VariablesView
 from hardboiled.userconfig import UiPrefs
 
 MAX_EVENTS_PER_FRAME = 5000
@@ -58,7 +61,8 @@ class HardboiledApp(App[None]):
     CSS = """
     #main { height: 1fr; }
     #left { width: 1fr; }
-    #right { width: 52; }
+    #right { width: 60; }
+    #inspect { height: auto; }
     #code { height: 1fr; border: round $primary; }
     #code:focus { border: round $accent; }
     #uart { height: 9; border: round $primary; }
@@ -112,8 +116,13 @@ class HardboiledApp(App[None]):
             with VerticalScroll(id="right"):
                 yield HardwareView(id="hardware")
                 yield BacktraceView(id="backtrace")
-                yield RegistersView(id="registers")
-                yield MemoryView(id="stack")
+                with TabbedContent(id="inspect"):
+                    with TabPane("Variables", id="tab-variables"):
+                        yield VariablesView(id="variables")
+                    with TabPane("Registros", id="tab-registers"):
+                        yield RegistersView(id="registers")
+                    with TabPane("Pila", id="tab-stack"):
+                        yield MemoryView(id="stack")
         yield Static(id="status")
         yield Footer()
 
@@ -173,6 +182,8 @@ class HardboiledApp(App[None]):
                 self._set_status(Text("▶ ejecutando…  (F6 pausa)", style="bold green"))
             case EvtCpuSuspended():
                 self._on_suspended(event)
+            case EvtFrameVariables():
+                self.query_one(VariablesView).set_frame_locals(event.locals, event.label)
             case EvtHardwareUpdated():
                 self.query_one(HardwareView).update_device(
                     event.device_name, event.register_offset, event.value
@@ -194,6 +205,8 @@ class HardboiledApp(App[None]):
         self._suspended = event
         self._show_location(event.source_file, event.source_line)
         self.query_one(BacktraceView).set_frames(event.frames)
+        function = event.frames[0].label if event.frames else event.function
+        self.query_one(VariablesView).set_variables(event.locals, event.global_vars, function)
         self.query_one(RegistersView).set_registers(event.registers)
         self.query_one(MemoryView).set_stack(
             event.stack, event.registers.get("x2", 0), event.registers.get("x8", 0)
@@ -221,6 +234,8 @@ class HardboiledApp(App[None]):
 
     def on_backtrace_view_frame_chosen(self, message: BacktraceView.FrameChosen) -> None:
         frame = message.frame
+        if frame.irq_line is None:
+            self.send(CmdSelectFrame(frame.index))
         if frame.index == 0 and self._suspended is not None:
             self._show_location(self._suspended.source_file, self._suspended.source_line)
             return

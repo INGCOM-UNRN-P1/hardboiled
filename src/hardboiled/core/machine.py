@@ -12,6 +12,7 @@ from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import PeripheralInfo
 from hardboiled.core.pic import InterruptController
 from hardboiled.core.unwind import CallFrameTable
+from hardboiled.core.variables import VariableTable
 from hardboiled.hardware import MmioBus, Peripheral, SwitchBank, build_peripheral
 from hardboiled.hardware.bus import EventSink
 
@@ -23,6 +24,7 @@ class Machine:
         lines: LineTable,
         board: BoardConfig,
         cfi: CallFrameTable | None = None,
+        variables: VariableTable | None = None,
     ) -> None:
         self.image = image
         self.lines = lines
@@ -44,7 +46,7 @@ class Machine:
             board.board.clock_hz,
         )
         self.cpu.load(image)
-        self.debugger = Debugger(self.cpu, image, lines, cfi)
+        self.debugger = Debugger(self.cpu, image, lines, cfi, variables)
 
     @classmethod
     def from_elf(cls, elf_path: str | Path, board: BoardConfig | None = None) -> Machine:
@@ -53,6 +55,7 @@ class Machine:
             LineTable.from_elf(elf_path),
             board or BoardConfig(),
             CallFrameTable.from_elf(elf_path),
+            VariableTable.from_elf(elf_path),
         )
 
     @property

@@ -164,9 +164,17 @@ y atajos de teclado. La línea de comandos siempre tiene prioridad.
 
 `↑`/`↓`/`PgUp`/`PgDn` mueven el cursor en el código.
 
+La pestaña **Variables** muestra los parámetros y locales de la función en
+curso (respetando el alcance de los bloques, como el `int i` de un `for`) y
+las globales, con su tipo C: enteros, `char`, `_Bool`, `enum`, punteros (con
+el texto si apuntan a una cadena y lo apuntado expandible como `*p`),
+arreglos multidimensionales, estructuras, uniones y campos de bits. Los
+valores que cambiaron desde la última detención se resaltan. Las pestañas
+**Registros** y **Pila** muestran el estado crudo.
+
 El panel **Llamadas** muestra la pila de llamadas (`main → sum_squares →
 square`), incluidas las entradas de interrupción. Elegir un marco (Enter o
-click) muestra su línea marcada con `▷`.
+click) muestra su línea marcada con `▷` y sus variables locales.
 
 ## La placa
 
@@ -241,6 +249,7 @@ Vista (ui/)            ── cmd_queue: CmdStepInto, CmdContinue, CmdToggleSwit
 | `core/cpu.py` | Wrapper de Unicorn: memoria, hook de ciclo, trampas, stack guard, entrada/salida de ISR, `wfi`. |
 | `core/debugger.py` | Breakpoints por línea o dirección, Step Into, Step Over, Continue. |
 | `core/unwind.py` | Pila de llamadas: CFI de DWARF, frame pointer y marcos de interrupción. |
+| `core/variables.py` | Variables y tipos C desde `.debug_info`, evaluación de ubicaciones DWARF. |
 | `core/dwarf.py` / `core/elf.py` | Tabla de líneas DWARF (PC ⇄ archivo:línea), segmentos y símbolos. |
 | `core/pic.py` | Controlador de interrupciones virtual. |
 | `core/machine.py` | Arma la placa a partir de `board.toml`. |
