@@ -103,6 +103,7 @@ hardboiled run programa.elf                 # TUI, detenida al inicio de main()
 hardboiled run programa.elf --headless      # sin TUI: UART a stdout, trampas a stderr
 hardboiled run traps.elf --headless --switches 0b0011 --max-instructions 100000
 hardboiled info programa.elf                # segmentos, uso de memoria, funciones, fuentes
+hardboiled test programa.c --suite casos.toml # corrige con salidas esperadas
 hardboiled validate [board.toml]            # valida una placa
 hardboiled board init                       # copia la placa por defecto a ./board.toml
 ```
@@ -120,6 +121,42 @@ compilación que `build`). Los fuentes se compilan en la caché del usuario
 recompilan si cambian ellos, los encabezados de sus directorios, las opciones
 o el compilador. Los mensajes del compilador van a stderr, así que en
 `--headless` stdout contiene sólo la salida de la UART.
+
+### Corrección automática: `hardboiled test`
+
+Ejecuta el programa sin interfaz con entradas fijas y compara lo que se
+espera. Termina con `0` si todo coincide y con `1` si algo falla, y muestra las
+diferencias de la UART línea por línea:
+
+```bash
+hardboiled test main.c --switches 5 --expect-uart esperado.txt --expect-exit 3
+hardboiled test main.c --expect-trap null-pointer     # o --expect-trap '*'
+hardboiled test main.c --suite casos.toml              # varios casos
+```
+
+Una suite describe cada caso con sus entradas (`switches`, `uart_input` o
+`uart_input_file`, `script` o un guion en línea `at = [...]`,
+`max_instructions`) y lo esperado (`expect_uart` o `expect_uart_file`,
+`expect_uart_contains`, `expect_exit` o `expect_trap`). Las rutas son relativas
+al archivo de la suite:
+
+```toml
+[[case]]
+name = "eco en mayúsculas"
+script = "entrada.toml"
+expect_uart_file = "esperado.txt"
+expect_exit = 3
+
+[[case]]
+name = "sale enseguida"
+uart_input = "q"
+expect_uart = "listo\nfin\n"
+```
+
+El programa se compila y carga una sola vez, y cada caso arranca de un Reset.
+`expect_exit` compara el valor completo que devolvió `main()`, sin el módulo
+256 del código de salida del proceso. Si un caso no espera una trampa, que
+ocurra una, o que se agote la cuota, cuenta como falla.
 
 ### Ejemplos incluidos
 
