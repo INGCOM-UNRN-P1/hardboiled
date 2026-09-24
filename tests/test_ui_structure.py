@@ -45,7 +45,7 @@ BASES: dict[str, type] = {
 
 @pytest.mark.parametrize("path", sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*.py")))
 def test_no_private_attribute_clashes(path: str) -> None:
-    source = (SRC / path).read_text()
+    source = (SRC / path).read_text(encoding="utf-8")
     base = BASES.get(path)
     if base is None:
         base = OptionList if "OptionList" in source else Widget
@@ -62,5 +62,5 @@ def test_no_base_styled_text_followed_by_appends(path: str) -> None:
 
     Para estilos por tramo hay que usar Text.assemble o Text() + append.
     """
-    source = (SRC / path).read_text()
+    source = (SRC / path).read_text(encoding="utf-8")
     assert not BASE_STYLE.search(source), f"{path} usa Text(..., style=) como estilo base"

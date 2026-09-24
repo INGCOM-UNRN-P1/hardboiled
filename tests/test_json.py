@@ -23,7 +23,7 @@ def test_info_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert data["entry"] == 0x10000 and data["main"] is not None
     assert {"name", "address", "size"} <= set(data["functions"][0])
     assert "square" in {f["name"] for f in data["functions"]}
-    assert any(source.endswith("fixtures/basic.c") for source in data["sources"])
+    assert any(Path(source).parts[-2:] == ("fixtures", "basic.c") for source in data["sources"])
     assert data["build"]["has_debug"] and not data["build"]["optimized"]
     assert data["usage"]["flash_used"] > 0
 

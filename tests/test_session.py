@@ -29,7 +29,7 @@ def test_save_and_restore(tmp_path: Path) -> None:
     debugger.add_watchpoint("results[1]")
     store.save(debugger)
 
-    data = json.loads(store.path.read_text())
+    data = json.loads(store.path.read_text(encoding="utf-8"))
     assert store.path == tmp_path / ".hardboiled" / "basic.breakpoints.json"
     assert {p["file"] for p in data["points"] if p["kind"] == "line"} == {"basic.c"}
 
@@ -54,7 +54,8 @@ def test_restore_reports_points_that_no_longer_exist(tmp_path: Path) -> None:
                     {"kind": "watch", "expression": "variable_borrada"},
                 ],
             }
-        )
+        ),
+        encoding="utf-8",
     )
     failed = store.restore(Machine.from_elf(elf).debugger)
     assert failed == ["basic.c:10000", "variable_borrada"]
@@ -64,7 +65,7 @@ def test_damaged_file_is_ignored(tmp_path: Path) -> None:
     elf = copy_program(tmp_path)
     store = BreakpointStore.for_program(elf)
     store.path.parent.mkdir()
-    store.path.write_text("{no es json")
+    store.path.write_text("{no es json", encoding="utf-8")
     assert store.load() == []
 
 
@@ -77,5 +78,5 @@ def test_local_watchpoints_are_not_saved(tmp_path: Path) -> None:
     debugger.add_watchpoint("total")
     store = BreakpointStore.for_program(elf)
     store.save(debugger)
-    kinds = [p["kind"] for p in json.loads(store.path.read_text())["points"]]
+    kinds = [p["kind"] for p in json.loads(store.path.read_text(encoding="utf-8"))["points"]]
     assert kinds == ["line"]

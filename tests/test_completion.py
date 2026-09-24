@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -23,7 +24,11 @@ def test_fish_and_zsh_scripts_mention_commands() -> None:
     assert zsh_script(build_spec()).startswith("# Autocompletado de hardboiled para zsh")
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+# En Windows, el primer bash del PATH suele ser el lanzador de WSL (sin distribución
+# en CI), y el autocompletado de bash no se usa en Windows nativo.
+@pytest.mark.skipif(
+    shutil.which("bash") is None or sys.platform == "win32", reason="requiere bash (Unix)"
+)
 @pytest.mark.parametrize(
     ("words", "expected"),
     [
@@ -41,7 +46,14 @@ def test_bash_completion(words: list[str], expected: str) -> None:
         f"{script}\nCOMP_WORDS=({quoted}); COMP_CWORD={len(words) - 1}; "
         '_hardboiled; echo "${COMPREPLY[*]}"'
     )
-    result = subprocess.run(["bash", "-c", probe], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ["bash", "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     assert result.stdout.strip() == expected
 
 

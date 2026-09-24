@@ -133,7 +133,7 @@ def test_cli_follows_the_language(
 def test_language_from_user_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (tmp_path / "config.toml").write_text('[ui]\nlanguage = "en"\n')
+    (tmp_path / "config.toml").write_text('[ui]\nlanguage = "en"\n', encoding="utf-8")
     monkeypatch.setenv("HARDBOILED_CONFIG_DIR", str(tmp_path))
     main(["run", str(fixture_path("traps.elf")), "--headless", "--switches", "11"])
     assert "division by zero: RISC-V raises no exception" in capsys.readouterr().err

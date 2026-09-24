@@ -15,7 +15,7 @@ MMIO = str(fixture_path("mmio.elf"))
 
 def test_single_case_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     expected = tmp_path / "esperado.txt"
-    expected.write_text("hola\n0x00000005\n")
+    expected.write_text("hola\n0x00000005\n", encoding="utf-8")
     code = main(["test", MMIO, "--switches", "5", "--expect-uart", str(expected),
                  "--expect-exit", "503"])  # el valor completo, no & 0xFF  # fmt: skip
     out = capsys.readouterr().out
@@ -26,7 +26,7 @@ def test_single_case_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
 
 def test_single_case_fails_with_diff(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     expected = tmp_path / "esperado.txt"
-    expected.write_text("hola\n0x00000004\n")
+    expected.write_text("hola\n0x00000004\n", encoding="utf-8")
     code = main(["test", MMIO, "--switches", "5", "--expect-uart", str(expected),
                  "--expect-exit", "0"])  # fmt: skip
     out = capsys.readouterr().out
@@ -76,9 +76,9 @@ uart = "hola q"
 
 
 def test_suite(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / "casos.toml").write_text(SUITE)
-    (tmp_path / "entrada.toml").write_text(SCRIPT)
-    (tmp_path / "esperado.txt").write_text("listo\nHOLA fin\n")
+    (tmp_path / "casos.toml").write_text(SUITE, encoding="utf-8")
+    (tmp_path / "entrada.toml").write_text(SCRIPT, encoding="utf-8")
+    (tmp_path / "esperado.txt").write_text("listo\nHOLA fin\n", encoding="utf-8")
     code = main(["test", HWLOOP, "--suite", str(tmp_path / "casos.toml")])
     out = capsys.readouterr().out
     assert code == 1
@@ -115,7 +115,7 @@ def test_invalid_suites(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], suite: str, error: str
 ) -> None:
     path = tmp_path / "casos.toml"
-    path.write_text(suite)
+    path.write_text(suite, encoding="utf-8")
     assert main(["test", HWLOOP, "--suite", str(path)]) == EXIT_USAGE
     assert error in capsys.readouterr().err
 
@@ -124,7 +124,7 @@ def test_suite_excludes_single_case_options(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = tmp_path / "casos.toml"
-    path.write_text("[[case]]\nexpect_exit = 0\n")
+    path.write_text("[[case]]\nexpect_exit = 0\n", encoding="utf-8")
     assert main(["test", HWLOOP, "--suite", str(path), "--switches", "1"]) == EXIT_USAGE
     assert "en cada caso" in capsys.readouterr().err
 
@@ -144,7 +144,8 @@ name = "mal"
 uart_input = "q"
 expect_leds = 1
 expect_display = "7"
-"""
+""",
+        encoding="utf-8",
     )
     assert main(["test", HWLOOP, "--suite", str(suite)]) == 1
     out = capsys.readouterr().out

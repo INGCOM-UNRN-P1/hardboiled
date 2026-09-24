@@ -23,7 +23,7 @@ def test_missing_file_gives_defaults() -> None:
 
 def test_template_is_valid_and_all_commented(config_dir: Path) -> None:
     config_dir.mkdir()
-    config_path().write_text(TEMPLATE)
+    config_path().write_text(TEMPLATE, encoding="utf-8")
     assert load_user_config() == UserConfig()
 
 
@@ -31,7 +31,8 @@ def test_values_are_loaded(config_dir: Path) -> None:
     config_dir.mkdir()
     config_path().write_text(
         '[build]\ncompiler = "zig"\nopt_level = "1"\n[ui]\ntheme = "light"\n'
-        '[keys]\nstep_over = "f8"\n'
+        '[keys]\nstep_over = "f8"\n',
+        encoding="utf-8",
     )
     config = load_user_config()
     assert config.build.compiler == "zig" and config.build.opt_level == "1"
@@ -43,7 +44,7 @@ def test_invalid_config_is_a_clean_cli_error(
     config_dir: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     config_dir.mkdir()
-    config_path().write_text('[ui]\ntheme = "violeta"\n')
+    config_path().write_text('[ui]\ntheme = "violeta"\n', encoding="utf-8")
     assert main(["runtime"]) == EXIT_USAGE
     assert "ui.theme" in capsys.readouterr().err
 
@@ -52,7 +53,7 @@ def test_config_commands(config_dir: Path, capsys: pytest.CaptureFixture[str]) -
     assert main(["config", "path"]) == 0
     assert capsys.readouterr().out.strip() == str(config_dir / "config.toml")
     assert main(["config", "init"]) == 0
-    assert config_path().read_text() == TEMPLATE
+    assert config_path().read_text(encoding="utf-8") == TEMPLATE
     assert main(["config", "init"]) == EXIT_USAGE
     assert main(["config"]) == 0
     assert "theme = 'dark'" in capsys.readouterr().out
@@ -62,7 +63,7 @@ def test_build_preferences_apply(config_dir: Path, monkeypatch: pytest.MonkeyPat
     from hardboiled.cli import build as build_cli
 
     config_dir.mkdir()
-    config_path().write_text('[build]\ncompiler = "zig"\nmarch = "rv32im"\n')
+    config_path().write_text('[build]\ncompiler = "zig"\nmarch = "rv32im"\n', encoding="utf-8")
     monkeypatch.delenv("HARDBOILED_CC", raising=False)
     args = argparse.Namespace(
         cc=None,

@@ -54,7 +54,8 @@ def test_m_extension_div_instruction(tmp_path: Path) -> None:
     source = tmp_path / "div.c"
     source.write_text(
         '#include "hardboiled.h"\n'
-        "int main(void) { volatile int d = (int)switch_get(); return 7 / d; }\n"
+        "int main(void) { volatile int d = (int)switch_get(); return 7 / d; }\n",
+        encoding="utf-8",
     )
     elf = build(
         [source], tmp_path / "div.elf", BuildOptions(march="rv32im"), select_compiler("zig")

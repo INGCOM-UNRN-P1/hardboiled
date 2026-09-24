@@ -60,7 +60,7 @@ def test_echo_example_from_stdin(
 ) -> None:
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path))
     monkeypatch.setenv("HARDBOILED_CC", "zig")
-    fake_stdin = io.TextIOWrapper(io.BytesIO(b"hola\nMundo 1\nfin\n"))
+    fake_stdin = io.TextIOWrapper(io.BytesIO(b"hola\nMundo 1\nfin\n"), encoding="utf-8")
     monkeypatch.setattr("sys.stdin", fake_stdin)
     assert main(["demo", "eco", "--headless", "--uart-input", "-"]) == 0
     out = capsysbinary.readouterr().out.decode()

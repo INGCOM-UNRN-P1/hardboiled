@@ -134,13 +134,13 @@ def test_changed_sources_are_rebuilt(tmp_path: Path, session: list[Session]) -> 
     s.wait(EvtCpuSuspended)
 
     # Un error de compilación se informa y se sigue con el programa anterior.
-    text = source.read_text()
-    source.write_text(text.replace("return x * x;", "return x * ;"))
+    text = source.read_text(encoding="utf-8")
+    source.write_text(text.replace("return x * x;", "return x * ;"), encoding="utf-8")
     bump(source)
     s.wait("no se recargó")
 
     # Corregido y con otro valor: el programa nuevo devuelve otra cosa.
-    source.write_text(text.replace("int counter = 3;", "int counter = 4;"))
+    source.write_text(text.replace("int counter = 3;", "int counter = 4;"), encoding="utf-8")
     bump(source)
     s.wait("recompilando")
     s.wait("programa recargado")

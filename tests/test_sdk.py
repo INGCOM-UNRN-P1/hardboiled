@@ -48,8 +48,8 @@ irq_line = 3
 
 def test_packaged_runtime_is_generated_from_default_board() -> None:
     board = load_board(resources.default_board_path())
-    assert resources.header_path().read_text() == generate_header(board)
-    assert resources.linker_script().read_text() == generate_linker_script(board)
+    assert resources.header_path().read_text(encoding="utf-8") == generate_header(board)
+    assert resources.linker_script().read_text(encoding="utf-8") == generate_linker_script(board)
 
 
 def test_custom_board_names_and_offsets() -> None:
@@ -64,12 +64,12 @@ def test_custom_board_names_and_offsets() -> None:
 
 def test_gen_header_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     board = tmp_path / "board.toml"
-    board.write_text(CUSTOM_BOARD)
+    board.write_text(CUSTOM_BOARD, encoding="utf-8")
     assert main(["gen-header", str(board)]) == 0
     assert "barra_toggle" in capsys.readouterr().out
     out = tmp_path / "hb.ld"
     assert main(["gen-header", str(board), "--linker-script", "-o", str(out)]) == 0
-    assert "placa-propia" in out.read_text()
+    assert "placa-propia" in out.read_text(encoding="utf-8")
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ziglang") is None, reason="requiere [zig]")
@@ -78,10 +78,11 @@ def test_build_uses_the_project_board(
 ) -> None:
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "board.toml").write_text(CUSTOM_BOARD)
+    (tmp_path / "board.toml").write_text(CUSTOM_BOARD, encoding="utf-8")
     (tmp_path / "main.c").write_text(
         '#include "hardboiled.h"\n'
-        'int main(void) { barra_set(0x5); uart_puts("ok"); return (int)barra_get(); }\n'
+        'int main(void) { barra_set(0x5); uart_puts("ok"); return (int)barra_get(); }\n',
+        encoding="utf-8",
     )
     assert main(["run", "main.c", "--headless", "--cc", "zig"]) == 5
     assert capsysbinary.readouterr().out == b"ok"

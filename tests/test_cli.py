@@ -62,7 +62,7 @@ def test_validate_default_board(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_validate_reports_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     board = tmp_path / "board.toml"
-    board.write_text('[memory]\nflash_base = "0x10"\n')
+    board.write_text('[memory]\nflash_base = "0x10"\n', encoding="utf-8")
     assert main(["validate", str(board)]) == EXIT_USAGE
     assert "configuración inválida" in capsys.readouterr().err
 
@@ -87,7 +87,9 @@ def test_board_init_copies_template(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     assert main(["board", "init"]) == 0
-    assert (tmp_path / "board.toml").read_text() == (ROOT / "board.toml").read_text()
+    assert (tmp_path / "board.toml").read_text(encoding="utf-8") == (ROOT / "board.toml").read_text(
+        encoding="utf-8"
+    )
     assert main(["board", "init"]) == EXIT_USAGE  # no pisa sin --force
     assert "--force" in capsys.readouterr().err
     assert main(["board", "init", "--force"]) == 0

@@ -19,7 +19,7 @@ async def test_find_wraps_and_goto() -> None:
         code = app.query_one(CodeView)
         code.show_file(str(FIXTURES / "basic.c"))
         await pilot.pause()
-        source = (FIXTURES / "basic.c").read_text().splitlines()
+        source = (FIXTURES / "basic.c").read_text(encoding="utf-8").splitlines()
         signature = source.index("int factorial(int n)") + 1
         first = code.find("FACTORIAL")  # sin distinguir mayúsculas
         assert first == signature

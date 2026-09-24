@@ -37,7 +37,7 @@ uart = "q"
 
 def write(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "entrada.toml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 

@@ -56,7 +56,7 @@ def test_jsonl_trace_marks_interrupts_and_mret(tmp_path: Path) -> None:
         ]
     )
     assert code == 103
-    records = [json.loads(line) for line in path.read_text().splitlines()]
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     irq = [r for r in records if r.get("event") == "IRQ 0"]
     assert len(irq) == 3 and all(r["function"] == "__isr_trampoline" or r["pc"] for r in irq)
     mret = [r for r in records if r["instruction"] == "mret"]

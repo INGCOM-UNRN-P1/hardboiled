@@ -130,7 +130,7 @@ int main(void)
 def build_program(tmp_path: Path, nesting: bool) -> Machine:
     board = BoardConfig.model_validate(tomllib.loads(BOARD.format(nesting=str(nesting).lower())))
     source = tmp_path / "anida.c"
-    source.write_text(PROGRAM)
+    source.write_text(PROGRAM, encoding="utf-8")
     options = BuildOptions(runtime=runtime_for(board, tmp_path / "cache"))
     elf = build([source], tmp_path / "anida.elf", options, select_compiler("zig")).output
     return Machine.from_elf(elf, board)

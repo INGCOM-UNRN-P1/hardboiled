@@ -51,7 +51,9 @@ def fixture_path(name: str) -> Path:
 
 def line_of(source: str, marker: str) -> int:
     """Número de línea del marcador `/* @marker */` en un fuente de fixtures."""
-    for number, text in enumerate((FIXTURES / source).read_text().splitlines(), start=1):
+    for number, text in enumerate(
+        (FIXTURES / source).read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if f"@{marker} " in text or text.rstrip().endswith(f"@{marker}"):
             return number
     raise AssertionError(f"no se encontró @{marker} en {source}")

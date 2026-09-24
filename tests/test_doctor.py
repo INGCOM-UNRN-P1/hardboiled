@@ -28,7 +28,7 @@ def test_core_checks_pass() -> None:
 
 def test_invalid_config_is_reported(tmp_path: Path) -> None:
     (tmp_path / "conf").mkdir()
-    (tmp_path / "conf" / "config.toml").write_text("[ui]\ntheme = 3\n")
+    (tmp_path / "conf" / "config.toml").write_text("[ui]\ntheme = 3\n", encoding="utf-8")
     assert doctor.check_config().status is Status.ERROR
 
 

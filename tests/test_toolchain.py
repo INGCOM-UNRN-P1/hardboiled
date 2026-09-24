@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 
 import pytest
@@ -71,7 +72,8 @@ def test_env_variable_selects_compiler(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_build_and_run(tmp_path: Path) -> None:
     source = tmp_path / "prog.c"
     source.write_text(
-        '#include "hardboiled.h"\nint main(void) { uart_puts("ok"); return 7 * 6; }\n'
+        '#include "hardboiled.h"\nint main(void) { uart_puts("ok"); return 7 * 6; }\n',
+        encoding="utf-8",
     )
     result = toolchain.build([source], tmp_path / "prog.elf", compiler=select_compiler("zig"))
     assert result.output.is_file()
@@ -79,13 +81,14 @@ def test_build_and_run(tmp_path: Path) -> None:
     stop = machine.debugger.continue_()
     assert stop.reason is StopReason.EXITED and stop.exit_code == 42
     # El fuente absoluto queda en la info de depuración.
-    assert str(source) in machine.lines.user_files
+    # (samefile: en Windows la misma ruta puede escribirse de más de una forma)
+    assert any(os.path.samefile(file, source) for file in machine.lines.user_files)
 
 
 @needs_zig
 def test_build_error_reports_compiler_output(tmp_path: Path) -> None:
     source = tmp_path / "roto.c"
-    source.write_text("int main(void) { return x; }\n")
+    source.write_text("int main(void) { return x; }\n", encoding="utf-8")
     with pytest.raises(BuildError) as info:
         toolchain.build([source], compiler=select_compiler("zig"))
     assert "roto.c" in info.value.output
@@ -109,10 +112,11 @@ def test_run_compiles_sources_with_cache(
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     source = tmp_path / "hola.c"
     header = tmp_path / "valor.h"
-    header.write_text("#define VALOR 5\n")
+    header.write_text("#define VALOR 5\n", encoding="utf-8")
     source.write_text(
         '#include "hardboiled.h"\n#include "valor.h"\n'
-        'int main(void) { uart_puts("hola"); return VALOR; }\n'
+        'int main(void) { uart_puts("hola"); return VALOR; }\n',
+        encoding="utf-8",
     )
     args = ["run", str(source), "--headless", "--cc", "zig"]
     assert main(args) == 5
@@ -122,7 +126,9 @@ def test_run_compiles_sources_with_cache(
     assert main(args) == 5  # sin cambios: se reutiliza la caché
     assert b"compilado con" not in capsysbinary.readouterr().err
 
-    header.write_text("#define VALOR 9\n")  # cambiar un encabezado invalida la caché
+    header.write_text(
+        "#define VALOR 9\n", encoding="utf-8"
+    )  # cambiar un encabezado invalida la caché
     assert main(args) == 9
     assert len(list((tmp_path / "cache" / "builds").iterdir())) == 2
 
@@ -153,7 +159,8 @@ def test_board_isa_is_checked_and_used_by_build(
 
     source = tmp_path / "mul.c"
     source.write_text(
-        '#include "hardboiled.h"\nint main(void) { volatile int a = 6; return a * 7; }\n'
+        '#include "hardboiled.h"\nint main(void) { volatile int a = 6; return a * 7; }\n',
+        encoding="utf-8",
     )
     zig = select_compiler("zig")
     with_m = toolchain.build([source], tmp_path / "m.elf", BuildOptions(march="rv32im"), zig)
@@ -164,6 +171,6 @@ def test_board_isa_is_checked_and_used_by_build(
     # Sin --march, build usa el isa de ./board.toml.
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
-    (tmp_path / "board.toml").write_text('[board]\nisa = "rv32im"\n')
+    (tmp_path / "board.toml").write_text('[board]\nisa = "rv32im"\n', encoding="utf-8")
     assert main(["build", "mul.c", "-o", "auto.elf", "--cc", "zig", "-v"]) == 0
     assert "-mcpu=generic_rv32+m" in capsys.readouterr().err
