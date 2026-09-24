@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import queue
+import sys
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -20,6 +21,18 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # Los tests esperan los mensajes originales, en español, sin importar el entorno.
 os.environ.pop("HARDBOILED_LANG", None)
 i18n.set_language("es")
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """En Windows, faulthandler vuelca como "fatal" toda access violation, incluso las
+    que se atrapan y manejan. Unicorn provoca una así al inicializar el motor en el
+    primer mem_map, y el volcado parecía un crash de la suite. Un crash real igual
+    corta pytest con código de error."""
+    if sys.platform == "win32":
+        import faulthandler
+
+        faulthandler.disable()
 
 
 @pytest.fixture(autouse=True)

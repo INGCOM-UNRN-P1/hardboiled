@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -17,9 +16,20 @@ from tests.conftest import MachineFactory, fixture_path, line_of
 BASIC = "basic.c"
 
 
-def test_rejects_non_riscv_elf() -> None:
+def test_rejects_non_riscv_elf(tmp_path: Path) -> None:
+    # Un ELF válido de otra arquitectura (e_machine = x86-64). No sirve usar el
+    # intérprete de Python: en macOS es Mach-O y en Windows, PE.
+    data = bytearray(fixture_path("basic.elf").read_bytes())
+    data[18:20] = (62).to_bytes(2, "little")
+    other = tmp_path / "x86.elf"
+    other.write_bytes(data)
     with pytest.raises(ElfLoadError, match="RISC-V"):
-        ElfImage.load(sys.executable if Path(sys.executable).is_file() else "/bin/sh")
+        ElfImage.load(other)
+
+
+def test_rejects_files_that_are_not_elf() -> None:
+    with pytest.raises(ElfLoadError, match="no se pudo leer"):
+        ElfImage.load(fixture_path("basic.c"))
 
 
 def test_loads_segments_and_initializes_data(make_machine: MachineFactory) -> None:
