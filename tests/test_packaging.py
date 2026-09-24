@@ -47,3 +47,15 @@ def test_wheel_contains_resources(tmp_path: Path) -> None:
 def test_packaged_board_matches_repository_board() -> None:
     packaged = resources.default_board_path()
     assert packaged.read_text() == (ROOT / "board.toml").read_text()
+
+
+def test_fixtures_do_not_depend_on_where_they_were_built() -> None:
+    """Rutas DWARF absolutas de la máquina que compiló rompían los tests en CI."""
+    from elftools.elf.elffile import ELFFile
+
+    for elf in sorted((ROOT / "tests" / "fixtures").glob("*.elf")):
+        with elf.open("rb") as stream:
+            for cu in ELFFile(stream).get_dwarf_info().iter_CUs():
+                name = cu.get_top_DIE().attributes["DW_AT_name"].value.decode()
+                if name != "compiler_rt":  # biblioteca: el depurador la ignora
+                    assert not Path(name).is_absolute(), f"{elf.name}: {name}"
