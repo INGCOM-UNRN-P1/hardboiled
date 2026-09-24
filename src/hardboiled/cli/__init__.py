@@ -60,7 +60,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def utf8_output() -> None:
+    """Salida en UTF-8 aunque el sistema diga otra cosa.
+
+    En Windows, fuera de una consola (redirigida a un archivo o a un pipe, como
+    en CI), Python usa la página de códigos del sistema (cp1252), que no tiene
+    `✔`, `⏎` ni los caracteres de caja: imprimirlos abortaba con
+    UnicodeEncodeError. La consola de Windows ya usa UTF-8 y no se toca.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        reconfigure = getattr(stream, "reconfigure", None)
+        if encoding != "utf8" and reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    utf8_output()
     args = build_parser().parse_args(argv)
     try:
         try:

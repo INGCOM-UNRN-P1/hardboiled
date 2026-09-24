@@ -121,3 +121,16 @@ def test_deep_recursion_reports_real_depth(capsys: pytest.CaptureFixture[str]) -
     # 64 KB de pila / 80 bytes por marco de deep(): cientos de niveles, no 63.
     depth = int(err.split(" x", 1)[1].split(" ")[0])
     assert depth > 500
+
+
+def test_output_survives_a_non_utf8_console(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows fuera de una consola: stdout en cp1252, sin ✔ ni ⏎ (falló en CI)."""
+    import io
+    import sys
+
+    raw = io.BytesIO()
+    stdout = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", stdout)
+    assert main(["doctor", "--no-build"]) in (0, 1)
+    stdout.flush()
+    assert "✔" in raw.getvalue().decode("utf-8")

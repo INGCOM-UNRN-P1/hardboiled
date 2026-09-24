@@ -20,7 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run(command: list[str], env: dict[str, str], cwd: Path) -> str:
     print(f"$ {' '.join(command)}", flush=True)
-    result = subprocess.run(command, env=env, cwd=cwd, capture_output=True, text=True)
+    # hardboiled escribe en UTF-8 en cualquier sistema (en Windows, la página de
+    # códigos por defecto no tiene ✔ ni ⏎).
+    result = subprocess.run(
+        command, env=env, cwd=cwd, capture_output=True, encoding="utf-8", errors="replace"
+    )
     output = result.stdout + result.stderr
     print(output, end="" if output.endswith("\n") or not output else "\n")
     if result.returncode != 0:
@@ -29,6 +33,8 @@ def run(command: list[str], env: dict[str, str], cwd: Path) -> str:
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     with tempfile.TemporaryDirectory(prefix="hardboiled-smoke-") as tmp:
         base = Path(tmp)
         env = dict(os.environ)
