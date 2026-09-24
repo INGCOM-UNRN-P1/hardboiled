@@ -112,7 +112,7 @@ class TraceWriter:
             instruction = debugger.instruction_at(pc)
             cached = (
                 debugger.function(pc) or self.machine.image.describe(pc),
-                location.file.rsplit("/", 1)[-1] if location else "",
+                Path(location.file).name if location else "",
                 location.line if location else None,
                 instruction.text if instruction is not None else "",
             )

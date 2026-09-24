@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from hardboiled.core.cpu import ABI_NAMES, ISR_FRAME_SIZE, ISR_SAVED_REGS, Cpu, StopInfo, StopReason
 from hardboiled.core.disasm import Instruction, decode, disassemble
@@ -524,7 +525,7 @@ class Debugger:
         where = (
             _(
                 " (escrito en {file}:{line})",
-                file=location.file.rsplit("/", 1)[-1],
+                file=Path(location.file).name,
                 line=location.line,
             )
             if location

@@ -144,7 +144,7 @@ def check_build_and_run(preference: str | None) -> Check:
         return Check("compilar y ejecutar", Status.ERROR, "no hay compilador disponible")
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "probe.c"
-        source.write_text(PROBE_SOURCE)
+        source.write_text(PROBE_SOURCE, encoding="utf-8")
         try:
             result = build([source], Path(tmp) / "probe.elf", compiler=compiler)
             machine = Machine.from_elf(result.output)

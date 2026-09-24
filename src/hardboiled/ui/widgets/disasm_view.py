@@ -39,7 +39,9 @@ class DisassemblyView(OptionList):
     def _source_text(self, file: str, line: int) -> str:
         if file not in self._sources:
             try:
-                self._sources[file] = Path(file).read_text(errors="replace").splitlines()
+                self._sources[file] = (
+                    Path(file).read_text(errors="replace", encoding="utf-8").splitlines()
+                )
             except OSError:
                 self._sources[file] = []
         lines = self._sources[file]

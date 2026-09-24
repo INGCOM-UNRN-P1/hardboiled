@@ -8,6 +8,7 @@ Los contadores los lleva la CPU desde el último Reset.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -91,7 +92,7 @@ def format_profile(profile: Profile, top: int = 10) -> str:
     out.append("  líneas más ejecutadas:")
     sources: dict[str, list[str]] = {}
     shown = profile.lines[:top]
-    width = max((len(f"{c.file.rsplit('/', 1)[-1]}:{c.line}") for c in shown), default=0)
+    width = max((len(f"{Path(c.file).name}:{c.line}") for c in shown), default=0)
     for cost in shown:
         if cost.file not in sources:
             try:
@@ -101,7 +102,7 @@ def format_profile(profile: Profile, top: int = 10) -> str:
                 sources[cost.file] = []
         text = sources[cost.file]
         code = text[cost.line - 1].strip() if 0 < cost.line <= len(text) else ""
-        where = f"{cost.file.rsplit('/', 1)[-1]}:{cost.line}"
+        where = f"{Path(cost.file).name}:{cost.line}"
         share = 100 * cost.count / profile.total
         out.append(f"    {share:5.1f}% {cost.count:>12,}  {where:<{width}} │ {code}")
     return "\n".join(out)

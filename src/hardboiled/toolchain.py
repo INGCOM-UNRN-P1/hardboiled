@@ -230,7 +230,15 @@ def build(
     target = Path(output) if output is not None else default_output(sources)
     command = compile_command(compiler, sources, target, options)
     try:
-        completed = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+        )
     except OSError as exc:
         raise ToolchainError(f"no se pudo ejecutar {command[0]}: {exc}") from exc
     diagnostics = (completed.stdout + completed.stderr).strip()
