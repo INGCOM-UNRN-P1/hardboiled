@@ -66,9 +66,15 @@ def bash_script(spec: CommandSpec) -> str:
         )
     joined_cases = "\n".join(cases)
     top = " ".join(spec.children)
-    example_commands = "|".join(EXAMPLE_COMMANDS)
-    return f"""# Autocompletado de hardboiled para bash.
+    # `case` admite alternativas sin extglob: "demo …", "examples show", etc.
+    example_patterns = "|".join(
+        pattern for name in EXAMPLE_COMMANDS for pattern in (f'"{name} "*', f'*" {name}"')
+    )
+    return f"""# Autocompletado de hardboiled para bash (también el 3.2 de macOS).
 # Instalar:  hardboiled completion bash > ~/.local/share/bash-completion/completions/hardboiled
+# extglob (para el patrón de archivos de compgen -X) tiene que estar activo antes
+# de leer la función: bash 3.2 no lo activa solo.
+shopt -s extglob
 _hardboiled() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
     local sub="" sub2="" opts="" subs="" word i
@@ -88,13 +94,16 @@ _hardboiled() {{
         COMPREPLY=($(compgen -W "$opts" -- "$cur"))
     elif [[ -n "$subs" ]]; then
         COMPREPLY=($(compgen -W "$subs" -- "$cur"))
-    elif [[ "$sub" == @({example_commands}) || "$sub2" == @({example_commands}) ]]; then
-        COMPREPLY=($(compgen -W "{examples}" -- "$cur"))
     else
-        COMPREPLY=($(compgen -f -X '!*.@({FILE_PATTERN})' -- "$cur") $(compgen -d -- "$cur"))
+        case "$sub $sub2" in
+            {example_patterns})
+                COMPREPLY=($(compgen -W "{examples}" -- "$cur")) ;;
+            *)
+                COMPREPLY=($(compgen -f -X '!*.@({FILE_PATTERN})' -- "$cur")
+                           $(compgen -d -- "$cur")) ;;
+        esac
     fi
 }}
-shopt -s extglob
 complete -o filenames -F _hardboiled hardboiled
 """
 

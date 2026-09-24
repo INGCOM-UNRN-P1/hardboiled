@@ -43,3 +43,10 @@ def test_bash_completion(words: list[str], expected: str) -> None:
     )
     result = subprocess.run(["bash", "-c", probe], capture_output=True, text=True, check=True)
     assert result.stdout.strip() == expected
+
+
+def test_bash_script_parses_on_bash_3_2() -> None:
+    """macOS trae bash 3.2: extglob en [[ ]] sólo si ya estaba activo al leer la función."""
+    script = bash_script(build_spec())
+    assert "== @(" not in script
+    assert script.index("shopt -s extglob") < script.index("_hardboiled() {")
