@@ -1,5 +1,7 @@
 # hardboiled
 
+> 📖 **Manual de Usuario:** Para una guía exhaustiva de comandos, banderas, arquitectura y ejemplos, consultá el [Manual de Uso](MANUAL.md).
+
 Emulador pedagógico de un microcontrolador **RISC-V 32 bits (RV32I) bare-metal**
 con depurador de código C en la terminal. Pensado para enseñar programación de
 bajo nivel, arquitectura de computadoras y sistemas embebidos: se ejecuta un
