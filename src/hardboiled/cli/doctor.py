@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from hardboiled import __version__
 from hardboiled.cli.build import compiler_preference
 from hardboiled.cli.common import Subparsers, print_json
 from hardboiled.doctor import Status, run_checks
@@ -28,6 +29,21 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if args.json:
         print_json(
             {
+                # Sobre común del ecosistema (LINEAMIENTOS §3.2, N-ECO-04);
+                # "checks", "errors" y "warnings" se conservan por compatibilidad.
+                "schema_version": "1.0.0",
+                "herramienta": "hardboiled",
+                "version": __version__,
+                "ok": errors == 0,
+                "chequeos": [
+                    {
+                        "nombre": c.name,
+                        "requerido": True,
+                        "ok": c.status is not Status.ERROR,
+                        "detalle": c.detail,
+                    }
+                    for c in checks
+                ],
                 "checks": [
                     {"name": c.name, "status": c.status.name.lower(), "detail": c.detail}
                     for c in checks

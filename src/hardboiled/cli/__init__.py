@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="hardboiled",
         description="Emulador pedagógico RV32I bare-metal con depurador de código C.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     for module in SUBCOMMANDS:
         module.register(sub)
