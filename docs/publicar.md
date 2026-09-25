@@ -1,5 +1,10 @@
 # Publicar una versión en PyPI
 
+> **Estado (25/09/26):** por decisión de la cátedra, hardboiled **no se publica
+> en PyPI** por ahora; la instalación oficial es desde el repositorio:
+> `uv tool install "hardboiled[zig] @ git+https://github.com/INGCOM-UNRN-P1/hardboiled"`. Esta guía queda como
+> referencia por si en el futuro se decide publicar.
+
 hardboiled se publica con [Trusted Publishing](https://docs.pypi.org/trusted-publishers/):
 GitHub Actions se autentica en PyPI con OIDC, sin tokens guardados.
 
@@ -34,5 +39,5 @@ uv tool upgrade hardboiled                 # actualizar
 Mientras no esté en PyPI se puede instalar desde el repositorio:
 
 ```bash
-uv tool install "hardboiled[zig] @ git+https://github.com/USUARIO/hardboiled"
+uv tool install "hardboiled[zig] @ git+https://github.com/INGCOM-UNRN-P1/hardboiled"
 ```

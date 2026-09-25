@@ -32,9 +32,12 @@ GCC_NAMES = (
 # Extensiones que la placa sabe ejecutar, en el orden canónico de -march.
 SUPPORTED_EXTENSIONS = "mc"
 
+# hardboiled no se publica en PyPI: se instala desde el repositorio.
+INSTALL_ZIG = 'uv tool install "hardboiled[zig] @ git+https://github.com/INGCOM-UNRN-P1/hardboiled"'
+
 INSTALL_HINT = (
     "no se encontró un compilador para RISC-V. Opciones:\n"
-    '  - instalar hardboiled con el extra zig:  uv tool install "hardboiled[zig]"\n'
+    f"  - instalar hardboiled con el extra zig:  {INSTALL_ZIG}\n"
     "  - o instalar una toolchain GNU (riscv64-unknown-elf-gcc) y dejarla en el PATH\n"
     "  - o indicar el compilador con --cc RUTA o la variable HARDBOILED_CC"
 )
@@ -128,9 +131,7 @@ def select_compiler(preference: str | None = None) -> Compiler:
     if choice == "zig":
         zig = _zig_compiler()
         if zig is None:
-            raise ToolchainError(
-                'zig no está disponible: instalá el extra con uv tool install "hardboiled[zig]"'
-            )
+            raise ToolchainError(f"zig no está disponible: instalá el extra con {INSTALL_ZIG}")
         return zig
     if choice == "gcc":
         for name in GCC_NAMES:

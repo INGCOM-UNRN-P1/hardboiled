@@ -20,16 +20,20 @@ periféricos simulados (LEDs, switches, UART, timer con interrupciones).
 Requiere Python 3.12+ y [`uv`](https://docs.astral.sh/uv/). No hace falta `sudo`.
 
 ```bash
-uv tool install "hardboiled[zig]"   # herramienta + compilador C para RV32I (zig)
-uv tool install hardboiled          # sólo la herramienta (si ya tenés riscv*-gcc)
+# herramienta + compilador C para RV32I (zig)
+uv tool install "hardboiled[zig] @ git+https://github.com/INGCOM-UNRN-P1/hardboiled"
+# sólo la herramienta (si ya tenés riscv*-gcc)
+uv tool install git+https://github.com/INGCOM-UNRN-P1/hardboiled
 ```
+
+hardboiled no se publica en PyPI: se instala siempre desde el repositorio.
 
 Después de instalar, `hardboiled doctor` verifica Python, el emulador, el
 runtime, la configuración, el compilador (compila y ejecuta un programa de
 prueba) y la terminal. Es lo primero que conviene adjuntar en una consulta.
 
-Para probar sin instalar nada: `uvx hardboiled doctor`. Para actualizar:
-`uv tool upgrade hardboiled`. Cómo se publica una versión: `docs/publicar.md`.
+Para probar sin instalar nada: `uvx --from git+https://github.com/INGCOM-UNRN-P1/hardboiled hardboiled doctor`.
+Para actualizar a la última versión del repositorio: `uv tool upgrade hardboiled`.
 
 El extra `[zig]` instala el paquete `ziglang` dentro del entorno aislado de la
 herramienta: no toca el sistema ni requiere `sudo`, pero pesa decenas de MB.

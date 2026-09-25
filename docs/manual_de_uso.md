@@ -44,19 +44,19 @@ Cualquier acceso por fuera de estos rangos físicos aborta la ejecución con la 
 
 ### Instalación vía `uv`
 
-Instalación estándar:
+Instalación estándar (desde el repositorio; hardboiled no se publica en PyPI):
 ```bash
-uv tool install hardboiled
+uv tool install git+https://github.com/INGCOM-UNRN-P1/hardboiled
 ```
 
 Instalación recomendada con compilador Clang embebido (no requiere instalar GCC externo):
 ```bash
-uv tool install "hardboiled[zig]"
+uv tool install "hardboiled[zig] @ git+https://github.com/INGCOM-UNRN-P1/hardboiled"
 ```
 
 Instalación en entorno de desarrollo local:
 ```bash
-git clone https://github.com/usuario/hardboiled.git
+git clone https://github.com/INGCOM-UNRN-P1/hardboiled.git
 cd hardboiled
 uv venv
 uv pip install -e ".[dev,zig]"
