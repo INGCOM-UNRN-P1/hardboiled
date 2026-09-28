@@ -209,7 +209,7 @@ expect.trap = "null-pointer"
 
 ## 6. Programación con el SDK (`hardboiled.h`)
 
-El archivo [`hardboiled.h`](/hardboiled/src/hardboiled/runtime/include/hardboiled.h) expone macros y funciones bare-metal directas para interactuar con la placa virtual:
+El archivo [`hardboiled.h`](src/hardboiled/runtime/include/hardboiled.h) expone macros y funciones bare-metal directas para interactuar con la placa virtual:
 
 ```c
 #include "hardboiled.h"
