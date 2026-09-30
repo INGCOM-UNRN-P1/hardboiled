@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -36,9 +37,10 @@ def test_la_ayuda_esta_en_espanol(capsys: pytest.CaptureFixture[str]) -> None:
 @pytest.mark.parametrize(
     ("argumentos", "mensaje"),
     [
-        (["nada"], "'nada' no es ninguna de estas opciones: new, "),
-        (["new"], "faltan los argumentos obligatorios: path"),
-        (["run", "--board"], "argumento --board: necesita un valor"),
+        # Según la versión de Python, argparse cita las opciones ('new') o no (new).
+        (["nada"], r"'nada' no es ninguna de estas opciones: '?new'?, "),
+        (["new"], r"faltan los argumentos obligatorios: path"),
+        (["run", "--board"], r"argumento --board: necesita un valor"),
     ],
 )
 def test_errores_de_uso_en_espanol(
@@ -48,4 +50,4 @@ def test_errores_de_uso_en_espanol(
         main(argumentos)
     assert salida.value.code == 2
     error = capsys.readouterr().err
-    assert "uso: hardboiled" in error and mensaje in error
+    assert "uso: hardboiled" in error and re.search(mensaje, error), error
