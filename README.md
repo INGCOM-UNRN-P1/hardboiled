@@ -596,3 +596,36 @@ uv run python tests/fixtures/build.py  # recompilar los ELF de prueba
 
 Commits con [Conventional Commits](https://www.conventionalcommits.org/)
 (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
+
+<!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
+
+## Referencia rápida
+
+### Requisitos
+
+- Python ≥ 3.12 y [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Comandos
+
+| Comando | Descripción |
+|:--|:--|
+| `hardboiled new` | crea un proyecto nuevo (main.c, Makefile, placa, editor) |
+| `hardboiled build` | compila fuentes C a un ELF para la placa |
+| `hardboiled run` | ejecuta un ELF en la TUI (o sin interfaz con --headless) |
+| `hardboiled test` | ejecuta el programa con entradas dadas y compara la salida esperada |
+| `hardboiled tutorial` | lecciones guiadas: LEDs, switches, UART, timer, ISR, depuración |
+| `hardboiled examples` | lista, muestra o copia los ejemplos incluidos |
+| `hardboiled demo` | compila y ejecuta un ejemplo (por defecto, la demo) |
+| `hardboiled info` | muestra segmentos, símbolos y fuentes de un ELF |
+| `hardboiled validate` | valida un board.toml |
+| `hardboiled board` | crea o muestra placas (board.toml) |
+| `hardboiled runtime` | imprime las rutas del runtime (include, linker script, crt0) |
+| `hardboiled gen-header` | genera hardboiled.h (o el linker script) para una placa |
+| `hardboiled config` | muestra o crea las preferencias del usuario |
+| `hardboiled doctor` | verifica Python, emulador, runtime, compilador y terminal |
+| `hardboiled explain` | explica una trampa o un aviso (sin tipo: la lista) |
+| `hardboiled completion` | imprime el script de autocompletado de la shell |
+
+Ayuda de cada comando: `hardboiled <comando> -h`.
+
+<!-- p1:referencia:fin -->
