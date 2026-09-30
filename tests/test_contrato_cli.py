@@ -10,14 +10,14 @@ from hardboiled.cli import main
 
 
 @pytest.mark.parametrize("opcion", ["-h", "--help", "-v", "--version"])
-def test_ayuda_y_version(capsys, opcion):
+def test_ayuda_y_version(capsys: pytest.CaptureFixture[str], opcion: str) -> None:
     with pytest.raises(SystemExit) as salida:
         main([opcion])
     assert salida.value.code == 0
     assert capsys.readouterr().out.strip()
 
 
-def test_doctor_json_con_sobre_comun(capsys):
+def test_doctor_json_con_sobre_comun(capsys: pytest.CaptureFixture[str]) -> None:
     codigo = main(["doctor", "--json", "--no-build"])
     datos = json.loads(capsys.readouterr().out)
     assert datos["schema_version"] == "1.0.0"
