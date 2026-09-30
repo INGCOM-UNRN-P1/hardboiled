@@ -8,6 +8,7 @@ import sys
 
 from hardboiled import __version__, i18n
 from hardboiled.cli import (
+    argparse_es,
     board,
     build,
     completion,
@@ -49,6 +50,7 @@ SUBCOMMANDS = (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    argparse_es.install()
     parser = argparse.ArgumentParser(
         prog="hardboiled",
         description="Emulador pedagógico RV32I bare-metal con depurador de código C.",

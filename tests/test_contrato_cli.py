@@ -24,3 +24,28 @@ def test_doctor_json_con_sobre_comun(capsys: pytest.CaptureFixture[str]) -> None
     assert datos["herramienta"] == "hardboiled"
     assert codigo == (0 if datos["ok"] else 1)
     assert {"checks", "errors", "warnings"} <= set(datos)  # compatibilidad
+
+
+def test_la_ayuda_esta_en_espanol(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    ayuda = capsys.readouterr().out
+    assert ayuda.startswith("uso: hardboiled") and "muestra esta ayuda y sale" in ayuda
+
+
+@pytest.mark.parametrize(
+    ("argumentos", "mensaje"),
+    [
+        (["nada"], "'nada' no es ninguna de estas opciones: new, "),
+        (["new"], "faltan los argumentos obligatorios: path"),
+        (["run", "--board"], "argumento --board: necesita un valor"),
+    ],
+)
+def test_errores_de_uso_en_espanol(
+    capsys: pytest.CaptureFixture[str], argumentos: list[str], mensaje: str
+) -> None:
+    with pytest.raises(SystemExit) as salida:
+        main(argumentos)
+    assert salida.value.code == 2
+    error = capsys.readouterr().err
+    assert "uso: hardboiled" in error and mensaje in error
