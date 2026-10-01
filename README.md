@@ -674,6 +674,17 @@ uv run python tests/fixtures/build.py  # recompilar los ELF de prueba
 Commits con [Conventional Commits](https://www.conventionalcommits.org/)
 (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 
+## Limitaciones
+
+- Emula RV32I con las extensiones M y C (`isa` de `board.toml`: rv32i, rv32im, rv32ic o rv32imc):
+  no hay punto flotante (F/D) ni instrucciones atómicas (A).
+- Es bare-metal: un solo núcleo, sin sistema operativo ni MMU; los programas usan el SDK
+  (`hardboiled.h`) para los periféricos.
+- El tiempo es simulado: cuenta ciclos, no depende de la velocidad de la máquina (con `clock_hz` la
+  TUI lo acompasa al reloj real, pero `--headless` lo ignora salvo con `--realtime`).
+- Solo existen los periféricos que describe este README; los demás de la sección J de `qol.md`
+  (I2C, SPI, PWM, sensores…) son propuestas todavía sin implementar.
+
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 
 ## Referencia rápida
@@ -704,6 +715,20 @@ Commits con [Conventional Commits](https://www.conventionalcommits.org/)
 | `hardboiled completion` | imprime el script de autocompletado de la shell |
 
 Ayuda de cada comando: `hardboiled <comando> -h`.
+
+### Salida JSON
+
+Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `hardboiled run`, `hardboiled test`, `hardboiled demo`, `hardboiled info`, `hardboiled doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
+
+### Códigos de salida
+
+| Código | Significado |
+|:--|:--|
+| `0`–`255` | `run --headless`: el valor que devuelve `main()` del programa (módulo 256). |
+| `1` | `test`: algún caso no pasó. |
+| `2` | Error de uso. |
+| `3` | `run --headless`: el programa cayó en una trampa. |
+| `130` | Se interrumpió con Ctrl+C. |
 
 <!-- p1:referencia:fin -->
 
