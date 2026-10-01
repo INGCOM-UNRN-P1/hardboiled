@@ -276,12 +276,14 @@ class RunnerThread(threading.Thread):
                     if switches is None:
                         raise DebuggerError(_("la placa no tiene switches"))
                     switches.toggle(pin)
+                    self.machine.cpu.refresh_deadline()  # puede rebotar
                     return
                 case CmdDriveGpio(pin_index=pin, device=device):
                     gpio = self.machine.gpio(device)
                     if gpio is None:
                         raise DebuggerError(_("la placa no tiene GPIO bidireccional"))
                     gpio.cycle_drive(pin)
+                    self.machine.cpu.refresh_deadline()  # puede rebotar
                     return
                 case _:
                     return

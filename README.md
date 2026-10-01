@@ -440,6 +440,27 @@ contrario al de afuera hay **cortocircuito**: se marca en `SHORT`, el pin se ve 
 `gpio_pullup()`, `gpio_write()`, `gpio_read()`, `gpio_toggle()`, `gpio_irq_enable(mask, falling)`,
 `gpio_pending()` y `gpio_clear()`. Es la base del bit-banging (qol.md #69).
 
+### Rebote de contactos
+
+Un botón o un switch real no cambia limpio: el contacto rebota. Con `bounce_cycles` en un
+periférico de entrada (`gpio_in`, `gpio_irq` o `gpio`), cada cambio llega al nivel nuevo, vuelve,
+llega, vuelve y recién se queda al cabo de esos ciclos: tres flancos por pulsación (y otros tres al
+soltar). Aparece el bug clásico de «apreté una vez y contó tres» y hace falta un antirrebote por
+software (esperar a que el nivel se estabilice, o ignorar flancos durante unos milisegundos):
+
+```toml
+[[peripherals]]
+name = "buttons"
+type = "gpio_irq"
+offset = 0x30
+width_bits = 4
+irq_line = 2
+bounce_cycles = 2000
+```
+
+Con 0 (el valor por defecto) los cambios son limpios. Un reset a mitad de un rebote deja la entrada
+en su nivel final.
+
 ### Entrada por la UART
 
 En la TUI, el campo debajo de la consola envía lo escrito (más `\n`) a la UART;

@@ -66,6 +66,7 @@ class Machine:
                     self.pic.raise_irq,
                     self.pic.lower_irq,
                     cfg.digits,
+                    cfg.bounce_cycles,
                 )
             )
         self.cpu = Cpu(

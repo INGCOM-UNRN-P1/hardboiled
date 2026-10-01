@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from hardboiled.core.events import EvtHardwareUpdated, EvtMessage
+from hardboiled.hardware import rebote
 from hardboiled.hardware.bus import Peripheral, merge
 from hardboiled.i18n import N_, _
 
@@ -49,8 +50,11 @@ class GpioPort(Peripheral):
         irq_line: int | None = None,
         raise_irq: Callable[[int], None] | None = None,
         lower_irq: Callable[[int], None] | None = None,
+        bounce_cycles: int = 0,
     ) -> None:
         super().__init__(name, offset, width_bits)
+        self.bounce_cycles = bounce_cycles
+        self._rebotes: rebote.Pendientes = []
         self.irq_line = irq_line
         self._raise_irq = raise_irq
         self._lower_irq = lower_irq
@@ -61,6 +65,9 @@ class GpioPort(Peripheral):
         self.reset()
 
     def reset(self) -> None:
+        # Un rebote a mitad de camino termina en su nivel final (el reloj vuelve a 0).
+        self.external.update(rebote.finales(self._rebotes))
+        self._rebotes = []
         self.direction = 0
         self.out = 0
         self.pull = 0
@@ -136,9 +143,24 @@ class GpioPort(Peripheral):
         self._check_pin(pin)
         if level is None:
             self.external.pop(pin, None)
+            self._rebotes = [cambio for cambio in self._rebotes if cambio[1] != pin]
         else:
-            self.external[pin] = 1 if level else 0
+            nivel = 1 if level else 0
+            if self.bounce_cycles and self.external.get(pin) != nivel:
+                self._rebotes = rebote.programar(
+                    self._rebotes, self.clock.cycles, pin, nivel, self.bounce_cycles
+                )
+            self.external[pin] = nivel
         self._update()
+
+    def next_deadline(self) -> int | None:
+        return rebote.proximo(self._rebotes)
+
+    def service(self, cycle: int) -> None:
+        hechos, self._rebotes = rebote.vencidos(self._rebotes, cycle)
+        for _ciclo, pin, nivel in hechos:
+            self.external[pin] = nivel
+            self._update()  # uno por uno: cada flanco queda registrado
 
     def cycle_drive(self, pin: int) -> None:
         """Suelto → alto → bajo → suelto: lo que hace un clic en el pin desde la interfaz."""

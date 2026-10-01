@@ -24,6 +24,8 @@ PeripheralType = Literal["gpio_out", "gpio_in", "gpio_irq", "gpio", "uart", "tim
 
 # Tipos de periférico que pueden pedir una interrupción.
 IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq", "gpio"})
+# Entradas de contacto, que pueden rebotar (bounce_cycles).
+BOUNCE_CAPABLE = frozenset({"gpio_in", "gpio_irq", "gpio"})
 
 PERIPHERAL_SIZES: dict[str, int] = {
     "gpio_out": LedBar.size,
@@ -132,6 +134,8 @@ class PeripheralConfig(_Model):
     width_bits: int = Field(default=32, ge=1, le=32)
     irq_line: int | None = Field(default=None, ge=0, lt=IRQ_LINES)
     digits: int = Field(default=4, ge=1, le=MAX_DIGITS)  # sólo sevenseg
+    # Rebote de contactos: ciclos que oscila una entrada al cambiar (0 = cambio limpio).
+    bounce_cycles: int = Field(default=0, ge=0, le=10_000_000)
 
     @property
     def size(self) -> int:
@@ -144,6 +148,9 @@ class PeripheralConfig(_Model):
         if self.irq_line is not None and self.type not in IRQ_CAPABLE:
             capable = ", ".join(sorted(IRQ_CAPABLE))
             raise ValueError(f"{self.name}: sólo generan interrupciones: {capable}")
+        if self.bounce_cycles and self.type not in BOUNCE_CAPABLE:
+            capable = ", ".join(sorted(BOUNCE_CAPABLE))
+            raise ValueError(f"{self.name}: sólo rebotan las entradas: {capable}")
         return self
 
 

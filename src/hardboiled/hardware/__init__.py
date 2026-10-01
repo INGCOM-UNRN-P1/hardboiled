@@ -37,11 +37,12 @@ def build_peripheral(
     raise_irq: Callable[[int], None],
     lower_irq: Callable[[int], None] | None = None,
     digits: int = 4,
+    bounce_cycles: int = 0,
 ) -> Peripheral:
     if kind == "gpio_out":
         return LedBar(name, offset, width_bits)
     if kind == "gpio_in":
-        return SwitchBank(name, offset, width_bits)
+        return SwitchBank(name, offset, width_bits, bounce_cycles)
     if kind == "uart":
         return Uart(name, offset, irq_line=irq_line, raise_irq=raise_irq, lower_irq=lower_irq)
     if kind == "timer":
@@ -49,7 +50,9 @@ def build_peripheral(
     if kind == "sevenseg":
         return SevenSegment(name, offset, digits)
     if kind == "gpio_irq":
-        return ButtonBank(name, offset, width_bits, irq_line, raise_irq, lower_irq)
+        return ButtonBank(
+            name, offset, width_bits, irq_line, raise_irq, lower_irq, bounce_cycles=bounce_cycles
+        )
     if kind == "gpio":
-        return GpioPort(name, offset, width_bits, irq_line, raise_irq, lower_irq)
+        return GpioPort(name, offset, width_bits, irq_line, raise_irq, lower_irq, bounce_cycles)
     raise ValueError(f"tipo de periférico desconocido: {kind}")

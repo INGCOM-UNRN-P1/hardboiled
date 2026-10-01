@@ -7,7 +7,8 @@ Registros:
     +0xC PENDING  flancos detectados; escribir 1 limpia (y retira la IRQ)
 
 La IRQ queda pedida mientras haya algún flanco pendiente de un botón habilitado.
-Desde la interfaz, un botón se presiona y se suelta solo `hold_cycles` después.
+Desde la interfaz, un botón se presiona y se suelta solo `hold_cycles` después. Con
+`bounce_cycles`, al presionarse y al soltarse el contacto rebota (ver rebote.py).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from hardboiled.core.events import EvtHardwareUpdated
+from hardboiled.hardware import rebote
 from hardboiled.hardware.bus import Peripheral, merge
 from hardboiled.i18n import N_, _
 
@@ -38,12 +40,14 @@ class ButtonBank(Peripheral):
         raise_irq: Callable[[int], None] | None = None,
         lower_irq: Callable[[int], None] | None = None,
         hold_cycles: int = DEFAULT_HOLD_CYCLES,
+        bounce_cycles: int = 0,
     ) -> None:
         super().__init__(name, offset, width_bits)
         self.irq_line = irq_line
         self._raise_irq = raise_irq
         self._lower_irq = lower_irq
         self.hold_cycles = hold_cycles
+        self.bounce_cycles = bounce_cycles
         self._mask = (1 << width_bits) - 1
         self.reset()
 
@@ -54,6 +58,7 @@ class ButtonBank(Peripheral):
         self.pending = 0
         self.presses = 0
         self._releases: dict[int, int] = {}  # pin -> ciclo en que se suelta
+        self._rebotes: rebote.Pendientes = []
 
     # --------------------------------------------------------------- estímulos
 
@@ -61,9 +66,18 @@ class ButtonBank(Peripheral):
         """Presiona un botón; se suelta solo después de `hold_cycles`."""
         if not 0 <= pin < self.width_bits:
             raise ValueError(_("{device} no tiene el botón {pin}", device=self.name, pin=pin))
-        self._set(pin, True)
-        self._releases[pin] = self.clock.cycles + self.hold_cycles
+        ahora = self.clock.cycles
+        self._contacto(pin, True, ahora)
+        # Se suelta recién cuando terminó de rebotar al apretarse.
+        self._releases[pin] = ahora + max(self.hold_cycles, self.bounce_cycles + 1)
         self.presses += 1
+
+    def _contacto(self, pin: int, pressed: bool, ahora: int) -> None:
+        if self.bounce_cycles:
+            self._rebotes = rebote.programar(
+                self._rebotes, ahora, pin, int(pressed), self.bounce_cycles
+            )
+        self._set(pin, pressed)
 
     def _set(self, pin: int, pressed: bool) -> None:
         bit = 1 << pin
@@ -95,13 +109,25 @@ class ButtonBank(Peripheral):
     # ---------------------------------------------------------------- tiempo
 
     def next_deadline(self) -> int | None:
-        return min(self._releases.values()) if self._releases else None
+        candidatos = list(self._releases.values())
+        if self._rebotes:
+            candidatos.append(self._rebotes[0][0])
+        return min(candidatos) if candidatos else None
 
     def service(self, cycle: int) -> None:
-        for pin, release in sorted(self._releases.items()):
-            if release <= cycle:
-                del self._releases[pin]
-                self._set(pin, False)
+        # Rebotes y sueltas en orden de ciclo: soltar un botón también rebota.
+        while True:
+            proximo_rebote = rebote.proximo(self._rebotes)
+            suelta = min(self._releases.items(), key=lambda item: (item[1], item[0]), default=None)
+            momentos = [m for m in (proximo_rebote, suelta[1] if suelta else None) if m is not None]
+            if not momentos or min(momentos) > cycle:
+                return
+            if proximo_rebote is not None and proximo_rebote == min(momentos):
+                (_ciclo, pin, nivel), self._rebotes = self._rebotes[0], self._rebotes[1:]
+                self._set(pin, bool(nivel))
+            elif suelta is not None:
+                del self._releases[suelta[0]]
+                self._contacto(suelta[0], False, suelta[1])
 
     # ------------------------------------------------------------- registros
 
