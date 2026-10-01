@@ -6,8 +6,9 @@ estimado (S: horas · M: 1-2 días · L: más).
 
 > **Estado**: las mejoras 1 a 63 (secciones A a I) están implementadas. Cada una
 > tiene su commit, que se encuentra con `git log --grep "QoL #N"`. La sección J
-> (64 a 83) reúne propuestas de hardware nuevo: están implementadas la 69 (GPIO
-> bidireccional) y la 74 (rebote de contactos); las demás, todavía no.
+> (64 a 83) reúne propuestas de hardware nuevo: están implementadas las tres de la
+> base, 69 (GPIO bidireccional), 74 (rebote de contactos) y 64 (ADC con
+> potenciómetros); las demás, todavía no.
 
 ---
 

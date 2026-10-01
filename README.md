@@ -440,6 +440,33 @@ contrario al de afuera hay **cortocircuito**: se marca en `SHORT`, el pin se ve 
 `gpio_pullup()`, `gpio_write()`, `gpio_read()`, `gpio_toggle()`, `gpio_irq_enable(mask, falling)`,
 `gpio_pending()` y `gpio_clear()`. Es la base del bit-banging (qol.md #69).
 
+### ADC con potenciómetros
+
+Un convertidor analógico-digital (`type = "adc"`, 16 bytes) de hasta 8 canales: se elige el canal,
+se pide la conversión (`CTRL`: bits 0-2 el canal, bit 8 `START`, bit 9 pedir la IRQ al terminar), se
+espera `DONE` en `STATUS` (por sondeo o por IRQ) y se lee `DATA`. La tensión se toma al iniciar
+(muestreo y retención) y el resultado está `conversion_cycles` después; `INFO` dice la resolución y
+la cantidad de canales:
+
+```toml
+[[peripherals]]
+name = "adc0"
+type = "adc"
+offset = 0x80
+irq_line = 4
+channels = 4            # 1 a 8
+resolution_bits = 10    # 8 a 16: resultados de 0 a 1023
+conversion_cycles = 100
+vref_mv = 3300          # la tensión de referencia: el máximo
+```
+
+Cada canal tiene un potenciómetro entre 0 y `vref_mv` milivoltios: en la TUI se gira con `-` y `+`
+(5 % del recorrido por clic) y en el guion de entrada con `adc = [[canal, milivoltios], ...]`; su
+posición sobrevive al reset. El SDK suma `adc_read(canal)` (convierte y espera), `adc_start(canal,
+con_irq)`, `adc_done()`, `adc_value()` (lee y limpia `DONE`), `adc_to_mv(valor)` y las constantes
+`ADC_MAX`, `ADC_VREF_MV` y `ADC_CHANNELS`. Es la base de los sensores analógicos de la sección J de
+`qol.md` (qol.md #64).
+
 ### Rebote de contactos
 
 Un botón o un switch real no cambia limpio: el contacto rebota. Con `bounce_cycles` en un
@@ -492,6 +519,7 @@ press = [1, 2]         # botones (se sueltan solos)
 [[at]]
 cycle = 150_000
 gpio_low = [0]         # pines del GPIO manejados desde afuera: gpio_high, gpio_low, gpio_float
+adc = [[0, 1650]]      # potenciómetros del ADC: [canal, milivoltios]
 ```
 
 Si el programa duerme con `wfi`, el reloj avanza directo hasta el próximo

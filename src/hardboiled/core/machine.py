@@ -17,6 +17,7 @@ from hardboiled.core.pic import InterruptController
 from hardboiled.core.unwind import CallFrameTable
 from hardboiled.core.variables import VariableTable
 from hardboiled.hardware import (
+    Adc,
     ButtonBank,
     GpioPort,
     MmioBus,
@@ -67,6 +68,10 @@ class Machine:
                     self.pic.lower_irq,
                     cfg.digits,
                     cfg.bounce_cycles,
+                    cfg.channels,
+                    cfg.resolution_bits,
+                    cfg.conversion_cycles,
+                    cfg.vref_mv,
                 )
             )
         self.cpu = Cpu(
@@ -107,6 +112,7 @@ class Machine:
                 dev.offset,
                 dev.width_bits,
                 dev.digits if isinstance(dev, SevenSegment) else 0,
+                dev.channels if isinstance(dev, Adc) else 0,
             )
             for dev in self.peripherals
         )
@@ -121,6 +127,13 @@ class Machine:
         """El puerto GPIO bidireccional de la placa (el primero, o el que se llama `name`)."""
         for dev in self.peripherals:
             if isinstance(dev, GpioPort) and (name is None or dev.name == name):
+                return dev
+        return None
+
+    def adc(self, name: str | None = None) -> Adc | None:
+        """El ADC de la placa (el primero, o el que se llama `name`)."""
+        for dev in self.peripherals:
+            if isinstance(dev, Adc) and (name is None or dev.name == name):
                 return dev
         return None
 

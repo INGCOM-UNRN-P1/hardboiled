@@ -45,6 +45,7 @@ from hardboiled.core.events import (
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
+    CmdTurnPotentiometer,
     CmdUartInput,
     Command,
     ConditionInfo,
@@ -284,6 +285,12 @@ class RunnerThread(threading.Thread):
                         raise DebuggerError(_("la placa no tiene GPIO bidireccional"))
                     gpio.cycle_drive(pin)
                     self.machine.cpu.refresh_deadline()  # puede rebotar
+                    return
+                case CmdTurnPotentiometer(channel=channel, percent=percent, device=device):
+                    adc = self.machine.adc(device)
+                    if adc is None:
+                        raise DebuggerError(_("la placa no tiene ADC"))
+                    adc.nudge(channel, percent)
                     return
                 case _:
                     return

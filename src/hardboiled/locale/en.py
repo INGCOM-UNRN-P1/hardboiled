@@ -212,6 +212,10 @@ MESSAGES: dict[str, str] = {
     "{device} no tiene el botón {pin}": "{device} has no button {pin}",
     "{device} no tiene el pin {pin}": "{device} has no pin {pin}",
     "IN y SHORT son de sólo lectura": "IN and SHORT are read-only",
+    "DATA e INFO son de sólo lectura": "DATA and INFO are read-only",
+    "  último: {data}": "  last: {data}",
+    "el ADC no tiene ese canal": "the ADC has no such channel",
+    "{device} no tiene el canal {channel}": "{device} has no channel {channel}",
     "→ salida, ← entrada; subrayado: manejado desde afuera (clic: suelto, alto, bajo); "
     "rojo: cortocircuito": (
         "→ output, ← input; underlined: driven from outside (click: floating, high, low); "
@@ -256,6 +260,7 @@ MESSAGES: dict[str, str] = {
     "la placa no tiene UART": "the board has no UART",
     "la placa no tiene switches": "the board has no switches",
     "la placa no tiene GPIO bidireccional": "the board has no bidirectional GPIO",
+    "la placa no tiene ADC": "the board has no ADC",
     "{message}. F5 continúa otras {count} instrucciones.": (
         "{message}. F5 continues for another {count} instructions."
     ),

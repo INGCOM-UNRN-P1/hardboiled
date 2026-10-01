@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Button, Label, Static
 
 from hardboiled.core.events import PeripheralInfo
+from hardboiled.hardware.adc import POT_BASE
 from hardboiled.i18n import _
 from hardboiled.ui.palette import current_palette
 
@@ -218,6 +219,82 @@ class GpioPortView(Horizontal):
             )
 
 
+class AdcView(Vertical):
+    """Potenciómetros del ADC: una fila por canal con su tensión, y - / + para girarlo un 5 %."""
+
+    DEFAULT_CSS = """
+    AdcView { height: auto; }
+    AdcView Horizontal { height: 1; }
+    AdcView .nombre { width: 9; text-style: bold; }
+    AdcView Button { min-width: 3; width: 3; margin: 0 1 0 0; }
+    AdcView .barra { width: 1fr; }
+    """
+
+    PASO = 5  # por ciento del recorrido por clic
+
+    class Turned(Message):
+        def __init__(self, device: str, channel: int, percent: int) -> None:
+            super().__init__()
+            self.device = device
+            self.channel = channel
+            self.percent = percent
+
+    def __init__(self, info: PeripheralInfo) -> None:
+        super().__init__()
+        self.info = info
+        self.millivolts = [0] * max(info.channels, 1)
+        self.state: dict[str, int] = {}
+
+    def compose(self) -> ComposeResult:
+        for channel in range(len(self.millivolts)):
+            with Horizontal():
+                yield Label(self.info.name if channel == 0 else "", classes="nombre")
+                yield Button("-", id=f"adc-menos-{channel}", compact=True)
+                yield Button("+", id=f"adc-mas-{channel}", compact=True)
+                yield Static(id=f"adc-barra-{channel}", classes="barra")
+
+    def on_mount(self) -> None:
+        self._refresh_bars()
+
+    def set_register(self, offset: int, value: int) -> None:
+        channel = (offset - POT_BASE) // 4
+        if offset >= POT_BASE and 0 <= channel < len(self.millivolts):
+            self.millivolts[channel] = value
+            self._refresh_bars()
+
+    def set_state(self, state: dict[str, int]) -> None:
+        self.state = state
+        for channel in range(len(self.millivolts)):
+            self.millivolts[channel] = state.get(f"mv{channel}", self.millivolts[channel])
+        self._refresh_bars()
+
+    def _refresh_bars(self) -> None:
+        top = max(self.state.get("vref", 3300), 1)
+        for channel, millivolts in enumerate(self.millivolts):
+            try:
+                barra = self.query_one(f"#adc-barra-{channel}", Static)
+            except NoMatches:
+                return  # todavía no se montó; on_mount lo aplica
+            llenos = round(20 * min(millivolts, top) / top)
+            texto = Text.assemble(
+                (f"c{channel} ", "dim"),
+                ("█" * llenos, "green"),
+                ("░" * (20 - llenos), "dim"),
+                f" {millivolts} mV",
+            )
+            if channel == self.state.get("channel") and self.state.get("conversions"):
+                texto.append(_("  último: {data}", data=self.state.get("data", 0)), style="bold")
+            barra.update(texto)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        identificador = event.button.id or ""
+        if identificador.startswith("adc-"):
+            _prefijo, sentido, canal = identificador.split("-")
+            paso = self.PASO if sentido == "mas" else -self.PASO
+            self.post_message(self.Turned(self.info.name, int(canal), paso))
+
+
 # (fila, columna, carácter) de cada segmento en una celda de 3x3.
 SEGMENT_CELLS = {
     0: (0, 1, "_"),  # a
@@ -339,8 +416,10 @@ class HardwareView(Vertical):
             self.call_later(replace)
         self._peripherals = peripherals
 
-    def _widgets_for(self, peripherals: tuple[PeripheralInfo, ...]) -> list[Static | Horizontal]:
-        widgets: list[Static | Horizontal] = []
+    def _widgets_for(
+        self, peripherals: tuple[PeripheralInfo, ...]
+    ) -> list[Static | Horizontal | Vertical]:
+        widgets: list[Static | Horizontal | Vertical] = []
         for info in peripherals:
             if info.kind == "gpio_out":
                 widgets.append(LedBarView(info))
@@ -352,6 +431,8 @@ class HardwareView(Vertical):
                 widgets.append(ButtonBankView(info))
             elif info.kind == "gpio":
                 widgets.append(GpioPortView(info))
+            elif info.kind == "adc":
+                widgets.append(AdcView(info))
             elif info.kind == "sevenseg":
                 widgets.append(SevenSegView(info))
         return widgets
@@ -363,7 +444,7 @@ class HardwareView(Vertical):
             info = getattr(widget, "info", None)
             if info is None or info.name not in states:
                 continue
-            if isinstance(widget, TimerView):
+            if isinstance(widget, TimerView | AdcView):
                 widget.set_state(states[info.name])
             elif isinstance(widget, ButtonBankView | GpioPortView):
                 widget.set_detail(states[info.name])
@@ -375,5 +456,5 @@ class HardwareView(Vertical):
                 continue
             if isinstance(widget, LedBarView | SwitchBankView | ButtonBankView | GpioPortView):
                 widget.set_value(value)
-            elif isinstance(widget, TimerView | SevenSegView):
+            elif isinstance(widget, TimerView | SevenSegView | AdcView):
                 widget.set_register(offset, value)

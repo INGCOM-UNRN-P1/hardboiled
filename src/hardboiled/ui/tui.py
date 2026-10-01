@@ -41,6 +41,7 @@ from hardboiled.core.events import (
     CmdToggleBreakpoint,
     CmdToggleSwitch,
     CmdToggleWatchpoint,
+    CmdTurnPotentiometer,
     CmdUartInput,
     Command,
     Event,
@@ -68,6 +69,7 @@ from hardboiled.ui.widgets.code_view import CodeView
 from hardboiled.ui.widgets.disasm_view import DisassemblyView
 from hardboiled.ui.widgets.file_picker import FilePicker
 from hardboiled.ui.widgets.hardware_view import (
+    AdcView,
     ButtonBankView,
     GpioPortView,
     HardwareView,
@@ -718,3 +720,6 @@ class HardboiledApp(App[None]):
 
     def on_gpio_port_view_driven(self, message: GpioPortView.Driven) -> None:
         self.send(CmdDriveGpio(message.pin_index, message.device))
+
+    def on_adc_view_turned(self, message: AdcView.Turned) -> None:
+        self.send(CmdTurnPotentiometer(message.channel, message.percent, message.device))

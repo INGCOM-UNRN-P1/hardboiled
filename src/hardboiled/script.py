@@ -21,6 +21,10 @@ Permite probar firmware interactivo de forma reproducible (sin TUI):
     gpio_low = [5]           # …a 0
     gpio_float = [7]         # …o que se sueltan (leen el pull-up, si hay)
 
+    [[at]]
+    cycle = 150_000
+    adc = [[0, 1650]]        # potenciómetros del ADC: [canal, milivoltios]
+
 El guion se conecta al bus como una fuente con vencimientos: `wfi` adelanta el
 reloj hasta el próximo estímulo, igual que hasta el próximo tick de un timer.
 """
@@ -53,6 +57,7 @@ class Step(BaseModel):
     gpio_high: list[int] = Field(default_factory=list)
     gpio_low: list[int] = Field(default_factory=list)
     gpio_float: list[int] = Field(default_factory=list)
+    adc: list[tuple[int, int]] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -76,8 +81,14 @@ class Step(BaseModel):
     def _check(self) -> Self:
         if (self.cycle is None) == (self.ms is None):
             raise ValueError("cada paso necesita `cycle` o `ms` (uno solo)")
-        if self.switches is None and self.uart is None and not self.press and not self.gpio:
-            raise ValueError("el paso no hace nada: falta `switches`, `uart`, `press` o `gpio_*`")
+        if (
+            self.switches is None
+            and self.uart is None
+            and not (self.press or self.gpio or self.adc)
+        ):
+            raise ValueError(
+                "el paso no hace nada: falta `switches`, `uart`, `press`, `gpio_*` o `adc`"
+            )
         return self
 
     def describe(self) -> str:
@@ -95,6 +106,8 @@ class Step(BaseModel):
         ):
             if pins:
                 parts.append(f"gpio {', '.join(str(pin) for pin in pins)} {nombre}")
+        for channel, millivolts in self.adc:
+            parts.append(f"adc {channel} = {millivolts} mV")
         return "; ".join(parts)
 
 
@@ -135,6 +148,7 @@ class ScriptPlayer:
         self._uart = machine.uart()
         self._buttons = machine.buttons()
         self._gpio = machine.gpio()
+        self._adc = machine.adc()
         steps = []
         for number, step in enumerate(script.at, start=1):
             if step.cycle is not None:
@@ -169,6 +183,12 @@ class ScriptPlayer:
             bad = [pin for pin, _ in step.gpio if not 0 <= pin < self._gpio.width_bits]
             if bad:
                 raise ScriptError(f"paso {number}: no existe el pin {bad[0]} del GPIO")
+        if step.adc:
+            if self._adc is None:
+                raise ScriptError(f"paso {number}: la placa no tiene ADC")
+            bad = [ch for ch, _ in step.adc if not 0 <= ch < self._adc.channels]
+            if bad:
+                raise ScriptError(f"paso {number}: no existe el canal {bad[0]} del ADC")
 
     @property
     def pending(self) -> int:
@@ -191,6 +211,9 @@ class ScriptPlayer:
             if self._gpio is not None:
                 for pin, level in step.gpio:
                     self._gpio.drive(pin, level)
+            if self._adc is not None:
+                for channel, millivolts in step.adc:
+                    self._adc.set_millivolts(channel, millivolts)
             self.applied.append(Applied(cycle, step.describe()))
 
     def reset(self) -> None:

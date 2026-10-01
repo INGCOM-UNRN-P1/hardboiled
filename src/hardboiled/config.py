@@ -10,6 +10,7 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from hardboiled.core.pic import IRQ_LINES, InterruptController
+from hardboiled.hardware.adc import Adc
 from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.gpio_port import GpioPort
@@ -20,10 +21,12 @@ from hardboiled.hardware.uart import Uart
 PAGE = 0x1000
 NULL_GUARD_END = 0x1_0000
 
-PeripheralType = Literal["gpio_out", "gpio_in", "gpio_irq", "gpio", "uart", "timer", "sevenseg"]
+PeripheralType = Literal[
+    "gpio_out", "gpio_in", "gpio_irq", "gpio", "uart", "timer", "sevenseg", "adc"
+]
 
 # Tipos de periférico que pueden pedir una interrupción.
-IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq", "gpio"})
+IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq", "gpio", "adc"})
 # Entradas de contacto, que pueden rebotar (bounce_cycles).
 BOUNCE_CAPABLE = frozenset({"gpio_in", "gpio_irq", "gpio"})
 
@@ -32,6 +35,7 @@ PERIPHERAL_SIZES: dict[str, int] = {
     "gpio_in": SwitchBank.size,
     "gpio_irq": ButtonBank.size,
     "gpio": GpioPort.size,
+    "adc": Adc.size,
     "sevenseg": SevenSegment.size,
     "uart": Uart.size,
     "timer": Timer.size,
@@ -136,6 +140,11 @@ class PeripheralConfig(_Model):
     digits: int = Field(default=4, ge=1, le=MAX_DIGITS)  # sólo sevenseg
     # Rebote de contactos: ciclos que oscila una entrada al cambiar (0 = cambio limpio).
     bounce_cycles: int = Field(default=0, ge=0, le=10_000_000)
+    # Sólo adc: canales, resolución, duración de cada conversión y tensión de referencia.
+    channels: int = Field(default=4, ge=1, le=8)
+    resolution_bits: int = Field(default=10, ge=8, le=16)
+    conversion_cycles: int = Field(default=100, ge=1, le=10_000_000)
+    vref_mv: int = Field(default=3300, ge=1, le=100_000)
 
     @property
     def size(self) -> int:
@@ -151,6 +160,10 @@ class PeripheralConfig(_Model):
         if self.bounce_cycles and self.type not in BOUNCE_CAPABLE:
             capable = ", ".join(sorted(BOUNCE_CAPABLE))
             raise ValueError(f"{self.name}: sólo rebotan las entradas: {capable}")
+        solo_adc = {"channels", "resolution_bits", "conversion_cycles", "vref_mv"}
+        if self.type != "adc" and solo_adc & self.model_fields_set:
+            usados = ", ".join(sorted(solo_adc & self.model_fields_set))
+            raise ValueError(f"{self.name}: {usados} son opciones del adc")
         return self
 
 

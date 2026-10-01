@@ -29,6 +29,7 @@ CLASSIC = {
     "timer": ("TIMER", "timer"),
     "gpio_irq": ("BUTTONS", "button"),
     "gpio": ("GPIO", "gpio"),
+    "adc": ("ADC", "adc"),
     "sevenseg": ("SEG", "seg"),
 }
 
@@ -91,6 +92,17 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
             (f"{n.macro}_EDGE", p.offset + 0x14, "por pin: 0 = flanco de subida, 1 = de bajada"),
             (f"{n.macro}_PENDING", p.offset + 0x18, "flancos detectados (escribir 1 limpia)"),
             (f"{n.macro}_SHORT", p.offset + 0x1C, "sólo lectura: pines en cortocircuito"),
+        ]
+    if p.type == "adc":
+        return [
+            (f"{n.macro}_CTRL", p.offset, "bits 0-2 canal, bit 8 START, bit 9 IRQ al terminar"),
+            (f"{n.macro}_STATUS", p.offset + 4, "bit 0 = convirtiendo, bit 1 = listo (1 limpia)"),
+            (
+                f"{n.macro}_DATA",
+                p.offset + 8,
+                f"sólo lectura: resultado ({p.resolution_bits} bits)",
+            ),
+            (f"{n.macro}_INFO", p.offset + 12, "sólo lectura: resolución y cantidad de canales"),
         ]
     if p.type == "uart":
         return [
@@ -221,6 +233,41 @@ static inline void {f}_irq_disable(uint32_t mask) {{ {m}_IRQ_EN = {m}_IRQ_EN & ~
 static inline uint32_t {f}_pending(void) {{ return {m}_PENDING; }}
 static inline void {f}_clear(uint32_t mask) {{ {m}_PENDING = mask; }}
 """
+    if p.type == "adc":
+        return f"""\
+#define {m}_CHANNELS {p.channels}
+#define {m}_MAX {(1 << p.resolution_bits) - 1}u
+#define {m}_VREF_MV {p.vref_mv}u
+
+/* Inicia la conversión del canal `channel`; con `with_irq`, pide la IRQ al terminar. */
+static inline void {f}_start(unsigned int channel, int with_irq)
+{{
+    {m}_STATUS = ADC_STATUS_DONE;
+    {m}_CTRL = (channel & 7u) | ADC_CTRL_START | (with_irq ? ADC_CTRL_IRQ : 0u);
+}}
+
+static inline int {f}_busy(void) {{ return ({m}_STATUS & ADC_STATUS_BUSY) != 0; }}
+static inline int {f}_done(void) {{ return ({m}_STATUS & ADC_STATUS_DONE) != 0; }}
+
+/* Resultado de la última conversión (y limpia DONE, que retira la IRQ). */
+static inline uint32_t {f}_value(void)
+{{
+    {m}_STATUS = ADC_STATUS_DONE;
+    return {m}_DATA;
+}}
+
+/* Convierte el canal y espera el resultado (por sondeo). */
+static inline uint32_t {f}_read(unsigned int channel)
+{{
+    {f}_start(channel, 0);
+    while (!{f}_done()) {{
+    }}
+    return {f}_value();
+}}
+
+/* Tensión en milivoltios de un resultado: valor * VREF / MAX. */
+static inline uint32_t {f}_to_mv(uint32_t value) {{ return value * {m}_VREF_MV / {m}_MAX; }}
+"""
     if p.type == "uart":
         return f"""\
 static inline void {f}_putc(char c)
@@ -293,6 +340,7 @@ static inline void {f}_clear(void) {{ {m}_STATUS = 1u; }}
 SECTION_TITLES = {
     "gpio_irq": "Botones",
     "gpio": "GPIO bidireccional",
+    "adc": "ADC",
     "sevenseg": "Display de 7 segmentos",
     "gpio_out": "LEDs",
     "gpio_in": "Switches",
@@ -347,6 +395,13 @@ def generate_header(board: BoardConfig) -> str:
         out += ["#define TIMER_CTRL_ENABLE (1u << 0)", "#define TIMER_CTRL_IRQ    (1u << 1)"]
     if "uart" in kinds:
         out += ["#define UART_STATUS_READY (1u << 0)", "#define UART_STATUS_RX    (1u << 1)"]
+    if "adc" in kinds:
+        out += [
+            "#define ADC_CTRL_START   (1u << 8)",
+            "#define ADC_CTRL_IRQ     (1u << 9)",
+            "#define ADC_STATUS_BUSY  (1u << 0)",
+            "#define ADC_STATUS_DONE  (1u << 1)",
+        ]
     out += ["", f"#define HB_IRQ_LINES {IRQ_LINES}"]
     for peripheral in board.peripherals:
         if peripheral.irq_line is not None:

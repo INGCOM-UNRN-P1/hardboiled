@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from hardboiled.hardware.adc import Adc
 from hardboiled.hardware.bus import Clock, MmioBus, MmioFault, Peripheral
 from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
@@ -13,6 +14,7 @@ from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
 
 __all__ = [
+    "Adc",
     "ButtonBank",
     "Clock",
     "GpioPort",
@@ -38,6 +40,10 @@ def build_peripheral(
     lower_irq: Callable[[int], None] | None = None,
     digits: int = 4,
     bounce_cycles: int = 0,
+    channels: int = 4,
+    resolution_bits: int = 10,
+    conversion_cycles: int = 100,
+    vref_mv: int = 3300,
 ) -> Peripheral:
     if kind == "gpio_out":
         return LedBar(name, offset, width_bits)
@@ -55,4 +61,16 @@ def build_peripheral(
         )
     if kind == "gpio":
         return GpioPort(name, offset, width_bits, irq_line, raise_irq, lower_irq, bounce_cycles)
+    if kind == "adc":
+        return Adc(
+            name,
+            offset,
+            channels,
+            resolution_bits,
+            conversion_cycles,
+            vref_mv,
+            irq_line,
+            raise_irq,
+            lower_irq,
+        )
     raise ValueError(f"tipo de periférico desconocido: {kind}")

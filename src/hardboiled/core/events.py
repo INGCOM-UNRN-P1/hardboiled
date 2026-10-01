@@ -124,6 +124,15 @@ class CmdToggleSwitch:
 
 
 @dataclass(frozen=True)
+class CmdTurnPotentiometer:
+    """Gira el potenciómetro de un canal del ADC un porcentaje de su recorrido."""
+
+    channel: int
+    percent: int
+    device: str | None = None  # None: el primer ADC de la placa
+
+
+@dataclass(frozen=True)
 class CmdDriveGpio:
     """Cambia lo que maneja un pin del GPIO desde afuera: suelto → alto → bajo → suelto."""
 
@@ -177,6 +186,7 @@ Command = (
     | CmdSetClock
     | CmdToggleSwitch
     | CmdDriveGpio
+    | CmdTurnPotentiometer
     | CmdProfile
     | CmdReload
     | CmdPause
@@ -196,6 +206,7 @@ class PeripheralInfo:
     offset: int
     width_bits: int
     digits: int = 0  # sólo displays de 7 segmentos
+    channels: int = 0  # sólo ADC
 
 
 @dataclass(frozen=True)
