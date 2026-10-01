@@ -163,8 +163,8 @@ int main(void)
     gpio_irq_enable(1u << 0, 1);  /* avisar al apretar (flanco de bajada) */
     attach_irq(IRQ_PUERTO, al_bajar);
     interrupts_enable();
-    while (flancos < 2) {
-        wait_for_interrupt();
+    /* Un tiempo fijo (no «hasta el segundo flanco»): así se ve una IRQ espuria. */
+    for (volatile int i = 0; i < 20000; i++) {
     }
     gpio_write(7, 1);
     uart_putc((char)('0' + flancos));

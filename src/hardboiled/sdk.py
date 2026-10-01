@@ -213,6 +213,7 @@ static inline int {f}_read(unsigned int pin) {{ return (int)(({m}_IN >> pin) & 1
 static inline void {f}_irq_enable(uint32_t mask, int falling)
 {{
     {m}_EDGE = falling ? ({m}_EDGE | mask) : ({m}_EDGE & ~mask);
+    {m}_PENDING = mask; /* descarta flancos viejos (p. ej., el del pull-up al habilitarlo) */
     {m}_IRQ_EN = {m}_IRQ_EN | mask;
 }}
 
