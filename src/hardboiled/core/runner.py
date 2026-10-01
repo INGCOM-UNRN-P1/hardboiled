@@ -24,6 +24,7 @@ from hardboiled.core.debugger import DebuggerError
 from hardboiled.core.elf import ElfLoadError
 from hardboiled.core.events import (
     CmdContinue,
+    CmdDriveGpio,
     CmdPause,
     CmdPressButton,
     CmdProfile,
@@ -275,6 +276,12 @@ class RunnerThread(threading.Thread):
                     if switches is None:
                         raise DebuggerError(_("la placa no tiene switches"))
                     switches.toggle(pin)
+                    return
+                case CmdDriveGpio(pin_index=pin, device=device):
+                    gpio = self.machine.gpio(device)
+                    if gpio is None:
+                        raise DebuggerError(_("la placa no tiene GPIO bidireccional"))
+                    gpio.cycle_drive(pin)
                     return
                 case _:
                     return

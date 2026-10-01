@@ -141,6 +141,83 @@ class ButtonBankView(Horizontal):
             self.post_message(self.Pressed(int(event.button.id.removeprefix("btn-"))))
 
 
+class GpioPortView(Horizontal):
+    """Pines del GPIO bidireccional: dirección (→ salida, ← entrada), nivel y quién los maneja.
+
+    Un clic en un pin cambia lo que lo maneja desde afuera: suelto → alto → bajo → suelto.
+    """
+
+    DEFAULT_CSS = """
+    GpioPortView { height: 1; }
+    GpioPortView Label { width: 9; text-style: bold; }
+    GpioPortView Button { min-width: 6; width: 6; margin: 0 1 0 0; }
+    GpioPortView Button.high { background: $success; }
+    GpioPortView Button.driven { text-style: bold underline; }
+    GpioPortView Button.short { background: $error; }
+    GpioPortView Button.pending { text-style: bold reverse; }
+    """
+
+    class Driven(Message):
+        def __init__(self, device: str, pin_index: int) -> None:
+            super().__init__()
+            self.device = device
+            self.pin_index = pin_index
+
+    def __init__(self, info: PeripheralInfo) -> None:
+        super().__init__()
+        self.info = info
+        self.level = 0
+        self.state: dict[str, int] = {}
+
+    def compose(self) -> ComposeResult:
+        yield Label(self.info.name)
+        for pin in reversed(range(self.info.width_bits)):
+            yield Button(f"{pin}←0", id=f"gpio-{pin}", compact=True)
+
+    def on_mount(self) -> None:
+        self._refresh_pins()
+
+    def set_value(self, value: int) -> None:
+        self.level = value
+        self._refresh_pins()
+
+    def set_detail(self, state: dict[str, int]) -> None:
+        self.state = state
+        self.level = state.get("level", self.level)
+        self._refresh_pins()
+
+    def _refresh_pins(self) -> None:
+        direction = self.state.get("dir", 0)
+        driven = self.state.get("driven", 0)
+        for pin in range(self.info.width_bits):
+            try:
+                button = self.query_one(f"#gpio-{pin}", Button)
+            except NoMatches:
+                return  # todavía no se montaron los pines; on_mount lo aplica
+            bit = 1 << pin
+            arrow = "→" if direction & bit else "←"
+            button.label = f"{pin}{arrow}{1 if self.level & bit else 0}"
+            button.set_class(bool(self.level & bit), "high")
+            button.set_class(bool(driven & bit), "driven")
+            button.set_class(bool(self.state.get("short", 0) & bit), "short")
+            button.set_class(bool(self.state.get("pending", 0) & bit), "pending")
+        try:
+            label = self.query_one(Label)
+        except NoMatches:
+            return
+        label.tooltip = _(
+            "→ salida, ← entrada; subrayado: manejado desde afuera (clic: suelto, alto, bajo); "
+            "rojo: cortocircuito"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id is not None:
+            self.post_message(
+                self.Driven(self.info.name, int(event.button.id.removeprefix("gpio-")))
+            )
+
+
 # (fila, columna, carácter) de cada segmento en una celda de 3x3.
 SEGMENT_CELLS = {
     0: (0, 1, "_"),  # a
@@ -273,6 +350,8 @@ class HardwareView(Vertical):
                 widgets.append(TimerView(info))
             elif info.kind == "gpio_irq":
                 widgets.append(ButtonBankView(info))
+            elif info.kind == "gpio":
+                widgets.append(GpioPortView(info))
             elif info.kind == "sevenseg":
                 widgets.append(SevenSegView(info))
         return widgets
@@ -286,7 +365,7 @@ class HardwareView(Vertical):
                 continue
             if isinstance(widget, TimerView):
                 widget.set_state(states[info.name])
-            elif isinstance(widget, ButtonBankView):
+            elif isinstance(widget, ButtonBankView | GpioPortView):
                 widget.set_detail(states[info.name])
 
     def update_device(self, name: str, offset: int, value: int) -> None:
@@ -294,7 +373,7 @@ class HardwareView(Vertical):
             info = getattr(widget, "info", None)
             if info is None or info.name != name:
                 continue
-            if isinstance(widget, LedBarView | SwitchBankView | ButtonBankView):
+            if isinstance(widget, LedBarView | SwitchBankView | ButtonBankView | GpioPortView):
                 widget.set_value(value)
             elif isinstance(widget, TimerView | SevenSegView):
                 widget.set_register(offset, value)

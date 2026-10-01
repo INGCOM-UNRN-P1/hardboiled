@@ -28,6 +28,7 @@ CLASSIC = {
     "uart": ("UART", "uart"),
     "timer": ("TIMER", "timer"),
     "gpio_irq": ("BUTTONS", "button"),
+    "gpio": ("GPIO", "gpio"),
     "sevenseg": ("SEG", "seg"),
 }
 
@@ -75,6 +76,21 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
             (f"{n.macro}_IRQ_EN", p.offset + 4, "máscara de botones que piden la IRQ"),
             (f"{n.macro}_EDGE", p.offset + 8, "por botón: 0 = al presionar, 1 = al soltar"),
             (f"{n.macro}_PENDING", p.offset + 12, "flancos detectados (escribir 1 limpia)"),
+        ]
+    if p.type == "gpio":
+        return [
+            (
+                f"{n.macro}_DIR",
+                p.offset,
+                f"un bit por pin: 1 = salida, 0 = entrada ({p.width_bits})",
+            ),
+            (f"{n.macro}_OUT", p.offset + 0x04, "nivel de los pines de salida"),
+            (f"{n.macro}_IN", p.offset + 0x08, "sólo lectura: nivel actual de cada pin"),
+            (f"{n.macro}_PULL", p.offset + 0x0C, "1 = pull-up (una entrada suelta lee 1)"),
+            (f"{n.macro}_IRQ_EN", p.offset + 0x10, "pines que piden la IRQ en su flanco"),
+            (f"{n.macro}_EDGE", p.offset + 0x14, "por pin: 0 = flanco de subida, 1 = de bajada"),
+            (f"{n.macro}_PENDING", p.offset + 0x18, "flancos detectados (escribir 1 limpia)"),
+            (f"{n.macro}_SHORT", p.offset + 0x1C, "sólo lectura: pines en cortocircuito"),
         ]
     if p.type == "uart":
         return [
@@ -173,6 +189,37 @@ static inline void {f}_irq_disable(uint32_t mask) {{ {m}_IRQ_EN = {m}_IRQ_EN & ~
 static inline uint32_t {f}s_pending(void) {{ return {m}_PENDING; }}
 static inline void {f}s_clear(uint32_t mask) {{ {m}_PENDING = mask; }}
 """
+    if p.type == "gpio":
+        return f"""\
+/* Configura los pines de `mask` como salidas o como entradas. */
+static inline void {f}_output(uint32_t mask) {{ {m}_DIR = {m}_DIR | mask; }}
+static inline void {f}_input(uint32_t mask) {{ {m}_DIR = {m}_DIR & ~mask; }}
+
+/* Pull-up en los pines de `mask`: una entrada suelta lee 1 (p. ej., un botón a masa). */
+static inline void {f}_pullup(uint32_t mask, int enabled)
+{{
+    {m}_PULL = enabled ? ({m}_PULL | mask) : ({m}_PULL & ~mask);
+}}
+
+static inline void {f}_write(unsigned int pin, int level)
+{{
+    {m}_OUT = level ? ({m}_OUT | (1u << pin)) : ({m}_OUT & ~(1u << pin));
+}}
+
+static inline void {f}_toggle(unsigned int pin) {{ {m}_OUT = {m}_OUT ^ (1u << pin); }}
+static inline int {f}_read(unsigned int pin) {{ return (int)(({m}_IN >> pin) & 1u); }}
+
+/* IRQ en el flanco de subida (falling = 0) o de bajada (falling = 1) de los pines de `mask`. */
+static inline void {f}_irq_enable(uint32_t mask, int falling)
+{{
+    {m}_EDGE = falling ? ({m}_EDGE | mask) : ({m}_EDGE & ~mask);
+    {m}_IRQ_EN = {m}_IRQ_EN | mask;
+}}
+
+static inline void {f}_irq_disable(uint32_t mask) {{ {m}_IRQ_EN = {m}_IRQ_EN & ~mask; }}
+static inline uint32_t {f}_pending(void) {{ return {m}_PENDING; }}
+static inline void {f}_clear(uint32_t mask) {{ {m}_PENDING = mask; }}
+"""
     if p.type == "uart":
         return f"""\
 static inline void {f}_putc(char c)
@@ -244,6 +291,7 @@ static inline void {f}_clear(void) {{ {m}_STATUS = 1u; }}
 
 SECTION_TITLES = {
     "gpio_irq": "Botones",
+    "gpio": "GPIO bidireccional",
     "sevenseg": "Display de 7 segmentos",
     "gpio_out": "LEDs",
     "gpio_in": "Switches",

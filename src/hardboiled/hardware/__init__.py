@@ -7,6 +7,7 @@ from collections.abc import Callable
 from hardboiled.hardware.bus import Clock, MmioBus, MmioFault, Peripheral
 from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
+from hardboiled.hardware.gpio_port import GpioPort
 from hardboiled.hardware.sevenseg import SevenSegment
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
@@ -14,6 +15,7 @@ from hardboiled.hardware.uart import Uart
 __all__ = [
     "ButtonBank",
     "Clock",
+    "GpioPort",
     "LedBar",
     "MmioBus",
     "MmioFault",
@@ -48,4 +50,6 @@ def build_peripheral(
         return SevenSegment(name, offset, digits)
     if kind == "gpio_irq":
         return ButtonBank(name, offset, width_bits, irq_line, raise_irq, lower_irq)
+    if kind == "gpio":
+        return GpioPort(name, offset, width_bits, irq_line, raise_irq, lower_irq)
     raise ValueError(f"tipo de periférico desconocido: {kind}")

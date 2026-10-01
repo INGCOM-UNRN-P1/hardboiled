@@ -15,6 +15,12 @@ Permite probar firmware interactivo de forma reproducible (sin TUI):
     cycle = 90_000
     press = [0, 3]           # botones que se aprietan (se sueltan solos)
 
+    [[at]]
+    cycle = 120_000
+    gpio_high = [2]          # pines del GPIO que se manejan desde afuera a 1…
+    gpio_low = [5]           # …a 0
+    gpio_float = [7]         # …o que se sueltan (leen el pull-up, si hay)
+
 El guion se conecta al bus como una fuente con vencimientos: `wfi` adelanta el
 reloj hasta el próximo estímulo, igual que hasta el próximo tick de un timer.
 """
@@ -44,20 +50,34 @@ class Step(BaseModel):
     switches: int | None = Field(default=None, ge=0)
     uart: str | None = None
     press: list[int] = Field(default_factory=list)
+    gpio_high: list[int] = Field(default_factory=list)
+    gpio_low: list[int] = Field(default_factory=list)
+    gpio_float: list[int] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
     def _single_press(cls, data: Any) -> Any:
-        if isinstance(data, dict) and isinstance(data.get("press"), int):
-            return {**data, "press": [data["press"]]}
+        if isinstance(data, dict):
+            for key in ("press", "gpio_high", "gpio_low", "gpio_float"):
+                if isinstance(data.get(key), int):
+                    data = {**data, key: [data[key]]}
         return data
+
+    @property
+    def gpio(self) -> list[tuple[int, int | None]]:
+        """(pin, nivel) de cada pin del GPIO que cambia en este paso (None: se suelta)."""
+        return (
+            [(pin, 1) for pin in self.gpio_high]
+            + [(pin, 0) for pin in self.gpio_low]
+            + [(pin, None) for pin in self.gpio_float]
+        )
 
     @model_validator(mode="after")
     def _check(self) -> Self:
         if (self.cycle is None) == (self.ms is None):
             raise ValueError("cada paso necesita `cycle` o `ms` (uno solo)")
-        if self.switches is None and self.uart is None and not self.press:
-            raise ValueError("el paso no hace nada: falta `switches`, `uart` o `press`")
+        if self.switches is None and self.uart is None and not self.press and not self.gpio:
+            raise ValueError("el paso no hace nada: falta `switches`, `uart`, `press` o `gpio_*`")
         return self
 
     def describe(self) -> str:
@@ -68,6 +88,13 @@ class Step(BaseModel):
             parts.append(f"uart {self.uart!r}")
         if self.press:
             parts.append("botón " + ", ".join(str(pin) for pin in self.press))
+        for nombre, pins in (
+            ("alto", self.gpio_high),
+            ("bajo", self.gpio_low),
+            ("suelto", self.gpio_float),
+        ):
+            if pins:
+                parts.append(f"gpio {', '.join(str(pin) for pin in pins)} {nombre}")
         return "; ".join(parts)
 
 
@@ -107,6 +134,7 @@ class ScriptPlayer:
         self._switches = machine.switches()
         self._uart = machine.uart()
         self._buttons = machine.buttons()
+        self._gpio = machine.gpio()
         steps = []
         for number, step in enumerate(script.at, start=1):
             if step.cycle is not None:
@@ -135,6 +163,12 @@ class ScriptPlayer:
             bad = [pin for pin in step.press if not 0 <= pin < self._buttons.width_bits]
             if bad:
                 raise ScriptError(f"paso {number}: no existe el botón {bad[0]}")
+        if step.gpio:
+            if self._gpio is None:
+                raise ScriptError(f"paso {number}: la placa no tiene GPIO bidireccional")
+            bad = [pin for pin, _ in step.gpio if not 0 <= pin < self._gpio.width_bits]
+            if bad:
+                raise ScriptError(f"paso {number}: no existe el pin {bad[0]} del GPIO")
 
     @property
     def pending(self) -> int:
@@ -154,6 +188,9 @@ class ScriptPlayer:
             if self._buttons is not None:
                 for pin in step.press:
                     self._buttons.press(pin)
+            if self._gpio is not None:
+                for pin, level in step.gpio:
+                    self._gpio.drive(pin, level)
             self.applied.append(Applied(cycle, step.describe()))
 
     def reset(self) -> None:

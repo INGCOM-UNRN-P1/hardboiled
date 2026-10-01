@@ -124,6 +124,14 @@ class CmdToggleSwitch:
 
 
 @dataclass(frozen=True)
+class CmdDriveGpio:
+    """Cambia lo que maneja un pin del GPIO desde afuera: suelto → alto → bajo → suelto."""
+
+    pin_index: int
+    device: str | None = None  # None: el primer puerto GPIO de la placa
+
+
+@dataclass(frozen=True)
 class CmdProfile:
     """Pide el perfil de ejecución (instrucciones por línea y por función)."""
 
@@ -168,6 +176,7 @@ Command = (
     | CmdPressButton
     | CmdSetClock
     | CmdToggleSwitch
+    | CmdDriveGpio
     | CmdProfile
     | CmdReload
     | CmdPause

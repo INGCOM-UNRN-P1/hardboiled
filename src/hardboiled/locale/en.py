@@ -211,6 +211,17 @@ MESSAGES: dict[str, str] = {
     "registro de sólo lectura": "read-only register",
     "{device} no tiene el botón {pin}": "{device} has no button {pin}",
     "{device} no tiene el pin {pin}": "{device} has no pin {pin}",
+    "IN y SHORT son de sólo lectura": "IN and SHORT are read-only",
+    "→ salida, ← entrada; subrayado: manejado desde afuera (clic: suelto, alto, bajo); "
+    "rojo: cortocircuito": (
+        "→ output, ← input; underlined: driven from outside (click: floating, high, low); "
+        "red: short circuit"
+    ),
+    "{device}: cortocircuito en el pin {pins}: el programa lo saca como salida con un nivel "
+    "y algo de afuera lo maneja con el otro (en una placa real se quema el pin)": (
+        "{device}: short circuit on pin {pins}: the program drives it as an output with one level "
+        "and something outside drives it with the other (on a real board the pin burns out)"
+    ),
     "no hay ningún periférico en el offset MMIO {offset}": "no peripheral at MMIO offset {offset}",
     "tamaño de acceso no soportado ({size} bytes) en {offset}": (
         "unsupported access size ({size} bytes) at {offset}"
@@ -244,6 +255,7 @@ MESSAGES: dict[str, str] = {
     "la placa no tiene botones": "the board has no buttons",
     "la placa no tiene UART": "the board has no UART",
     "la placa no tiene switches": "the board has no switches",
+    "la placa no tiene GPIO bidireccional": "the board has no bidirectional GPIO",
     "{message}. F5 continúa otras {count} instrucciones.": (
         "{message}. F5 continues for another {count} instructions."
     ),

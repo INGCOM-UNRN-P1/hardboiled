@@ -416,6 +416,30 @@ después (20 000), así un programa que encuesta alcanza a verlo. Con
 `buttons_pending()` y los limpia con `buttons_clear()`. Ver el ejemplo
 `botones`.
 
+### GPIO bidireccional
+
+Un puerto de hasta 32 pines (`type = "gpio"` en `board.toml`, no está en la placa por defecto) con
+registros `DIR` (1 = salida), `OUT`, `IN` (nivel de cada pin), `PULL` (pull-up: una entrada suelta
+lee 1), `IRQ_EN`, `EDGE` (0 = flanco de subida, 1 = de bajada), `PENDING` (escribir 1 limpia) y
+`SHORT` (pines en cortocircuito). Ocupa 32 bytes:
+
+```toml
+[[peripherals]]
+name = "puerto"
+type = "gpio"
+offset = 0x60
+width_bits = 8
+irq_line = 3
+```
+
+Desde afuera, cada pin queda suelto o manejado a alto o bajo: en la TUI, un click en el pin cicla
+suelto → alto → bajo (`→` es salida y `←` entrada; subrayado, manejado desde afuera), y en el guion
+de entrada, `gpio_high`, `gpio_low` y `gpio_float`. Si el programa saca como salida el nivel
+contrario al de afuera hay **cortocircuito**: se marca en `SHORT`, el pin se ve en rojo y se avisa
+(en una placa real se quema el pin). El SDK suma `gpio_output()`, `gpio_input()`,
+`gpio_pullup()`, `gpio_write()`, `gpio_read()`, `gpio_toggle()`, `gpio_irq_enable(mask, falling)`,
+`gpio_pending()` y `gpio_clear()`. Es la base del bit-banging (qol.md #69).
+
 ### Entrada por la UART
 
 En la TUI, el campo debajo de la consola envía lo escrito (más `\n`) a la UART;
@@ -443,6 +467,10 @@ uart = "hola\n"        # bytes que llegan por la UART
 [[at]]
 cycle = 120_000
 press = [1, 2]         # botones (se sueltan solos)
+
+[[at]]
+cycle = 150_000
+gpio_low = [0]         # pines del GPIO manejados desde afuera: gpio_high, gpio_low, gpio_float
 ```
 
 Si el programa duerme con `wfi`, el reloj avanza directo hasta el próximo

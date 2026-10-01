@@ -18,6 +18,7 @@ from hardboiled.core.unwind import CallFrameTable
 from hardboiled.core.variables import VariableTable
 from hardboiled.hardware import (
     ButtonBank,
+    GpioPort,
     MmioBus,
     Peripheral,
     SevenSegment,
@@ -112,6 +113,13 @@ class Machine:
     def buttons(self) -> ButtonBank | None:
         for dev in self.peripherals:
             if isinstance(dev, ButtonBank):
+                return dev
+        return None
+
+    def gpio(self, name: str | None = None) -> GpioPort | None:
+        """El puerto GPIO bidireccional de la placa (el primero, o el que se llama `name`)."""
+        for dev in self.peripherals:
+            if isinstance(dev, GpioPort) and (name is None or dev.name == name):
                 return dev
         return None
 
