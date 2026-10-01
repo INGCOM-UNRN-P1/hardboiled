@@ -629,3 +629,7 @@ Commits con [Conventional Commits](https://www.conventionalcommits.org/)
 Ayuda de cada comando: `hardboiled <comando> -h`.
 
 <!-- p1:referencia:fin -->
+
+## Licencia
+
+GPL-2.0-only: el texto completo está en [`LICENSE`](LICENSE).
