@@ -1,7 +1,9 @@
-name: Publicar en PyPI
+name: Verificar el release
 
-# Se dispara al empujar un tag vX.Y.Z. Requiere configurar una sola vez el
-# "trusted publisher" en PyPI (ver docs/publicar.md); no usa tokens.
+# Se dispara al empujar un tag vX.Y.Z. hardboiled no se publica en PyPI: se instala con
+# `uv tool install` desde el repositorio (decisión de la cátedra), así que este workflow
+# solo comprueba que el tag coincida con la versión, que la instalación como uv tool funcione
+# y que el paquete se construya; el wheel queda como artefacto del run.
 on:
   push:
     tags: ["v*"]
@@ -9,6 +11,8 @@ on:
 jobs:
   build:
     name: Construir y verificar
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,18 +31,3 @@ jobs:
         with:
           name: dist
           path: dist/
-
-  publish:
-    name: Publicar
-    needs: build
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write  # Trusted Publishing (OIDC)
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist/
-      - uses: astral-sh/setup-uv@v6
-      - run: uv publish --trusted-publishing always dist/*

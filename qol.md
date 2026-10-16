@@ -4,7 +4,8 @@ Propuestas surgidas de implementar y usar la versión 1.0.0. Cada mejora indica
 **impacto** pedagógico/práctico (🔴 alto · 🟡 medio · 🟢 bajo) y **esfuerzo**
 estimado (S: horas · M: 1-2 días · L: más).
 
-> **Estado**: las mejoras 1 a 63 (secciones A a I) están implementadas. Cada una
+> **Estado**: las mejoras 1 a 63 (secciones A a I) están implementadas, salvo la
+> 61 (publicación en PyPI), descartada. Cada una
 > tiene su commit, que se encuentra con `git log --grep "QoL #N"`. La sección J
 > (64 a 83) reúne propuestas de hardware nuevo: están implementadas las tres de la
 > base, 69 (GPIO bidireccional), 74 (rebote de contactos) y 64 (ADC con
@@ -247,11 +248,11 @@ en el `PATH`, pero el wheel sólo contiene el código Python. Faltan `runtime/`,
     `~/.config/hardboiled/config.toml` (o `%APPDATA%` en Windows) para
     atajos, tema, `clock_hz` y compilador preferido. Con el paquete instalado
     no hay "repositorio" donde guardar preferencias.
-61. **Publicación en PyPI con Trusted Publishing** — 🔴 · M
-    Workflow de GitHub Actions que publique al crear un tag y habilite
-    `uvx hardboiled` y `uv tool upgrade hardboiled`. Antes, confirmar que el
-    nombre `hardboiled` está libre en PyPI. Mientras tanto:
-    `uv tool install git+https://…/hardboiled`.
+61. ~~**Publicación en PyPI con Trusted Publishing**~~ — descartada (16/10/26)
+    La cátedra distribuye todo el ecosistema con `uv tool install` desde los
+    repositorios de git, nunca por PyPI. `uv tool upgrade hardboiled` funciona
+    igual sobre la instalación desde git; el workflow `release.yml` verifica
+    cada tag (versión, instalación como uv tool y construcción) sin publicar.
 62. **Test de empaquetado en CI** — 🟡 · S
     Construir el wheel, instalarlo con `uv tool install` en un directorio
     temporal (`UV_TOOL_DIR`) y correr `hardboiled demo --headless`. Así se
