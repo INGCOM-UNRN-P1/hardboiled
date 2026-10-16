@@ -674,6 +674,37 @@ uv run python tests/fixtures/build.py  # recompilar los ELF de prueba
 Commits con [Conventional Commits](https://www.conventionalcommits.org/)
 (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 
+## Con bishop y rachel (temas de arquitectura)
+
+hardboiled muestra en una CPU real (RV32I, sin sistema operativo) lo que bishop y rachel muestran
+en la PC del alumno (x86-64 con Linux). Un mismo programa C, sin `stdio.h` (en la placa la salida
+es la UART del SDK), sirve para comparar las dos máquinas:
+
+```c
+int factorial(int n) { return n <= 1 ? 1 : n * factorial(n - 1); }
+
+int dia_habil(int d)
+{
+    int r = 0;
+    switch (d) {
+    case 1: case 2: case 3: case 4: case 5: r = 1; break;
+    default: r = 0;
+    }
+    return r;
+}
+
+int main(void) { return factorial(5) + dia_habil(3); }
+```
+
+| Tema | En la PC | En la placa |
+| :-- | :-- | :-- |
+| Marcos de la pila en una recursión | `bishop trace programa.c` (o `bishop ascii`): cada marco de `factorial` con sus variables | `hardboiled run programa.c`: la pestaña **Pila** separa los mismos marcos palabra por palabra, con dónde quedó `ra` y `s0`, y **Llamadas** la cadena `main → factorial → …` |
+| `switch` y jump tables | `rachel switch programa.c` muestra cómo lo traduce gcc para x86-64 (con estos casos contiguos queda una comparación de rango; con casos dispersos, una tabla de saltos) y `rachel compare` lo compara con una cadena de `if-else` | paso a paso en la TUI, el mismo `switch` en instrucciones RV32I, con `-O0` y con `--cflags -O2` para ver qué cambia |
+| Costo en ciclos | — (el tiempo depende de la máquina) | `hardboiled run --headless --profile programa.c`: ciclos por línea de C y de `crt0.s`, deterministas |
+
+La guía de la cátedra para estos temas parte del modelo de la PC (bishop, rachel) y usa
+hardboiled para mostrar que la pila, el `ra` y la traducción del `switch` no son cosa de x86.
+
 ## Limitaciones
 
 - Emula RV32I con las extensiones M y C (`isa` de `board.toml`: rv32i, rv32im, rv32ic o rv32imc):
