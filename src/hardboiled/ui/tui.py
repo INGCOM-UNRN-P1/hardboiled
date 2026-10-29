@@ -117,7 +117,7 @@ DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
 )
 KEY_ACTIONS = frozenset(action for action, _, _ in DEFAULT_KEYS) | {
     f"switch_{pin}" for pin in range(8)
-}
+} | {f"button_{pin}" for pin in range(8)}
 
 # Nombres amigables para config.toml ("/" en lugar de "slash").
 KEY_ALIASES = {"/": "slash", ":": "colon", "?": "question_mark"}
@@ -182,6 +182,8 @@ class HardboiledApp(App[None]):
             for action, keys, description in DEFAULT_KEYS
         ),
         *(Binding(str(pin), f"switch({pin})", show=False, id=f"switch_{pin}") for pin in range(8)),
+        # Los botones, con Alt y el mismo número (antes sólo con el mouse).
+        *(Binding(f"alt+{pin}", f"button({pin})", show=False, id=f"button_{pin}") for pin in range(8)),
     ]
 
     def __init__(
@@ -497,6 +499,9 @@ class HardboiledApp(App[None]):
 
     def action_switch(self, pin: int) -> None:
         self.send(CmdToggleSwitch(pin))
+
+    def action_button(self, pin: int) -> None:
+        self.send(CmdPressButton(pin))
 
     def action_toggle_breakpoint(self) -> None:
         code = self.query_one(CodeView)

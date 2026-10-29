@@ -25,6 +25,8 @@
  *   0xF04  PIC_PENDING     IRQs pendientes (escribir 1 para limpiar)
  *   0xF08  PIC_GLOBAL      bit 0 = interrupciones habilitadas globalmente
  *   0xF0C  PIC_ACTIVE      línea en atención (0xFFFFFFFF si ninguna)
+ *   0xF10  HB_CYCLES_LO    ciclos desde el reset (bajos; determinista)
+ *   0xF14  HB_CYCLES_HI    ciclos desde el reset (altos)
  */
 #ifndef HARDBOILED_H
 #define HARDBOILED_H
@@ -53,6 +55,8 @@
 #define PIC_PENDING     HB_REG(0xF04)
 #define PIC_GLOBAL      HB_REG(0xF08)
 #define PIC_ACTIVE      HB_REG(0xF0C)
+#define HB_CYCLES_LO    HB_REG(0xF10)
+#define HB_CYCLES_HI    HB_REG(0xF14)
 
 #define TIMER_CTRL_ENABLE (1u << 0)
 #define TIMER_CTRL_IRQ    (1u << 1)
@@ -223,5 +227,19 @@ static inline void interrupts_disable(void) { PIC_GLOBAL = 0u; }
 
 /* Duerme la CPU hasta que llegue una interrupción habilitada. */
 static inline void wait_for_interrupt(void) { __asm__ volatile("wfi"); }
+
+/* ------------------------------------------------------- Ciclos de reloj --- */
+
+/* Ciclos desde el reset, del reloj del emulador: el mismo programa da siempre lo
+ * mismo (rdcycle no: en el emulador devuelve tiempo del equipo). */
+static inline uint64_t hb_cycles(void)
+{
+    uint32_t hi, lo;
+    do {
+        hi = HB_CYCLES_HI;
+        lo = HB_CYCLES_LO;
+    } while (hi != HB_CYCLES_HI); /* por si los bajos dieron la vuelta entre las lecturas */
+    return ((uint64_t)hi << 32) | lo;
+}
 
 #endif /* HARDBOILED_H */

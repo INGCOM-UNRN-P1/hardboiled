@@ -42,7 +42,8 @@ TEMPLATE = """\
 # toggle_breakpoint, conditional_breakpoint, step_over, step_into, step_out,
 # step_instruction, step_back, run_to_cursor, watch, toggle_disassembly,
 # register_format, open_file, search, search_next, search_previous, goto_line,
-# help, reset, quit, switch_0 … switch_7. La lista vigente está en la ayuda (?).
+# help, reset, quit, switch_0 … switch_7, button_0 … button_7. La lista vigente
+# está en la ayuda (?).
 # step_over = "f8,n"
 # step_into = "f2,s"
 """

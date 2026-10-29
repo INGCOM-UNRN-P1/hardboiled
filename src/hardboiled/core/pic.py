@@ -7,6 +7,12 @@ habilitador global. Se expone al firmware como un periférico MMIO más:
     +0x4 PENDING  solicitudes pendientes (escribir 1 limpia el bit)
     +0x8 GLOBAL   bit 0: interrupciones habilitadas globalmente
     +0xC ACTIVE   línea que se está atendiendo (0xFFFFFFFF si ninguna)
+    +0x10 CYCLES_LO  ciclos de reloj desde el reset (32 bits bajos, sólo lectura)
+    +0x14 CYCLES_HI  ciclos de reloj desde el reset (32 bits altos, sólo lectura)
+
+El contador de ciclos es el del emulador, determinista: `rdcycle` en Unicorn
+devuelve tiempo del anfitrión y cambia de una corrida a otra, así que no sirve
+para medir ciclos en una prueba reproducible.
 
 Cada línea tiene una prioridad (menor número = más urgente; por defecto, el
 número de línea). Sin anidamiento, mientras se atiende una IRQ las demás
@@ -31,12 +37,14 @@ ENABLE = 0x0
 PENDING = 0x4
 GLOBAL = 0x8
 ACTIVE = 0xC
+CYCLES_LO = 0x10
+CYCLES_HI = 0x14
 NO_ACTIVE = 0xFFFF_FFFF
 
 
 class InterruptController(Peripheral):
     kind = "pic"
-    size = 16
+    size = 24
 
     def __init__(
         self,
@@ -129,6 +137,10 @@ class InterruptController(Peripheral):
             return int(self.global_enable)
         if reg == ACTIVE:
             return self.active[-1] if self.active else NO_ACTIVE
+        if reg == CYCLES_LO:
+            return self.clock.cycles & 0xFFFF_FFFF
+        if reg == CYCLES_HI:
+            return (self.clock.cycles >> 32) & 0xFFFF_FFFF
         raise self.fault(reg, N_("registro inexistente"))
 
     def write(self, reg: int, value: int, mask: int) -> None:
@@ -140,6 +152,8 @@ class InterruptController(Peripheral):
             self.global_enable = bool(merge(int(self.global_enable), value, mask) & 1)
         elif reg == ACTIVE:
             raise self.fault(reg, N_("ACTIVE es de sólo lectura"))
+        elif reg in (CYCLES_LO, CYCLES_HI):
+            raise self.fault(reg, N_("el contador de ciclos es de sólo lectura"))
         else:
             raise self.fault(reg, N_("registro inexistente"))
         self._update()

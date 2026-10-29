@@ -17,6 +17,7 @@ PACKAGED_FILES = (
     "runtime/crt0.s",
     "runtime/hardboiled.ld",
     "runtime/include/hardboiled.h",
+    "runtime/include/hardboiled_test.h",
     "data/board.toml",
     "examples/demo.c",
     "examples/hola.c",

@@ -56,7 +56,9 @@ def test_el_mapa_de_registros_es_el_de_la_placa(texto: str) -> None:
 
 def test_las_funciones_citadas_existen_en_el_sdk() -> None:
     cabecera = sdk.generate_header(load_board(resources.default_board_path()))
-    declaradas = set(re.findall(r"\b([a-z_][a-z0-9_]*)\(", cabecera))
+    # El SDK son dos headers: el generado de la placa y hardboiled_test.h (Ola 21).
+    pruebas = (resources.include_dir() / "hardboiled_test.h").read_text(encoding="utf-8")
+    declaradas = set(re.findall(r"\b([a-z_][a-z0-9_]*)\(", cabecera + pruebas))
     for bloque in _bloques(MANUAL, "c"):
         propias = set(re.findall(r"\b(?:void|int)\s+([a-z_][a-z0-9_]*)\(", bloque))
         citadas = set(re.findall(r"\b([a-z_][a-z0-9_]*)\(", bloque)) - PALABRAS_DE_C
@@ -122,7 +124,7 @@ def test_el_ejemplo_del_manual_compila_y_termina(
 ) -> None:
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("HARDBOILED_CC", "zig")
-    (ejemplo,) = [b for b in _bloques(MANUAL, "c") if "int main(void)" in b]
+    (ejemplo,) = [b for b in _bloques(MANUAL, "c") if "int main(void)" in b and "Iniciando..." in b]
     (tmp_path / "ejemplo.c").write_text(ejemplo, encoding="utf-8")
     argumentos = ["run", str(tmp_path / "ejemplo.c"), "--headless", "--max-instructions", "5000000"]
     codigo = main(argumentos)

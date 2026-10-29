@@ -205,6 +205,7 @@ MESSAGES: dict[str, str] = {
     # --------------------------------------------------------- periféricos/PIC
     "registro inexistente": "no such register",
     "ACTIVE es de sólo lectura": "ACTIVE is read-only",
+    "el contador de ciclos es de sólo lectura": "the cycle counter is read-only",
     "STATE es de sólo lectura": "STATE is read-only",
     "COUNT es de sólo lectura": "COUNT is read-only",
     "los switches son de sólo lectura": "the switches are read-only",

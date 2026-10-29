@@ -54,6 +54,8 @@ vigentes. En la TUI, `?` muestra el mapa de la placa cargada.
 | `0xF04` | `PIC_PENDING` | IRQs pendientes (escribir 1 para limpiar). |
 | `0xF08` | `PIC_GLOBAL` | Bit 0: interrupciones habilitadas globalmente. |
 | `0xF0C` | `PIC_ACTIVE` | Línea que se está atendiendo (`0xFFFFFFFF` si ninguna). |
+| `0xF10` | `HB_CYCLES_LO` | Sólo lectura: ciclos desde el reset (32 bits bajos). Es el reloj del emulador, determinista; `hb_cycles()` lee los 64 bits. |
+| `0xF14` | `HB_CYCLES_HI` | Sólo lectura: ciclos desde el reset (32 bits altos). |
 
 Líneas de interrupción de la placa por defecto: `IRQ_TIMER0` = 0, `IRQ_UART0` = 1 e `IRQ_BUTTONS` = 2.
 Leer o escribir un offset que no es un registro, o escribir uno de sólo lectura, es la trampa `mmio`.
@@ -172,6 +174,7 @@ switches, botones, display y la consola de la UART) y las pestañas de inspecci�
 | `F8` / `u` | Paso atrás: vuelve al estado previo al último comando de ejecución |
 | `F4` / `g` | Run to cursor: ejecuta hasta la línea del cursor sin dejar breakpoint |
 | `0`–`7` | Conmuta un switch (también: click en el switch) |
+| `Alt+0`–`Alt+7` | Aprieta un botón (también: click en el botón) |
 | `B` / `Ctrl+F9` | Breakpoint condicional en la línea del cursor (`i == 3`, `#5`, `n > 2 #2`) |
 | `w` | Watchpoint: vigila una expresión y detiene cuando su valor cambia |
 | `d` | Muestra u oculta el desensamblado mixto (C + RV32I) |
@@ -267,6 +270,79 @@ expect_trap = "null-pointer"
 El programa se compila y carga una sola vez, y cada caso arranca de un Reset. `expect_exit` compara el
 valor completo que devolvió `main()`. Si un caso no espera una trampa, que ocurra una, o que se agote
 la cuota, cuenta como falla. Con `--json` los resultados salen en JSON.
+
+#### Firmware que no termina y controles en el camino
+
+Un firmware suele quedarse en un lazo atendiendo interrupciones: con `until_cycle` (o
+`until_ms`) el caso corre hasta ese momento y se juzga ahí, sin contar como falla que no haya
+terminado. Los `[[case.check]]` son oráculos en un ciclo (o milisegundo) dado: `leds`,
+`display`, `gpio_high`/`gpio_low` y `uart_contains`, tomados exactamente en ese ciclo. Todo es
+determinista: dos corridas dan los mismos ciclos e instrucciones, así que sirve para corregir
+en el CI sin nadie que apriete botones.
+
+```toml
+[[case]]
+name = "el botón enciende el LED 3"
+until_ms = 200
+[[case.at]]
+ms = 50
+press = [0]
+[[case.check]]
+ms = 40
+leds = 0b0000
+[[case.check]]
+ms = 120
+leds = 0b1000
+uart_contains = ["presionado"]
+```
+
+Para un caso simple no hace falta el TOML: `--press BOTÓN@MOMENTO` (repetible) aprieta un
+botón y `--hasta MOMENTO` corre hasta ahí; el momento es un número de ciclos o algo como `5ms`.
+
+```bash
+hardboiled test main.c --press 0@50ms --hasta 200ms
+```
+
+Si el firmware espera con `wfi`, se detiene justo en el ciclo pedido; con una espera activa,
+unas instrucciones después (siempre las mismas).
+
+#### Pruebas unitarias de firmware: `hardboiled_test.h`
+
+Para probar desde C lo que el programa dejó en los registros de E/S. Cada `HB_TEST` es una
+prueba; las aserciones informan por la UART el archivo, la línea, la expresión y los valores, y
+`hb_test_fin()` devuelve 0 si todo pasó:
+
+```c
+#include "hardboiled.h"
+#include "hardboiled_test.h"
+
+HB_TEST(configura_el_timer)
+{
+    timer_start(1000, 1);
+    HB_ASSERT_REG_EQ(TIMER_RELOAD, 1000);
+    HB_ASSERT_BITS_SET(TIMER_CTRL, TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ);
+}
+
+int main(void)
+{
+    HB_RUN(configura_el_timer);
+    return hb_test_fin();
+}
+```
+
+Aserciones: `HB_ASSERT`, `HB_ASSERT_EQ`, `HB_ASSERT_REG_EQ`, `HB_ASSERT_BITS_SET`,
+`HB_ASSERT_BITS_CLEAR`, `HB_ASSERT_FIELD`; de pines e interrupciones, `HB_ASSERT_PULLUP` y
+`HB_ASSERT_NO_PULLUP` (registro `<PUERTO>_PULL` de un GPIO bidireccional),
+`HB_ASSERT_IRQ_ENABLED`, `HB_ASSERT_IRQ_PENDING`, `HB_ASSERT_IRQ_NOT_PENDING` y
+`HB_ASSERT_INTERRUPTS_ON`; de tiempo, `HB_ASSERT_CYCLES_AT_MOST(sentencia, max)` y
+`HB_ESPERAR(condición, max_ciclos)`, que espera una interrupción o un estímulo del guion. Los
+ciclos salen de `hb_cycles()`, el reloj del emulador (`rdcycle` en el emulador da tiempo del
+equipo y cambia entre corridas). El ejemplo `pruebas.c` lo usa entero:
+
+```bash
+hardboiled examples copy pruebas.c
+hardboiled test pruebas.c --press 0@20000 --expect-exit 0
+```
 
 ---
 

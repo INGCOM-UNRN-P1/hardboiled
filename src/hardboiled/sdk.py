@@ -126,6 +126,8 @@ def _pic_registers(board: BoardConfig) -> list[tuple[str, int, str]]:
         ("PIC_PENDING", base + 4, "IRQs pendientes (escribir 1 para limpiar)"),
         ("PIC_GLOBAL", base + 8, "bit 0 = interrupciones habilitadas globalmente"),
         ("PIC_ACTIVE", base + 12, "línea en atención (0xFFFFFFFF si ninguna)"),
+        ("HB_CYCLES_LO", base + 0x10, "ciclos desde el reset (bajos; determinista)"),
+        ("HB_CYCLES_HI", base + 0x14, "ciclos desde el reset (altos)"),
     ]
 
 
@@ -442,6 +444,21 @@ static inline void interrupts_disable(void) { PIC_GLOBAL = 0u; }
 /* Duerme la CPU hasta que llegue una interrupción habilitada. */
 static inline void wait_for_interrupt(void) { __asm__ volatile("wfi"); }
 """,
+        _section("Ciclos de reloj"),
+        "",
+        """\
+/* Ciclos desde el reset, del reloj del emulador: el mismo programa da siempre lo
+ * mismo (rdcycle no: en el emulador devuelve tiempo del equipo). */
+static inline uint64_t hb_cycles(void)
+{
+    uint32_t hi, lo;
+    do {
+        hi = HB_CYCLES_HI;
+        lo = HB_CYCLES_LO;
+    } while (hi != HB_CYCLES_HI); /* por si los bajos dieron la vuelta entre las lecturas */
+    return ((uint64_t)hi << 32) | lo;
+}
+""",
         "#endif /* HARDBOILED_H */",
         "",
     ]
@@ -536,5 +553,10 @@ def runtime_for(board: BoardConfig, cache_root: Path) -> RuntimeFiles:
     directory = cache_root / "sdk" / digest
     (directory / "include").mkdir(parents=True, exist_ok=True)
     (directory / "include" / "hardboiled.h").write_text(header, encoding="utf-8")
+    # Los headers que no dependen de la placa (hardboiled_test.h) van junto al generado:
+    # con una placa propia el runtime empaquetado no está en el -I.
+    for fijo in packaged.include_dir.glob("*.h"):
+        if fijo.name != "hardboiled.h":
+            (directory / "include" / fijo.name).write_text(fijo.read_text(encoding="utf-8"), encoding="utf-8")
     (directory / "hardboiled.ld").write_text(linker, encoding="utf-8")
     return RuntimeFiles(directory / "include", directory / "hardboiled.ld", packaged.crt0)

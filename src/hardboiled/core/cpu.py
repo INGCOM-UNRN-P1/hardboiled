@@ -1308,6 +1308,10 @@ class Cpu:
                 break
             self.clock.cycles = max(self.clock.cycles, deadline)
             self.bus.service(self.clock.cycles)
+            # Un vencimiento puede pedir detenerse (`hardboiled test` con until_cycle): se
+            # pausa sobre el mismo wfi, que al continuar vuelve a dormir.
+            if not self.pic.wake_pending() and self.poll is not None and self.poll():
+                return StopInfo(StopReason.PAUSED, pc, _("ejecución pausada"))
         if not self.pic.wake_pending() and self.interactive and self.bus.can_wake():
             # Nada programado, pero el usuario puede escribir o apretar algo: se espera.
             while not self.pic.wake_pending():
