@@ -45,7 +45,7 @@ class Peripheral(ABC):
     """Dispositivo mapeado en el bus. Sus registros son palabras de 32 bits."""
 
     kind: ClassVar[str]
-    size: ClassVar[int]
+    size: int
 
     def __init__(self, name: str, offset: int, width_bits: int = 32) -> None:
         self.name = name

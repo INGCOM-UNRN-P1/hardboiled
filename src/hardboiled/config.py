@@ -22,11 +22,11 @@ PAGE = 0x1000
 NULL_GUARD_END = 0x1_0000
 
 PeripheralType = Literal[
-    "gpio_out", "gpio_in", "gpio_irq", "gpio", "uart", "timer", "sevenseg", "adc"
+    "gpio_out", "gpio_in", "gpio_irq", "gpio", "uart", "timer", "sevenseg", "adc", "external"
 ]
 
 # Tipos de periférico que pueden pedir una interrupción.
-IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq", "gpio", "adc"})
+IRQ_CAPABLE = frozenset({"timer", "uart", "gpio_irq", "gpio", "adc", "external"})
 # Entradas de contacto, que pueden rebotar (bounce_cycles).
 BOUNCE_CAPABLE = frozenset({"gpio_in", "gpio_irq", "gpio"})
 
@@ -146,8 +146,13 @@ class PeripheralConfig(_Model):
     conversion_cycles: int = Field(default=100, ge=1, le=10_000_000)
     vref_mv: int = Field(default=3300, ge=1, le=100_000)
 
+    # Sólo external: tamaño de la ventana MMIO (múltiplo de 4).
+    external_size: int = Field(default=16, ge=4, le=4096)
+
     @property
     def size(self) -> int:
+        if self.type == "external":
+            return self.external_size
         return PERIPHERAL_SIZES[self.type]
 
     @model_validator(mode="after")
@@ -160,6 +165,8 @@ class PeripheralConfig(_Model):
         if self.bounce_cycles and self.type not in BOUNCE_CAPABLE:
             capable = ", ".join(sorted(BOUNCE_CAPABLE))
             raise ValueError(f"{self.name}: sólo rebotan las entradas: {capable}")
+        if self.external_size % 4:
+            raise ValueError(f"{self.name}: external_size debe ser múltiplo de 4")
         solo_adc = {"channels", "resolution_bits", "conversion_cycles", "vref_mv"}
         if self.type != "adc" and solo_adc & self.model_fields_set:
             usados = ", ".join(sorted(solo_adc & self.model_fields_set))

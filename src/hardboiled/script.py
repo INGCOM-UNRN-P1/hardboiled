@@ -58,6 +58,10 @@ class Step(BaseModel):
     gpio_low: list[int] = Field(default_factory=list)
     gpio_float: list[int] = Field(default_factory=list)
     adc: list[tuple[int, int]] = Field(default_factory=list)
+    # Estímulos a periféricos externos: [(nombre_periferico, reg_offset, valor)]
+    external_write: list[tuple[str, int, int]] = Field(default_factory=list)
+    # IRQ externa: [(nombre_periferico, assert_bool)]
+    external_irq: list[tuple[str, bool]] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -84,10 +88,10 @@ class Step(BaseModel):
         if (
             self.switches is None
             and self.uart is None
-            and not (self.press or self.gpio or self.adc)
+            and not (self.press or self.gpio or self.adc or self.external_write or self.external_irq)
         ):
             raise ValueError(
-                "el paso no hace nada: falta `switches`, `uart`, `press`, `gpio_*` o `adc`"
+                "el paso no hace nada: falta `switches`, `uart`, `press`, `gpio_*`, `adc` o `external_*`"
             )
         return self
 
@@ -108,6 +112,10 @@ class Step(BaseModel):
                 parts.append(f"gpio {', '.join(str(pin) for pin in pins)} {nombre}")
         for channel, millivolts in self.adc:
             parts.append(f"adc {channel} = {millivolts} mV")
+        for dev_name, reg, val in self.external_write:
+            parts.append(f"external {dev_name}+0x{reg:x} = 0x{val:x}")
+        for dev_name, assert_lvl in self.external_irq:
+            parts.append(f"external {dev_name} irq {'up' if assert_lvl else 'down'}")
         return "; ".join(parts)
 
 
@@ -149,6 +157,7 @@ class ScriptPlayer:
         self._buttons = machine.buttons()
         self._gpio = machine.gpio()
         self._adc = machine.adc()
+        self._machine = machine
         steps = []
         for number, step in enumerate(script.at, start=1):
             if step.cycle is not None:
@@ -189,6 +198,12 @@ class ScriptPlayer:
             bad = [ch for ch, _ in step.adc if not 0 <= ch < self._adc.channels]
             if bad:
                 raise ScriptError(f"paso {number}: no existe el canal {bad[0]} del ADC")
+        for dev_name, _, _ in step.external_write:
+            if self._machine.external(dev_name) is None:
+                raise ScriptError(f"paso {number}: no existe el periférico externo {dev_name}")
+        for dev_name, _ in step.external_irq:
+            if self._machine.external(dev_name) is None:
+                raise ScriptError(f"paso {number}: no existe el periférico externo {dev_name}")
 
     @property
     def pending(self) -> int:
@@ -214,6 +229,14 @@ class ScriptPlayer:
             if self._adc is not None:
                 for channel, millivolts in step.adc:
                     self._adc.set_millivolts(channel, millivolts)
+            for dev_name, reg, val in step.external_write:
+                ext_dev = self._machine.external(dev_name)
+                if ext_dev is not None:
+                    ext_dev.update_shadow(reg, val)
+            for dev_name, assert_lvl in step.external_irq:
+                ext_dev = self._machine.external(dev_name)
+                if ext_dev is not None:
+                    ext_dev.trigger_irq(assert_lvl)
             self.applied.append(Applied(cycle, step.describe()))
 
     def reset(self) -> None:

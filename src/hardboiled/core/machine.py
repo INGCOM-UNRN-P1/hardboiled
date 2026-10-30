@@ -19,6 +19,7 @@ from hardboiled.core.variables import VariableTable
 from hardboiled.hardware import (
     Adc,
     ButtonBank,
+    ExternalPeripheral,
     GpioPort,
     MmioBus,
     Peripheral,
@@ -72,6 +73,7 @@ class Machine:
                     cfg.resolution_bits,
                     cfg.conversion_cycles,
                     cfg.vref_mv,
+                    cfg.external_size,
                 )
             )
         self.cpu = Cpu(
@@ -146,6 +148,13 @@ class Machine:
     def switches(self) -> SwitchBank | None:
         for dev in self.peripherals:
             if isinstance(dev, SwitchBank):
+                return dev
+        return None
+
+    def external(self, name: str | None = None) -> ExternalPeripheral | None:
+        """El periférico externo de la placa (el primero o el que coincide con `name`)."""
+        for dev in self.peripherals:
+            if isinstance(dev, ExternalPeripheral) and (name is None or dev.name == name):
                 return dev
         return None
 

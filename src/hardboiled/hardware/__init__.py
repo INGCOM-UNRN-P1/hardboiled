@@ -7,6 +7,7 @@ from collections.abc import Callable
 from hardboiled.hardware.adc import Adc
 from hardboiled.hardware.bus import Clock, MmioBus, MmioFault, Peripheral
 from hardboiled.hardware.buttons import ButtonBank
+from hardboiled.hardware.external import ExternalPeripheral
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.gpio_port import GpioPort
 from hardboiled.hardware.sevenseg import SevenSegment
@@ -17,6 +18,7 @@ __all__ = [
     "Adc",
     "ButtonBank",
     "Clock",
+    "ExternalPeripheral",
     "GpioPort",
     "LedBar",
     "MmioBus",
@@ -44,7 +46,17 @@ def build_peripheral(
     resolution_bits: int = 10,
     conversion_cycles: int = 100,
     vref_mv: int = 3300,
+    external_size: int = 16,
 ) -> Peripheral:
+    if kind == "external":
+        return ExternalPeripheral(
+            name,
+            offset,
+            size=external_size,
+            irq_line=irq_line,
+            raise_irq=raise_irq,
+            lower_irq=lower_irq,
+        )
     if kind == "gpio_out":
         return LedBar(name, offset, width_bits)
     if kind == "gpio_in":

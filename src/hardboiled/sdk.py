@@ -31,6 +31,7 @@ CLASSIC = {
     "gpio": ("GPIO", "gpio"),
     "adc": ("ADC", "adc"),
     "sevenseg": ("SEG", "seg"),
+    "external": ("EXT", "ext"),
 }
 
 
@@ -110,6 +111,15 @@ def _registers(p: PeripheralConfig, n: Naming) -> list[tuple[str, int, str]]:
             (f"{n.macro}_STATUS", p.offset + 4, "bit 0 = listo para transmitir, bit 1 = hay dato"),
             (f"{n.macro}_RX", p.offset + 8, "lectura: siguiente byte recibido"),
             (f"{n.macro}_CTRL", p.offset + 12, "bit 0 = IRQ mientras haya bytes recibidos"),
+        ]
+    if p.type == "external":
+        return [
+            (
+                f"{n.macro}_REG_{reg:02X}",
+                p.offset + reg,
+                f"registro {reg // 4} de periférico externo",
+            )
+            for reg in range(0, p.size, 4)
         ]
     return [
         (f"{n.macro}_CTRL", p.offset, "bit 0 = habilitado, bit 1 = genera IRQ"),
@@ -326,6 +336,19 @@ static inline void {f}_puthex(uint32_t value)
     }}
 }}
 """
+    if p.type == "external":
+        return f"""\
+static inline uint32_t {f}_read_reg(unsigned int index)
+{{
+    volatile uint32_t *regs = (volatile uint32_t *)0x{p.offset:08X}u;
+    return regs[index];
+}}
+static inline void {f}_write_reg(unsigned int index, uint32_t value)
+{{
+    volatile uint32_t *regs = (volatile uint32_t *)0x{p.offset:08X}u;
+    regs[index] = value;
+}}
+"""
     return f"""\
 static inline void {f}_start(uint32_t period_cycles, int with_irq)
 {{
@@ -348,6 +371,7 @@ SECTION_TITLES = {
     "gpio_in": "Switches",
     "uart": "UART",
     "timer": "Timer",
+    "external": "Periférico externo",
 }
 
 

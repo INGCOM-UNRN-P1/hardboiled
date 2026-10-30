@@ -463,4 +463,6 @@ MESSAGES: dict[str, str] = {
     "${name} no se conoce en este marco": "${name} is not known in this frame",
     "no hay ninguna variable {name} visible aquí": "there is no variable {name} visible here",
     "la ubicación de {name} no está disponible": "the location of {name} is not available",
+    # ------------------------------------------------ hardware/external.py
+    "registro fuera del rango del periférico externo": "register out of range of external peripheral",
 }
