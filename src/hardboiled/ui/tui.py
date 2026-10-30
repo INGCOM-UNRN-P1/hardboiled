@@ -78,6 +78,7 @@ from hardboiled.ui.widgets.hardware_view import (
 from hardboiled.ui.widgets.help_screen import HelpScreen
 from hardboiled.ui.widgets.memory_inspector import MemoryInspector
 from hardboiled.ui.widgets.memory_view import MemoryView
+from hardboiled.ui.widgets.pairing_screen import PairingScreen
 from hardboiled.ui.widgets.prompt import Prompt
 from hardboiled.ui.widgets.registers_view import RegistersView
 from hardboiled.ui.widgets.trap_screen import TrapScreen
@@ -115,9 +116,11 @@ DEFAULT_KEYS: tuple[tuple[str, str, str], ...] = (
     ("reset", "r", N_("Reset")),
     ("quit", "q", N_("Salir")),
 )
-KEY_ACTIONS = frozenset(action for action, _, _ in DEFAULT_KEYS) | {
-    f"switch_{pin}" for pin in range(8)
-} | {f"button_{pin}" for pin in range(8)}
+KEY_ACTIONS = (
+    frozenset(action for action, _, _ in DEFAULT_KEYS)
+    | {f"switch_{pin}" for pin in range(8)}
+    | {f"button_{pin}" for pin in range(8)}
+)
 
 # Nombres amigables para config.toml ("/" en lugar de "slash").
 KEY_ALIASES = {"/": "slash", ":": "colon", "?": "question_mark"}
@@ -183,7 +186,10 @@ class HardboiledApp(App[None]):
         ),
         *(Binding(str(pin), f"switch({pin})", show=False, id=f"switch_{pin}") for pin in range(8)),
         # Los botones, con Alt y el mismo número (antes sólo con el mouse).
-        *(Binding(f"alt+{pin}", f"button({pin})", show=False, id=f"button_{pin}") for pin in range(8)),
+        *(
+            Binding(f"alt+{pin}", f"button({pin})", show=False, id=f"button_{pin}")
+            for pin in range(8)
+        ),
     ]
 
     def __init__(
@@ -193,8 +199,10 @@ class HardboiledApp(App[None]):
         worker: threading.Thread | None = None,
         prefs: UiPrefs | None = None,
         keymap: dict[str, str] | None = None,
+        remote_banner: str | None = None,
     ) -> None:
         super().__init__()
+        self.remote_banner = remote_banner
         self.prefs = prefs or UiPrefs()
         self.palette = palette_for(self.prefs.theme, self.prefs.colorblind)
         self.user_keymap = dict(keymap or {})
@@ -253,6 +261,14 @@ class HardboiledApp(App[None]):
         self.set_interval(1 / 30, self._drain_events)
         if self.worker is not None and not self.worker.is_alive():
             self.worker.start()
+
+        if self.remote_banner:
+            self.bind("ctrl+k", "remote_pairing", description="Cyberdeck")
+            self.call_after_refresh(self.action_remote_pairing)
+
+    def action_remote_pairing(self) -> None:
+        if self.remote_banner:
+            self.push_screen(PairingScreen(self.remote_banner))
 
     def on_unmount(self) -> None:
         self.cmd_queue.put(CmdShutdown())

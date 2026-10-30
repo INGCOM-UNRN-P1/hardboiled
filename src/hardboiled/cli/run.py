@@ -103,6 +103,16 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="con --headless, respetar clock_hz de la placa (por defecto corre sin pausas)",
     )
+    parser.add_argument(
+        "--remote", action="store_true", help="conectar sensores de cyberdeck por LAN"
+    )
+    parser.add_argument("--remote-host", default="0.0.0.0", help="interfaz del puente móvil")
+    parser.add_argument(
+        "--remote-port", type=int, default=8767, help="puerto del puente móvil (8767)"
+    )
+    parser.add_argument(
+        "--remote-advertise-host", help="IP LAN para mDNS y QR (detección automática)"
+    )
     add_build_options(parser)
 
 
@@ -175,6 +185,10 @@ def program_watcher(args: argparse.Namespace, elf: Path) -> ProgramWatcher:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    if args.remote and args.headless:
+        raise CliError("--remote requiere la TUI")
+    if not 0 <= args.remote_port <= 65535:
+        raise CliError("--remote-port debe estar entre 0 y 65535")
     board = board_from(args.board)
     if args.max_instructions is not None:
         board = board.model_copy(
@@ -244,7 +258,27 @@ def cmd_run(args: argparse.Namespace) -> int:
         machine, cmd_queue, evt_queue, stop_at_main, store, prefs.history, watcher
     )
     config = user_config(args)
-    HardboiledApp(cmd_queue, evt_queue, runner, config.ui, config.keys).run()
+    if args.remote:
+        from hardboiled.remote import RemoteBridge
+
+        try:
+            bridge = RemoteBridge(
+                machine, cmd_queue, args.remote_host, args.remote_port, args.remote_advertise_host
+            )
+            with bridge:
+                print(bridge.banner(), file=sys.stderr)
+                HardboiledApp(
+                    cmd_queue,
+                    evt_queue,
+                    runner,
+                    config.ui,
+                    config.keys,
+                    remote_banner=bridge.banner(),
+                ).run()
+        except (OSError, ValueError) as exc:
+            raise CliError(str(exc)) from exc
+    else:
+        HardboiledApp(cmd_queue, evt_queue, runner, config.ui, config.keys).run()
     return 0
 
 

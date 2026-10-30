@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
+    "la placa necesita un ADC de al menos tres canales": (
+        "the board needs an ADC with at least three channels"
+    ),
+    "no existe el periférico externo": "external peripheral not found",
     # ------------------------------------------------------------ cli/run.py
     "traza: {rows} instrucciones en {path}{cut}": "trace: {rows} instructions in {path}{cut}",
     " (se cortó al llegar a --trace-limit {limit})": " (cut at --trace-limit {limit})",
@@ -464,5 +468,7 @@ MESSAGES: dict[str, str] = {
     "no hay ninguna variable {name} visible aquí": "there is no variable {name} visible here",
     "la ubicación de {name} no está disponible": "the location of {name} is not available",
     # ------------------------------------------------ hardware/external.py
-    "registro fuera del rango del periférico externo": "register out of range of external peripheral",
+    "registro fuera del rango del periférico externo": (
+        "register out of range of external peripheral"
+    ),
 }

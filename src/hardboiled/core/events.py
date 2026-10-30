@@ -133,6 +133,20 @@ class CmdTurnPotentiometer:
 
 
 @dataclass(frozen=True)
+class CmdSetAdcInputs:
+    """Muestra remota absoluta de tres ejes, aplicada por el hilo del motor."""
+
+    device: str
+    millivolts: tuple[int, int, int]
+
+
+@dataclass(frozen=True)
+class CmdExternalIrq:
+    device: str
+    asserted: bool
+
+
+@dataclass(frozen=True)
 class CmdDriveGpio:
     """Cambia lo que maneja un pin del GPIO desde afuera: suelto → alto → bajo → suelto."""
 
@@ -187,6 +201,8 @@ Command = (
     | CmdToggleSwitch
     | CmdDriveGpio
     | CmdTurnPotentiometer
+    | CmdSetAdcInputs
+    | CmdExternalIrq
     | CmdProfile
     | CmdReload
     | CmdPause

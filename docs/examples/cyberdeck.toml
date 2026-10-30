@@ -1,0 +1,25 @@
+[board]
+name = "cyberdeck-adc"
+clock_hz = 1000000
+max_instructions = 500000000
+
+[[peripherals]]
+name = "adc0"
+type = "adc"
+offset = "0x80"
+channels = 4
+vref_mv = 3300
+
+[[peripherals]]
+name = "buttons"
+type = "gpio_irq"
+offset = "0x30"
+irq_line = 2
+width_bits = 4
+
+[[peripherals]]
+name = "impact"
+type = "external"
+offset = "0x100"
+external_size = 16
+irq_line = 3

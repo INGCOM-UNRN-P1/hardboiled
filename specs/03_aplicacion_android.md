@@ -2,7 +2,7 @@
 
 **Versión:** 1.0  
 **Fecha:** 30/10/2026  
-**Estado:** Aprobado  
+**Estado:** Implementado en ola 40 (módulo Android y puente remoto)
 **Referencia:** Hoja de Ruta - Ola 33 (Paso 4) / Decisión G (29/10/26)
 
 ---
@@ -84,3 +84,14 @@ La aplicación móvil expone los componentes de hardware del smartphone como per
   - `android.permission.CAMERA`: Escaneo del QR de emparejamiento.
   - `android.permission.VIBRATE`: Retroalimentación háptica en botones táctiles.
   - `android.permission.HIGH_SAMPLING_RATE_SENSORS`: Lectura fluida de acelerómetro.
+
+## 5. Implementación de ola 40
+
+Ver [guía operativa y contrato efectivo](../docs/cyberdeck.md) y
+[cliente Cyberdeck](../../cyberdeck/README.md). Se usa el QR `bridge://pair` y
+el tipo mDNS base con TXT `service=hardboiled`, compartidos con las otras
+herramientas. El escáner usa Google Code Scanner (ML Kit), sin permiso de cámara.
+La app negocia Vref, mapea −g…+g al rango ADC y transmite a 20–60 Hz sólo en
+primer plano. El puente aplica comandos en la cola del motor. La API de placa
+usa `external_size` para periféricos externos. UDP, TLS opcional y servicio en
+segundo plano no son requisitos de cierre de esta ola.

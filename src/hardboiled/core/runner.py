@@ -25,6 +25,7 @@ from hardboiled.core.elf import ElfLoadError
 from hardboiled.core.events import (
     CmdContinue,
     CmdDriveGpio,
+    CmdExternalIrq,
     CmdPause,
     CmdPressButton,
     CmdProfile,
@@ -33,6 +34,7 @@ from hardboiled.core.events import (
     CmdReset,
     CmdRunToLine,
     CmdSelectFrame,
+    CmdSetAdcInputs,
     CmdSetBreakpointCondition,
     CmdSetClock,
     CmdShutdown,
@@ -285,6 +287,19 @@ class RunnerThread(threading.Thread):
                         raise DebuggerError(_("la placa no tiene GPIO bidireccional"))
                     gpio.cycle_drive(pin)
                     self.machine.cpu.refresh_deadline()  # puede rebotar
+                    return
+                case CmdSetAdcInputs(device=device, millivolts=values):
+                    adc = self.machine.adc(device)
+                    if adc is None or adc.channels < 3:
+                        raise DebuggerError(_("la placa necesita un ADC de al menos tres canales"))
+                    for channel, mv in enumerate(values):
+                        adc.set_millivolts(channel, mv)
+                    return
+                case CmdExternalIrq(device=device, asserted=asserted):
+                    external = self.machine.external(device)
+                    if external is None:
+                        raise DebuggerError(_("no existe el periférico externo"))
+                    external.trigger_irq(asserted)
                     return
                 case CmdTurnPotentiometer(channel=channel, percent=percent, device=device):
                     adc = self.machine.adc(device)

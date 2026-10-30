@@ -29,6 +29,7 @@ dependencies = [
     "pyelftools>=0.33",
     "textual>=8.2.8",
     "unicorn>=2.1.4",
+    "cast-tools-common @ git+https://github.com/martinvilu/cast-tools-common@ae23dd31b0da7f04637cf8b15e6b83b11c4af30c",
 ]
 
 [project.optional-dependencies]
@@ -82,3 +83,10 @@ disallow_untyped_calls = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[[tool.mypy.overrides]]
+module = ["cast_tools_common.*"]
+follow_untyped_imports = true
+
+[tool.hatch.metadata]
+allow-direct-references = true

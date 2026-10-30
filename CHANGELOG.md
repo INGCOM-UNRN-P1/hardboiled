@@ -9,6 +9,10 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- Ola 40: puente `run --remote` para Cyberdeck, PIN obligatorio, tokens efímeros,
+  mDNS y QR compartidos con cast-tools-common. Muestras de tres ejes al ADC por
+  cola del motor, pulsadores y pulso de IRQ externo; guía y práctica reproducible.
+
 - `hardboiled_test.h`: aserciones para probar firmware desde C sobre los registros de E/S (`HB_ASSERT_REG_EQ`, bits y campos, pull-ups, IRQ habilitadas y pendientes, `HB_ASSERT_CYCLES_AT_MOST`, `HB_ESPERAR`), con el resultado por la UART y el código de salida. Ejemplo `pruebas.c` (Ola 21).
 - Contador de ciclos determinista en el PIC (`HB_CYCLES_LO`/`HB_CYCLES_HI`, `hb_cycles()`): `rdcycle` en el emulador devuelve tiempo del equipo y cambia entre corridas.
 - `hardboiled test`: `[[case.check]]` (LEDs, display, pines del GPIO y UART en un ciclo dado) y `until_cycle`/`until_ms` para firmware que no termina; `--press BOTÓN@MOMENTO` y `--hasta MOMENTO` sin TOML.

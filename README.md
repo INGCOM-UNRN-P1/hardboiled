@@ -842,3 +842,9 @@ Con `--json`, estos comandos emiten el resultado como JSON por la salida estánd
 ## Licencia
 
 GPL-2.0-only: el texto completo está en [`LICENSE`](LICENSE).
+
+### Sensores Android (Cyberdeck)
+
+`hardboiled run programa.c --board placa.toml --remote` publica un puente LAN con
+PIN y QR. El acelerómetro alimenta ADC 0–2 a 20–60 Hz.
+Ver [la guía con placa y firmware de ejemplo](docs/cyberdeck.md).
