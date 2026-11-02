@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Laboratorio local de periféricos de hardboiled: teclado matricial, LCD y PWM RGB.">
+  <title>hardboiled · Panel de periféricos</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a href="/" class="brand">hb<span> / </span>hardboiled</a><span class="local-tag">LABORATORIO LOCAL</span></header>
+  <main>
+    <div class="heading"><div><p class="eyebrow">BARE METAL / RV32I</p><h1>La placa, a la vista.</h1><p class="intro">Entradas que controlás. Salidas que programa tu firmware.</p></div><div class="connection"><span id="status" role="status" data-state="waiting">Conectando…</span><span id="board">Esperando placa</span><span id="cycle">Ciclo —</span></div></div>
+    <div class="toolbar"><span class="signal-dot"></span> <span id="hint">Abrí la práctica en la TUI y continuá la ejecución.</span></div>
+    <section id="devices" aria-label="Periféricos de la placa"></section>
+    <p id="error" role="alert"></p>
+    <footer><span>hardboiled / instrumentos virtuales</span><span>El tiempo lo marca el emulador.</span></footer>
+  </main>
+</body>
+</html>

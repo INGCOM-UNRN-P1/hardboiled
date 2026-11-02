@@ -2,7 +2,7 @@
 
 **Versión:** 1.0  
 **Fecha:** 30/10/2026  
-**Estado:** Aprobado  
+**Estado:** Implementado en ola 39 (02/11/26)
 **Referencia:** Hoja de Ruta - Ola 33 (Paso 3) / Decisión G (29/10/26) / QoL #1220, #1223, #1227
 
 ---
@@ -105,3 +105,24 @@ La aplicación web se conecta a través del protocolo estandarizado en `01_proto
 
 - **Acceso sin PIN:** Al correr exclusivamente sobre el loopback local del estudiante, no se solicita PIN para maximizar la ergonomía y velocidad de uso en clase.
 - **Protección de Origen:** El backend rechaza peticiones cuyo header `Origin` no coincida con el puerto local servido, previniendo secuestros por sitios web externos maliciosos abiertos en otra pestaña del navegador.
+
+
+## 5. Contrato implementado en ola 39
+
+La [guía operativa](../docs/panel_web.md) detalla el mapa MMIO, la placa y el
+firmware reproducible. `hardboiled run --web` sirve la SPA en **8768** por defecto
+para coexistir con el puente móvil (8767); `--web-port` permite cambiarlo.
+Los bloques `type="external"` declaran `external_model` explícito.
+
+El estado de keypad, LCD y PWM reside en modelos del emulador. La SPA recibe
+`HELLO` y snapshots `STATE` por WebSocket (hasta 30 Hz), en vez de interpretar
+cada `WRITE` en el navegador. Las escrituras MMIO se procesan inmediatamente por
+el modelo, y todas las entradas y consultas pasan por la cola del runner. Esto
+permite recarga, reconexión y paso atrás sin perder DDRAM/CGRAM ni mantener logs
+ilimitados de barrido. Las filas del teclado son activas en **alto**, en
+compatibilidad con `Keypad4x4` y el ejemplo de ola 33.
+
+El servidor sólo escucha en loopback, valida Host y Origin del propio puerto,
+no requiere PIN y aplica CSP. La TUI muestra la URL y la abre con Ctrl+W. El LCD
+usa un adaptador MMIO de bytes completos (busy=0), con glifos CGRAM 5x8 y una ROM
+visual latina simplificada. La práctica y las pruebas fijan este contrato.

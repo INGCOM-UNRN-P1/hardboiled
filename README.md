@@ -848,3 +848,9 @@ GPL-2.0-only: el texto completo está en [`LICENSE`](LICENSE).
 `hardboiled run programa.c --board placa.toml --remote` publica un puente LAN con
 PIN y QR. El acelerómetro alimenta ADC 0–2 a 20–60 Hz.
 Ver [la guía con placa y firmware de ejemplo](docs/cyberdeck.md).
+
+### Panel web de periféricos
+
+`hardboiled run programa.c --board placa.toml --web` sirve un panel local de
+teclado matricial 4x4, LCD 16x2 y LED RGB con PWM. La URL aparece en la TUI;
+Ctrl+W la abre. Ver [la guía y la práctica completa](docs/panel_web.md).

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import queue
 import sys
+from contextlib import ExitStack
 from dataclasses import asdict
 from pathlib import Path
 
@@ -113,6 +114,8 @@ def add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--remote-advertise-host", help="IP LAN para mDNS y QR (detección automática)"
     )
+    parser.add_argument("--web", action="store_true", help="panel local de teclado, LCD y RGB")
+    parser.add_argument("--web-port", type=int, default=8768, help="puerto del panel local (8768)")
     add_build_options(parser)
 
 
@@ -185,6 +188,10 @@ def program_watcher(args: argparse.Namespace, elf: Path) -> ProgramWatcher:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    if args.web and args.headless:
+        raise CliError("--web requiere la TUI")
+    if not 0 <= args.web_port <= 65535:
+        raise CliError("--web-port debe estar entre 0 y 65535")
     if args.remote and args.headless:
         raise CliError("--remote requiere la TUI")
     if not 0 <= args.remote_port <= 65535:
@@ -258,27 +265,41 @@ def cmd_run(args: argparse.Namespace) -> int:
         machine, cmd_queue, evt_queue, stop_at_main, store, prefs.history, watcher
     )
     config = user_config(args)
-    if args.remote:
-        from hardboiled.remote import RemoteBridge
+    try:
+        with ExitStack() as stack:
+            banner = None
+            web_url = None
+            if args.remote:
+                from hardboiled.remote import RemoteBridge
 
-        try:
-            bridge = RemoteBridge(
-                machine, cmd_queue, args.remote_host, args.remote_port, args.remote_advertise_host
-            )
-            with bridge:
-                print(bridge.banner(), file=sys.stderr)
-                HardboiledApp(
-                    cmd_queue,
-                    evt_queue,
-                    runner,
-                    config.ui,
-                    config.keys,
-                    remote_banner=bridge.banner(),
-                ).run()
-        except (OSError, ValueError) as exc:
-            raise CliError(str(exc)) from exc
-    else:
-        HardboiledApp(cmd_queue, evt_queue, runner, config.ui, config.keys).run()
+                bridge = stack.enter_context(
+                    RemoteBridge(
+                        machine,
+                        cmd_queue,
+                        args.remote_host,
+                        args.remote_port,
+                        args.remote_advertise_host,
+                    )
+                )
+                banner = bridge.banner()
+                print(banner, file=sys.stderr)
+            if args.web:
+                from hardboiled.web import WebBridge
+
+                panel = stack.enter_context(WebBridge(machine, cmd_queue, args.web_port))
+                web_url = panel.url
+                print(f"Panel web: {web_url}", file=sys.stderr)
+            HardboiledApp(
+                cmd_queue,
+                evt_queue,
+                runner,
+                config.ui,
+                config.keys,
+                remote_banner=banner,
+                web_url=web_url,
+            ).run()
+    except (OSError, ValueError) as exc:
+        raise CliError(str(exc)) from exc
     return 0
 
 

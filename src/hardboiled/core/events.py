@@ -6,7 +6,9 @@ la UI por `evt_queue`. Ambos lados sólo comparten estos tipos.
 
 from __future__ import annotations
 
+import queue
 from dataclasses import dataclass, field
+from typing import Any
 
 # --------------------------------------------------------------------------
 # Comandos (UI -> Motor)
@@ -141,6 +143,19 @@ class CmdSetAdcInputs:
 
 
 @dataclass(frozen=True)
+class CmdKeyEvent:
+    device: str
+    row: int
+    col: int
+    pressed: bool
+
+
+@dataclass(frozen=True)
+class CmdWebState:
+    reply: queue.Queue[dict[str, Any]]
+
+
+@dataclass(frozen=True)
 class CmdExternalIrq:
     device: str
     asserted: bool
@@ -203,6 +218,8 @@ Command = (
     | CmdTurnPotentiometer
     | CmdSetAdcInputs
     | CmdExternalIrq
+    | CmdKeyEvent
+    | CmdWebState
     | CmdProfile
     | CmdReload
     | CmdPause

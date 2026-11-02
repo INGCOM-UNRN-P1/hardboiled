@@ -1,0 +1,26 @@
+[board]
+name = "lab-panel-web"
+clock_hz = 1000000
+max_instructions = 1000000000
+
+[[peripherals]]
+name = "keypad"
+type = "external"
+offset = "0x50"
+external_size = 16
+external_model = "keypad_4x4"
+irq_line = 3
+
+[[peripherals]]
+name = "lcd"
+type = "external"
+offset = "0x60"
+external_size = 16
+external_model = "lcd_hd44780"
+
+[[peripherals]]
+name = "rgb_pwm"
+type = "external"
+offset = "0x70"
+external_size = 16
+external_model = "pwm_rgb"

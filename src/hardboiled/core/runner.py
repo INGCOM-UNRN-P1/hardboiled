@@ -26,6 +26,7 @@ from hardboiled.core.events import (
     CmdContinue,
     CmdDriveGpio,
     CmdExternalIrq,
+    CmdKeyEvent,
     CmdPause,
     CmdPressButton,
     CmdProfile,
@@ -49,6 +50,7 @@ from hardboiled.core.events import (
     CmdToggleWatchpoint,
     CmdTurnPotentiometer,
     CmdUartInput,
+    CmdWebState,
     Command,
     ConditionInfo,
     DisasmLine,
@@ -75,7 +77,7 @@ from hardboiled.core.machine import Machine, MachineSnapshot
 from hardboiled.core.profile import build_profile
 from hardboiled.core.session import BreakpointStore, apply_points, capture_points
 from hardboiled.core.unwind import Frame
-from hardboiled.hardware import ButtonBank, LedBar, SwitchBank
+from hardboiled.hardware import ButtonBank, ExternalPeripheral, LedBar, SwitchBank
 from hardboiled.i18n import _
 from hardboiled.watch import ProgramWatcher, WatchError
 
@@ -287,6 +289,26 @@ class RunnerThread(threading.Thread):
                         raise DebuggerError(_("la placa no tiene GPIO bidireccional"))
                     gpio.cycle_drive(pin)
                     self.machine.cpu.refresh_deadline()  # puede rebotar
+                    return
+                case CmdWebState(reply=reply):
+                    if reply.empty():
+                        reply.put_nowait(
+                            {
+                                "type": "STATE",
+                                "cycle": self.machine.cpu.clock.cycles,
+                                "clock_hz": self.machine.cpu.clock_hz,
+                                "devices": {
+                                    dev.name: dev.model.state()
+                                    for dev in self.machine.peripherals
+                                    if isinstance(dev, ExternalPeripheral) and dev.model is not None
+                                },
+                            }
+                        )
+                    return
+                case CmdKeyEvent(device=device, row=row, col=col, pressed=pressed):
+                    external = self.machine.external(device)
+                    if external is not None:
+                        external.key(row, col, pressed)
                     return
                 case CmdSetAdcInputs(device=device, millivolts=values):
                     adc = self.machine.adc(device)

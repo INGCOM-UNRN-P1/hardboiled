@@ -11,6 +11,7 @@ import codecs
 import os
 import queue
 import threading
+from webbrowser import open as open_browser
 
 from rich.text import Text
 from textual import events
@@ -200,8 +201,10 @@ class HardboiledApp(App[None]):
         prefs: UiPrefs | None = None,
         keymap: dict[str, str] | None = None,
         remote_banner: str | None = None,
+        web_url: str | None = None,
     ) -> None:
         super().__init__()
+        self.web_url = web_url
         self.remote_banner = remote_banner
         self.prefs = prefs or UiPrefs()
         self.palette = palette_for(self.prefs.theme, self.prefs.colorblind)
@@ -262,9 +265,16 @@ class HardboiledApp(App[None]):
         if self.worker is not None and not self.worker.is_alive():
             self.worker.start()
 
+        if self.web_url:
+            self.sub_title = f"Web: {self.web_url}"
+            self.bind("ctrl+w", "web_panel", description="Web")
         if self.remote_banner:
             self.bind("ctrl+k", "remote_pairing", description="Cyberdeck")
             self.call_after_refresh(self.action_remote_pairing)
+
+    def action_web_panel(self) -> None:
+        if self.web_url:
+            open_browser(self.web_url)
 
     def action_remote_pairing(self) -> None:
         if self.remote_banner:

@@ -9,6 +9,11 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- Ola 39: `run --web` y `--web-port`, SPA local empaquetada de teclado 4x4, LCD
+  HD44780 16x2 (DDRAM/CGRAM) y LED RGB con PWM. Modelos MMIO con snapshots,
+  entradas por cola y sincronización WebSocket; apertura desde la TUI con Ctrl+W,
+  control de Host/Origin, práctica en C y CI de navegador con firmware real.
+
 - Ola 42: en la vista de la pila, cada puntero local dice a qué apunta: otra variable de
   la pila (`p → v[2]`), una global (`f → triangulo`), una función o `NULL`.
 - Ola 40: puente `run --remote` para Cyberdeck, PIN obligatorio, tokens efímeros,

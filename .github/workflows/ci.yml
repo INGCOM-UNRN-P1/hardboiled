@@ -29,6 +29,26 @@ jobs:
       - name: pytest
         run: uv run pytest -q
 
+  web:
+    name: Panel web con Chromium y firmware RV32I
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --group browser
+      - run: uv run --group browser playwright install --with-deps chromium
+      - name: SPA, teclado, LCD, RGB, foco, recarga y pantalla móvil
+        env:
+          HARDBOILED_BROWSER: "1"
+          HARDBOILED_SCREENSHOT: panel_desktop.png
+        run: uv run --group browser python -m pytest tests/test_web_browser.py -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panel-web
+          path: panel_*.png
+
   package:
     name: Instalación como uv tool (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

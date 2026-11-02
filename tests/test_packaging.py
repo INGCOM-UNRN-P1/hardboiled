@@ -14,6 +14,9 @@ from hardboiled import resources
 ROOT = Path(__file__).parents[1]
 
 PACKAGED_FILES = (
+    "web_assets/index.html",
+    "web_assets/app.js",
+    "web_assets/style.css",
     "runtime/crt0.s",
     "runtime/hardboiled.ld",
     "runtime/include/hardboiled.h",
