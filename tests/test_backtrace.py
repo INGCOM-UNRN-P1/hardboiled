@@ -151,3 +151,28 @@ def test_stack_slots_show_interrupt_context(make_machine: MachineFactory) -> Non
     assert "IRQ 0: pc interrumpido" in notes
     assert "IRQ: a0 guardado" in notes
     assert "IRQ: relleno (alineación a 16)" in notes
+
+
+def test_stack_slots_say_where_pointers_point(make_machine: MachineFactory) -> None:
+    # En medir(&triangulo, 2) el parámetro f apunta a la global triangulo (Ola 42).
+    machine, _ = make_machine("types")
+    debugger = machine.debugger
+    debugger.toggle_line_breakpoint(line_of("types.c", "medir_first"), "types.c")
+    debugger.continue_()
+    notes = {slot.note for slot in debugger.stack_slots() if slot.note}
+    assert "f → triangulo" in notes, notes
+    assert "escala" in notes and "f" not in notes
+
+
+def test_pointer_into_another_stack_variable() -> None:
+    from types import SimpleNamespace
+
+    from hardboiled.core.debugger import Debugger
+
+    entero = SimpleNamespace(kind="base", size=4, target=None)
+    arreglo = SimpleNamespace(name="v", ctype=SimpleNamespace(kind="array", size=16, target=entero))
+    suelto = SimpleNamespace(name="x", ctype=entero)
+    declarados = [(0x2000_0F00, arreglo), (0x2000_0F10, suelto)]
+    assert Debugger._name_in(0x2000_0F08, declarados) == "v[2]"  # type: ignore[arg-type]
+    assert Debugger._name_in(0x2000_0F10, declarados) == "x"  # type: ignore[arg-type]
+    assert Debugger._name_in(0x2000_0F20, declarados) is None  # type: ignore[arg-type]

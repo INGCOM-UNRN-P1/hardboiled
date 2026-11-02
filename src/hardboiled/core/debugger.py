@@ -19,7 +19,14 @@ from hardboiled.core.elf import ElfImage
 from hardboiled.core.events import StackSlot, VariableInfo
 from hardboiled.core.expressions import Evaluator, ExpressionError, tokenize
 from hardboiled.core.unwind import CallFrameTable, Frame, Unwinder
-from hardboiled.core.variables import CType, Formatter, FrameContext, Storage, VariableTable
+from hardboiled.core.variables import (
+    CType,
+    Formatter,
+    FrameContext,
+    Storage,
+    VariableDecl,
+    VariableTable,
+)
 from hardboiled.i18n import _
 
 
@@ -324,6 +331,8 @@ class Debugger:
         # Límites de cada marco: [sp del marco, cfa) y lo que guardó.
         bounds: list[tuple[int, int, int, str]] = []
         notes: dict[int, list[str]] = {}
+        locals_in_stack: list[tuple[int, VariableDecl]] = []
+        pointers: list[tuple[int, str]] = []
         for frame in frames:
             label = (
                 _("interrupción IRQ {line}", line=frame.irq_line)
@@ -361,9 +370,28 @@ class Debugger:
             for decl in self.variables.locals_at(frame.site):
                 storage = self.variables.storage(decl, context)
                 if storage is not None and storage.address is not None:
-                    self._note(notes, storage.address & ~3, decl.name)
+                    locals_in_stack.append((storage.address, decl))
+                    if decl.ctype.kind == "pointer" and decl.ctype.size == 4:
+                        pointers.append((storage.address, decl.name))
+                    else:
+                        self._note(notes, storage.address & ~3, decl.name)
                     for extra in range(4, (decl.ctype.size + 3) & ~3, 4):
                         self._note(notes, (storage.address & ~3) + extra, f"{decl.name} (cont.)")
+        # Los punteros de la pila dicen a qué apuntan: otra variable de la pila, una global, una
+        # función o NULL (Ola 42: las flechas de bishop, en la pila del emulador).
+        for address, name in pointers:
+            value = self.cpu.read_word(address)
+            if value is None:
+                self._note(notes, address & ~3, name)
+                continue
+            target = (
+                "NULL"
+                if value == 0
+                else self._name_in(value, locals_in_stack)
+                or self.describe_address(value)
+                or f"0x{value:08x}"
+            )
+            self._note(notes, address & ~3, f"{name} → {target}")
         data = self.cpu.read_memory(start, top - start) or b""
         slots = []
         for offset in range(0, len(data), 4):
@@ -383,6 +411,21 @@ class Debugger:
             if bounds and address >= bounds[-1][2] - 4:
                 break  # hasta el último marco conocido
         return slots
+
+    @staticmethod
+    def _name_in(address: int, declared: list[tuple[int, VariableDecl]]) -> str | None:
+        """La variable (o el elemento, o el campo por desplazamiento) de `declared` en `address`."""
+        for start, decl in declared:
+            offset = address - start
+            if 0 <= offset < max(decl.ctype.size, 1):
+                if offset == 0:
+                    return decl.name
+                element = decl.ctype.target
+                if decl.ctype.kind == "array" and element is not None and element.size:
+                    index, rest = divmod(offset, element.size)
+                    return f"{decl.name}[{index}]" + (f"+{rest}" if rest else "")
+                return f"{decl.name}+{offset}"
+        return None
 
     @staticmethod
     def _note(notes: dict[int, list[str]], address: int, text: str) -> None:

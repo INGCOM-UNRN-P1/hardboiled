@@ -9,6 +9,8 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- Ola 42: en la vista de la pila, cada puntero local dice a qué apunta: otra variable de
+  la pila (`p → v[2]`), una global (`f → triangulo`), una función o `NULL`.
 - Ola 40: puente `run --remote` para Cyberdeck, PIN obligatorio, tokens efímeros,
   mDNS y QR compartidos con cast-tools-common. Muestras de tres ejes al ADC por
   cola del motor, pulsadores y pulso de IRQ externo; guía y práctica reproducible.
