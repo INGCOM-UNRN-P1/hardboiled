@@ -14,6 +14,7 @@ from hardboiled.hardware.adc import Adc
 from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.gpio_port import GpioPort
+from hardboiled.hardware.panel import PanelKind
 from hardboiled.hardware.sevenseg import MAX_DIGITS, SevenSegment
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
@@ -148,6 +149,7 @@ class PeripheralConfig(_Model):
 
     # Sólo external: tamaño de la ventana MMIO (múltiplo de 4).
     external_size: int = Field(default=16, ge=4, le=4096)
+    external_model: PanelKind | None = None
 
     @property
     def size(self) -> int:
@@ -165,6 +167,12 @@ class PeripheralConfig(_Model):
         if self.bounce_cycles and self.type not in BOUNCE_CAPABLE:
             capable = ", ".join(sorted(BOUNCE_CAPABLE))
             raise ValueError(f"{self.name}: sólo rebotan las entradas: {capable}")
+        if self.external_model is not None and (
+            self.type != "external" or self.external_size != 16
+        ):
+            raise ValueError(
+                f"{self.name}: external_model necesita type=external y external_size=16"
+            )
         if self.external_size % 4:
             raise ValueError(f"{self.name}: external_size debe ser múltiplo de 4")
         solo_adc = {"channels", "resolution_bits", "conversion_cycles", "vref_mv"}

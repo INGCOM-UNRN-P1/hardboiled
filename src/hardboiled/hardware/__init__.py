@@ -10,6 +10,7 @@ from hardboiled.hardware.buttons import ButtonBank
 from hardboiled.hardware.external import ExternalPeripheral
 from hardboiled.hardware.gpio import LedBar, SwitchBank
 from hardboiled.hardware.gpio_port import GpioPort
+from hardboiled.hardware.panel import PanelKind
 from hardboiled.hardware.sevenseg import SevenSegment
 from hardboiled.hardware.timer import Timer
 from hardboiled.hardware.uart import Uart
@@ -47,6 +48,7 @@ def build_peripheral(
     conversion_cycles: int = 100,
     vref_mv: int = 3300,
     external_size: int = 16,
+    external_model: PanelKind | None = None,
 ) -> Peripheral:
     if kind == "external":
         return ExternalPeripheral(
@@ -56,6 +58,7 @@ def build_peripheral(
             irq_line=irq_line,
             raise_irq=raise_irq,
             lower_irq=lower_irq,
+            model=external_model,
         )
     if kind == "gpio_out":
         return LedBar(name, offset, width_bits)

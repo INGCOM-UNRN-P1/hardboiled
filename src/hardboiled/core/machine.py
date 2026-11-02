@@ -74,6 +74,7 @@ class Machine:
                     cfg.conversion_cycles,
                     cfg.vref_mv,
                     cfg.external_size,
+                    cfg.external_model,
                 )
             )
         self.cpu = Cpu(
