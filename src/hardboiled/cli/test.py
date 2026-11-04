@@ -70,7 +70,9 @@ def parse_momento(texto: str) -> tuple[int | None, float | None]:
             return None, float(texto[:-2])
         return parse_int(texto), None
     except (ValueError, argparse.ArgumentTypeError) as exc:
-        raise CliError(f"momento inválido: {texto!r} (un número de ciclos o algo como 5ms)") from exc
+        raise CliError(
+            f"momento inválido: {texto!r} (un número de ciclos o algo como 5ms)"
+        ) from exc
 
 
 def steps_from_press(valores: list[str]) -> list[Step]:
@@ -78,7 +80,9 @@ def steps_from_press(valores: list[str]) -> list[Step]:
     for valor in valores:
         boton, sep, momento = valor.partition("@")
         if not sep or not boton.strip().isdigit():
-            raise CliError(f"--press {valor!r}: se espera BOTÓN@MOMENTO, por ejemplo 0@20000 o 1@5ms")
+            raise CliError(
+                f"--press {valor!r}: se espera BOTÓN@MOMENTO, por ejemplo 0@20000 o 1@5ms"
+            )
         ciclo, ms = parse_momento(momento)
         pasos.append(Step(press=[int(boton)], cycle=ciclo, ms=ms))
     return pasos
@@ -152,8 +156,13 @@ def print_results(results: list[CaseResult], quiet: bool = False) -> int:
         if result.passed and quiet:
             continue
         mark = "ok   " if result.passed else "FALLA"
-        detail = (f"código {result.exit_code}" if result.outcome == "exited"
-                  else f"hasta el ciclo {result.cycles:,}" if result.outcome == "until" else result.outcome)
+        detail = (
+            f"código {result.exit_code}"
+            if result.outcome == "exited"
+            else f"hasta el ciclo {result.cycles:,}"
+            if result.outcome == "until"
+            else result.outcome
+        )
         if result.checks:
             detail += f", {result.checks} controles"
         print(f"{mark} {result.name} ({detail}, {result.instructions:,} instrucciones)")

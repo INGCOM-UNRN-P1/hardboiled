@@ -89,8 +89,9 @@ def test_el_header_de_pruebas_esta_en_el_runtime() -> None:
 
 
 @needs_zig
-def test_hardboiled_test_h_con_el_ejemplo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-                                          capsys: pytest.CaptureFixture[str]) -> None:
+def test_hardboiled_test_h_con_el_ejemplo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("HARDBOILED_CC", "zig")
     ejemplo = Path(__file__).parents[1] / "src" / "hardboiled" / "examples" / "pruebas.c"
@@ -99,26 +100,47 @@ def test_hardboiled_test_h_con_el_ejemplo(tmp_path: Path, monkeypatch: pytest.Mo
     # Sin el botón, la prueba que lo espera falla y el programa sale con 1.
     assert main(["test", str(ejemplo), "--expect-exit", "0", "--json"]) == 1
     (caso,) = json.loads(capsys.readouterr().out)["cases"]
-    assert "FALLA pruebas.c:" in caso["uart"] and "se esperaba pulsaciones > 0u en 200000 ciclos" in caso["uart"]
+    assert (
+        "FALLA pruebas.c:" in caso["uart"]
+        and "se esperaba pulsaciones > 0u en 200000 ciclos" in caso["uart"]
+    )
     assert "4 pruebas, 1 falla" in caso["uart"]
 
 
 @needs_zig
-def test_controles_y_until_son_deterministas(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-                                            capsys: pytest.CaptureFixture[str]) -> None:
+def test_controles_y_until_son_deterministas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("HARDBOILED_CC", "zig")
     (tmp_path / "firmware.c").write_text(FIRMWARE_CON_LAZO, encoding="utf-8")
     (tmp_path / "casos.toml").write_text(SUITE, encoding="utf-8")
     corridas = []
     for _ in range(2):
-        assert main(["test", str(tmp_path / "firmware.c"), "--suite", str(tmp_path / "casos.toml"), "--json"]) == 1
+        assert (
+            main(
+                [
+                    "test",
+                    str(tmp_path / "firmware.c"),
+                    "--suite",
+                    str(tmp_path / "casos.toml"),
+                    "--json",
+                ]
+            )
+            == 1
+        )
         corridas.append(json.loads(capsys.readouterr().out))
     assert corridas[0] == corridas[1]
     una, falla = corridas[0]["cases"]
-    assert una["passed"] and una["outcome"] == "until" and una["cycles"] == 200000 and una["checks"] == 2
+    assert (
+        una["passed"]
+        and una["outcome"] == "until"
+        and una["cycles"] == 200000
+        and una["checks"] == 2
+    )
     assert not falla["passed"] and falla["failures"] == [
-        "a los 90,000 ciclos (90 ms) los LEDs estaban en 0b00000000, se esperaba 0b00001000"]
+        "a los 90,000 ciclos (90 ms) los LEDs estaban en 0b00000000, se esperaba 0b00001000"
+    ]
 
 
 @needs_zig
@@ -126,7 +148,10 @@ def test_hasta_sin_suite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("HARDBOILED_CC", "zig")
     (tmp_path / "firmware.c").write_text(FIRMWARE_CON_LAZO, encoding="utf-8")
-    assert main(["test", str(tmp_path / "firmware.c"), "--press", "0@50ms", "--hasta", "200ms", "-q"]) == 0
+    assert (
+        main(["test", str(tmp_path / "firmware.c"), "--press", "0@50ms", "--hasta", "200ms", "-q"])
+        == 0
+    )
     # Sin --hasta, el lazo infinito termina en un wfi sin nada que lo despierte: falla.
     assert main(["test", str(tmp_path / "firmware.c"), "-q"]) == 1
 
@@ -188,18 +213,24 @@ int main(void)
 
 
 @needs_zig
-def test_hardboiled_test_h_con_una_placa_propia(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-                                                capsysbinary: pytest.CaptureFixture[bytes]) -> None:
-    """Con un board.toml propio el SDK se genera en la caché: hardboiled_test.h también tiene que estar."""
+def test_hardboiled_test_h_con_una_placa_propia(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsysbinary: pytest.CaptureFixture[bytes]
+) -> None:
+    """Con un board.toml propio el SDK va a la caché: hardboiled_test.h también tiene que estar."""
     monkeypatch.setenv("HARDBOILED_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.chdir(tmp_path)
     (tmp_path / "board.toml").write_text(PLACA_GPIO, encoding="utf-8")
     (tmp_path / "main.c").write_text(PRUEBA_PULL_UP, encoding="utf-8")
-    (tmp_path / "guion.toml").write_text("[[at]]\ncycle = 30000\ngpio_low = [2]\n", encoding="utf-8")
+    (tmp_path / "guion.toml").write_text(
+        "[[at]]\ncycle = 30000\ngpio_low = [2]\n", encoding="utf-8"
+    )
     assert main(["run", "main.c", "--headless", "--cc", "zig", "--script", "guion.toml"]) == 1
     salida = capsysbinary.readouterr().out.decode()
     assert "[ ok  ] pull_up_e_interrupcion" in salida
-    assert "FALLA main.c:" in salida and "GPIO_PULL == 0x80 (obtenido 0x00000004, esperado 0x00000080)" in salida
+    assert (
+        "FALLA main.c:" in salida
+        and "GPIO_PULL == 0x80 (obtenido 0x00000004, esperado 0x00000080)" in salida
+    )
     assert "2 pruebas, 1 falla" in salida
 
 
@@ -207,10 +238,8 @@ async def test_los_botones_se_aprietan_con_alt_y_el_numero() -> None:
     """Antes los botones sólo se apretaban con el mouse; los switches ya tenían 0-7."""
     import queue
 
-    from hardboiled.core.events import CmdPressButton, CmdToggleSwitch
+    from hardboiled.core.events import CmdPressButton, CmdToggleSwitch, Command, Event
     from hardboiled.ui.tui import HardboiledApp
-
-    from hardboiled.core.events import Command, Event
 
     comandos: queue.Queue[Command] = queue.Queue()
     eventos: queue.Queue[Event] = queue.Queue()

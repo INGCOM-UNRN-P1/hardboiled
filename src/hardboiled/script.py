@@ -88,10 +88,13 @@ class Step(BaseModel):
         if (
             self.switches is None
             and self.uart is None
-            and not (self.press or self.gpio or self.adc or self.external_write or self.external_irq)
+            and not (
+                self.press or self.gpio or self.adc or self.external_write or self.external_irq
+            )
         ):
             raise ValueError(
-                "el paso no hace nada: falta `switches`, `uart`, `press`, `gpio_*`, `adc` o `external_*`"
+                "el paso no hace nada: falta `switches`, `uart`, `press`, `gpio_*`, `adc` "
+                "o `external_*`"
             )
         return self
 

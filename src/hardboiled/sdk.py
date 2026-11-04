@@ -581,6 +581,8 @@ def runtime_for(board: BoardConfig, cache_root: Path) -> RuntimeFiles:
     # con una placa propia el runtime empaquetado no está en el -I.
     for fijo in packaged.include_dir.glob("*.h"):
         if fijo.name != "hardboiled.h":
-            (directory / "include" / fijo.name).write_text(fijo.read_text(encoding="utf-8"), encoding="utf-8")
+            (directory / "include" / fijo.name).write_text(
+                fijo.read_text(encoding="utf-8"), encoding="utf-8"
+            )
     (directory / "hardboiled.ld").write_text(linker, encoding="utf-8")
     return RuntimeFiles(directory / "include", directory / "hardboiled.ld", packaged.crt0)

@@ -74,9 +74,16 @@ class Check(BaseModel):
     def _check(self) -> Self:
         if (self.cycle is None) == (self.ms is None):
             raise ValueError("cada control necesita `cycle` o `ms` (uno solo)")
-        if (self.leds is None and self.display is None and not self.gpio_high
-                and not self.gpio_low and not self.uart_contains):
-            raise ValueError("el control no verifica nada: falta `leds`, `display`, `gpio_*` o `uart_contains`")
+        if (
+            self.leds is None
+            and self.display is None
+            and not self.gpio_high
+            and not self.gpio_low
+            and not self.uart_contains
+        ):
+            raise ValueError(
+                "el control no verifica nada: falta `leds`, `display`, `gpio_*` o `uart_contains`"
+            )
         return self
 
 
@@ -161,7 +168,9 @@ class _Recorder:
     """Fuente del bus que toma el estado de los periféricos en el ciclo de cada control y,
     con `until`, pide detener la ejecución al llegar a ese ciclo."""
 
-    def __init__(self, machine: Machine, checks: list[tuple[int, Check]], until: int | None) -> None:
+    def __init__(
+        self, machine: Machine, checks: list[tuple[int, Check]], until: int | None
+    ) -> None:
         self.machine = machine
         self.pending = sorted(checks, key=lambda item: item[0])
         self.until = until
@@ -286,8 +295,10 @@ class Grader:
         recorder = None
         poll = cpu.poll
         if case.check or case.until_cycle is not None or case.until_ms is not None:
-            checks = [(_a_ciclo(c.cycle, c.ms, self.clock_hz, f"{case.name}: control {n}"), c)
-                      for n, c in enumerate(case.check, start=1)]
+            checks = [
+                (_a_ciclo(c.cycle, c.ms, self.clock_hz, f"{case.name}: control {n}"), c)
+                for n, c in enumerate(case.check, start=1)
+            ]
             until = None
             if case.until_cycle is not None or case.until_ms is not None:
                 until = _a_ciclo(case.until_cycle, case.until_ms, self.clock_hz, case.name)
@@ -307,9 +318,13 @@ class Grader:
         machine = self.machine
         gpio = machine.gpio()
         for _, check in checks:
-            if check.leds is not None and not any(isinstance(p, LedBar) for p in machine.peripherals):
+            if check.leds is not None and not any(
+                isinstance(p, LedBar) for p in machine.peripherals
+            ):
                 raise SuiteError(f"{case.name}: la placa no tiene LEDs")
-            if check.display is not None and not any(isinstance(p, SevenSegment) for p in machine.peripherals):
+            if check.display is not None and not any(
+                isinstance(p, SevenSegment) for p in machine.peripherals
+            ):
                 raise SuiteError(f"{case.name}: la placa no tiene display")
             pins = check.gpio_high + check.gpio_low
             if pins and gpio is None:
@@ -326,11 +341,18 @@ class Grader:
         for cycle, check, estado in recorder.seen:
             cuando = self._momento(cycle)
             if check.leds is not None and estado["leds"] != check.leds:
-                failures.append(f"{cuando} los LEDs estaban en 0b{estado['leds']:08b}, "
-                                f"se esperaba 0b{check.leds:08b}")
-            if check.display is not None and (estado["display"] or "").strip() != check.display.strip():
-                failures.append(f"{cuando} el display mostraba {(estado['display'] or '').strip()!r}, "
-                                f"se esperaba {check.display.strip()!r}")
+                failures.append(
+                    f"{cuando} los LEDs estaban en 0b{estado['leds']:08b}, "
+                    f"se esperaba 0b{check.leds:08b}"
+                )
+            if (
+                check.display is not None
+                and (estado["display"] or "").strip() != check.display.strip()
+            ):
+                failures.append(
+                    f"{cuando} el display mostraba {(estado['display'] or '').strip()!r}, "
+                    f"se esperaba {check.display.strip()!r}"
+                )
             for pin in check.gpio_high:
                 if not (estado["gpio"] >> pin) & 1:
                     failures.append(f"{cuando} el pin {pin} del GPIO estaba en 0, se esperaba 1")
@@ -341,7 +363,10 @@ class Grader:
                 if fragment not in estado["uart"]:
                     failures.append(f"{cuando} la UART todavía no había mostrado {fragment!r}")
         for cycle, _ in recorder.pending:
-            failures.append(f"el programa terminó antes del control de {self._momento(cycle).removeprefix('a los ')}")
+            failures.append(
+                "el programa terminó antes del control de "
+                f"{self._momento(cycle).removeprefix('a los ')}"
+            )
 
     def _where(self, stop: StopInfo) -> str:
         """` (en suma(), main.c:44)` para ubicar una trampa o una detención."""
@@ -386,9 +411,14 @@ class Grader:
             self._judge_checks(recorder, failures)
         if llego:
             if case.expect_trap is not None:
-                failures.append(f"se esperaba la trampa {case.expect_trap} y el programa siguió corriendo")
+                failures.append(
+                    f"se esperaba la trampa {case.expect_trap} y el programa siguió corriendo"
+                )
             if case.expect_exit is not None:
-                failures.append(f"se esperaba el código de salida {case.expect_exit} y el programa siguió corriendo")
+                failures.append(
+                    f"se esperaba el código de salida {case.expect_exit} "
+                    "y el programa siguió corriendo"
+                )
         elif case.expect_trap is not None:
             if result.trap is None:
                 failures.append(f"se esperaba la trampa {case.expect_trap}: {what}")
