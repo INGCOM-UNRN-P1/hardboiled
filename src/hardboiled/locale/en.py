@@ -63,7 +63,7 @@ MESSAGES: dict[str, str] = {
         "with --march {isa} or set isa in [board] of board.toml"
     ),
     "el segmento en {address} ({size} bytes) no entra en Flash ni en SRAM: ¿se enlazó "
-    "con el hardboiled.ld del runtime?": (
+    "con el hardboiled.ld del `runtime`?": (
         "the segment at {address} ({size} bytes) fits neither in Flash nor in SRAM: was it "
         "linked with the runtime's hardboiled.ld?"
     ),
@@ -74,7 +74,7 @@ MESSAGES: dict[str, str] = {
         "ran into the global variables (.bss ends at {end}){target}"
     ),
     "quedó por debajo del inicio de la SRAM ({base})": "went below the start of SRAM ({base})",
-    "stack overflow: sp = {sp} {where}. ¿Recursión sin caso base o arreglos locales "
+    "desborde de pila (stack overflow): sp = {sp} {where}. ¿Recursión sin caso base o arreglos locales "
     "enormes?": "stack overflow: sp = {sp} {where}. Recursion without a base case or huge "
     "local arrays?",
     ": pisaría la variable `{name}`": ": it would overwrite the variable `{name}`",
@@ -199,7 +199,7 @@ MESSAGES: dict[str, str] = {
     "Instrucción desconocida: ¿salto a datos o compilado para otra arquitectura?": (
         "Unknown instruction: a jump into data, or compiled for another architecture?"
     ),
-    "Si es un bucle infinito, la pausa muestra dónde; si no, F5 continúa.": (
+    "Si es un lazo infinito, la pausa muestra dónde; si no, F5 continúa.": (
         "If it is an infinite loop, the pause shows where; otherwise F5 continues."
     ),
     "Verificá que el divisor no sea cero antes de dividir.": (

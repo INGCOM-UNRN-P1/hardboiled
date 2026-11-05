@@ -3,7 +3,7 @@
 Al estilo gettext, la clave de cada mensaje es el propio texto en español, con
 marcadores `{nombre}` para las partes variables:
 
-    _("stack overflow: sp = {sp}", sp=f"0x{sp:08x}")
+    _("desborde de pila: sp = {sp}", sp=f"0x{sp:08x}")
 
 `N_()` sólo marca un texto (en constantes de módulo) para traducirlo después,
 al usarlo, con `_()`. Los catálogos viven en `hardboiled.locale.<idioma>` y un

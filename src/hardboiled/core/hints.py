@@ -27,7 +27,7 @@ HINTS: dict[str, str] = {
     "vector": N_("Compilá con `hardboiled build` para enlazar crt0.s y hardboiled.ld."),
     "isr-stack": N_("Una ISR escrita en ensamblador dejó sp distinto de como lo encontró."),
     "exception": N_("Instrucción desconocida: ¿salto a datos o compilado para otra arquitectura?"),
-    "limit": N_("Si es un bucle infinito, la pausa muestra dónde; si no, F5 continúa."),
+    "limit": N_("Si es un lazo infinito, la pausa muestra dónde; si no, F5 continúa."),
     "div0": N_("Verificá que el divisor no sea cero antes de dividir."),
     "uninit": N_("Inicializá la variable al declararla."),
 }

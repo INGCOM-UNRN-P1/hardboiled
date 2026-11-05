@@ -439,7 +439,7 @@ class Cpu:
                 raise ElfLoadError(
                     _(
                         "el segmento en {address} ({size} bytes) no entra en Flash ni en "
-                        "SRAM: ¿se enlazó con el hardboiled.ld del runtime?",
+                        "SRAM: ¿se enlazó con el hardboiled.ld del `runtime`?",
                         address=f"0x{seg.paddr:08x}",
                         size=len(seg.data),
                     )
@@ -794,7 +794,7 @@ class Cpu:
         return self._trap(
             pc,
             _(
-                "stack overflow: sp = {sp} {where}. "
+                "desborde de pila (stack overflow): sp = {sp} {where}. "
                 "¿Recursión sin caso base o arreglos locales enormes?",
                 sp=f"0x{sp:08x}",
                 where=where,

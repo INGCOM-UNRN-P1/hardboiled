@@ -114,7 +114,7 @@ Revisá la instrucción que falló en la pantalla de la trampa y compilá con
 ## Límite de instrucciones (`limit`)
 
 No es un error: el programa ejecutó `max_instructions` instrucciones. Si es un
-bucle infinito, la pausa muestra dónde está dando vueltas; si el programa sólo
+lazo infinito, la pausa muestra dónde está dando vueltas; si el programa sólo
 es largo, `F5` continúa otro tanto (o `--max-instructions` en `--headless`).
 
 <a id="div0"></a>

@@ -11,7 +11,7 @@ from hardboiled.cli.common import Subparsers
 def register(sub: Subparsers) -> None:
     parser = sub.add_parser(
         "runtime",
-        help="imprime las rutas del runtime (include, linker script, crt0)",
+        help="imprime las rutas del `runtime` (include, linker script, crt0)",
         description="Sin opciones imprime las tres rutas; con una opción, sólo esa "
         "(para usar como $(hardboiled runtime --include) en un Makefile).",
     )
@@ -19,7 +19,7 @@ def register(sub: Subparsers) -> None:
     which.add_argument("--include", action="store_true", help="directorio de hardboiled.h")
     which.add_argument("--linker-script", action="store_true", help="hardboiled.ld")
     which.add_argument("--crt0", action="store_true", help="crt0.s")
-    which.add_argument("--dir", action="store_true", help="directorio del runtime")
+    which.add_argument("--dir", action="store_true", help="directorio del `runtime`")
     parser.set_defaults(func=cmd_runtime)
 
 
