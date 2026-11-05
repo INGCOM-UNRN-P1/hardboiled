@@ -74,8 +74,8 @@ MESSAGES: dict[str, str] = {
         "ran into the global variables (.bss ends at {end}){target}"
     ),
     "quedó por debajo del inicio de la SRAM ({base})": "went below the start of SRAM ({base})",
-    "desborde de pila (stack overflow): sp = {sp} {where}. ¿Recursión sin caso base o arreglos locales "
-    "enormes?": "stack overflow: sp = {sp} {where}. Recursion without a base case or huge "
+    "desborde de pila (stack overflow): sp = {sp} {where}. ¿Recursión sin caso base o arreglos "
+    "locales enormes?": "stack overflow: sp = {sp} {where}. Recursion without a base case or huge "
     "local arrays?",
     ": pisaría la variable `{name}`": ": it would overwrite the variable `{name}`",
     " y quedó fuera de la SRAM": " and left the SRAM",
