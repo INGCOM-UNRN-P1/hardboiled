@@ -156,7 +156,10 @@ async def test_pairing_visible_inside_tui() -> None:
 
     app = HardboiledApp(queue.Queue[Command](), queue.Queue[Event](), remote_banner="PIN: 123456")
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
+        for _ in range(20):
+            if isinstance(app.screen, PairingScreen):
+                break
+            await pilot.pause()
         assert isinstance(app.screen, PairingScreen)
         assert app.screen.banner == "PIN: 123456"
         await pilot.press("escape")
