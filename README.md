@@ -854,3 +854,7 @@ Ver [la guía con placa y firmware de ejemplo](docs/cyberdeck.md).
 `hardboiled run programa.c --board placa.toml --web` sirve un panel local de
 teclado matricial 4x4, LCD 16x2 y LED RGB con PWM. La URL aparece en la TUI;
 Ctrl+W la abre. Ver [la guía y la práctica completa](docs/panel_web.md).
+
+## Contacto
+
+Martín René Vilugrón - mrvilugron@unrn.edu.ar - Ingeniería en Computación UNRN Andina
