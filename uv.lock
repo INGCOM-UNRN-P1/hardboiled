@@ -82,7 +82,7 @@ wheels = [
 [[package]]
 name = "cast-tools-common"
 version = "0.1.1"
-source = { git = "https://github.com/martinvilu/cast-tools-common?rev=ae23dd31b0da7f04637cf8b15e6b83b11c4af30c#ae23dd31b0da7f04637cf8b15e6b83b11c4af30c" }
+source = { git = "https://github.com/INGCOM-UNRN/cast-tools-common?rev=ae23dd31b0da7f04637cf8b15e6b83b11c4af30c#ae23dd31b0da7f04637cf8b15e6b83b11c4af30c" }
 dependencies = [
     { name = "qrcode" },
     { name = "websockets" },
@@ -196,7 +196,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cast-tools-common", git = "https://github.com/martinvilu/cast-tools-common?rev=ae23dd31b0da7f04637cf8b15e6b83b11c4af30c" },
+    { name = "cast-tools-common", git = "https://github.com/INGCOM-UNRN/cast-tools-common?rev=ae23dd31b0da7f04637cf8b15e6b83b11c4af30c" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pyelftools", specifier = ">=0.33" },
     { name = "textual", specifier = ">=8.2.8" },
